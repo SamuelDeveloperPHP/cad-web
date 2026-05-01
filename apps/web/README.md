@@ -1,5 +1,21 @@
 # apps/web
 
-Aplicacao React + TypeScript + Vite do editor CAD-WEB.
+MVP navegavel do editor CAD-WEB.
 
-Este app deve orquestrar a interface do usuario e consumir os pacotes CAD sem mover logica geometrica para componentes React.
+## Comandos
+
+```powershell
+npm install
+npm run dev
+```
+
+## Recursos do MVP
+
+- Canvas central com grid.
+- Zoom com scroll.
+- Pan com botao do meio ou ferramenta Pan.
+- Ferramenta Line com preview.
+- Select basico por clique em linha.
+- Delete para apagar selecao.
+- Exportacao e importacao JSON.
+- Salvamento temporario em `localStorage`.
