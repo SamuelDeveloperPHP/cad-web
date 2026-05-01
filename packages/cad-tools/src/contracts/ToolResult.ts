@@ -1,13 +1,7 @@
-import type { CadEntity } from "@cad-web/cad-core";
+import type { CadCommand, CadEntity } from "@cad-web/cad-core";
 import type { Point2D } from "@cad-web/cad-geometry";
 
-export type CadCommand = Readonly<{
-  // O pacote declara um contrato minimo ate o cad-core expor a interface oficial de comandos.
-  id: string;
-  type: string;
-  description: string;
-  payload?: unknown;
-}>;
+export type { CadCommand };
 
 export type SelectionBoxMode = "window" | "crossing";
 

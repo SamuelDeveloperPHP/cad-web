@@ -33,7 +33,11 @@ export function CadEditor() {
     <section className="cad-editor">
       <CadToolbar
         activeTool={cad.activeTool}
+        canUndo={cad.canUndo}
+        canRedo={cad.canRedo}
         onToolChange={cad.setActiveTool}
+        onUndo={cad.undo}
+        onRedo={cad.redo}
         onClear={cad.clearDocument}
         onExport={() => downloadCadDocument(cad.document)}
         onImport={handleImportClick}
