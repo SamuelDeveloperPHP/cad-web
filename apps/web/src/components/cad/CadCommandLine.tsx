@@ -20,7 +20,7 @@ export function CadCommandLine({ onSubmit }: CadCommandLineProps) {
       <input
         id="cad-command"
         value={value}
-        placeholder="line, select, pan, clear..."
+        placeholder="line, select, erase, pan, clear..."
         onChange={(event) => setValue(event.currentTarget.value)}
       />
     </form>

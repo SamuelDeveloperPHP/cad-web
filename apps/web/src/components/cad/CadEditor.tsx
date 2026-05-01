@@ -5,6 +5,7 @@ import { CadStatusBar } from "./CadStatusBar";
 import { CadToolbar } from "./CadToolbar";
 import { useCadStore } from "../../state/useCadStore";
 import { downloadCadDocument, readCadDocumentFile } from "../../services/cadJsonExport";
+import { createToolKeyboardEvent } from "../../tools/toolEvents";
 
 export function CadEditor() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -16,19 +17,7 @@ export function CadEditor() {
         return;
       }
 
-      if (event.key === "Delete") {
-        cad.eraseSelection();
-        return;
-      }
-
-      if (event.key === "Escape") {
-        cad.cancelInteraction();
-        return;
-      }
-
-      if (event.key.toLowerCase() === "l") {
-        cad.setActiveTool("line");
-      }
+      cad.dispatchKeyDown(createToolKeyboardEvent(event));
     };
 
     window.addEventListener("keydown", handleKeyDown);

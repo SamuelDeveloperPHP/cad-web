@@ -1,5 +1,4 @@
 import type { Point2D } from "@cad-web/cad-geometry";
-import { distancePointToSegment } from "@cad-web/cad-geometry";
 import {
   configureCanvasForDevicePixelRatio,
   renderDocument2D,
@@ -16,6 +15,7 @@ import {
   type PointerEvent as ReactPointerEvent
 } from "react";
 import type { CadStore } from "../../state/useCadStore";
+import { createToolPointerEvent } from "../../tools/toolEvents";
 
 type CadCanvasProps = Readonly<{
   cad: CadStore;
@@ -64,7 +64,7 @@ export function CadCanvas({ cad }: CadCanvasProps) {
     renderGrid2D(context, cad.viewport, screenSize);
     renderDocument2D(context, cad.document, cad.viewport);
     renderSelectedEntities(context, cad);
-    renderLinePreview(context, cad);
+    renderPreview(context, cad);
   }, [cad, screenSize]);
 
   const toScreenPoint = (event: ReactMouseEvent<HTMLCanvasElement>): Point2D => {
@@ -97,14 +97,18 @@ export function CadCanvas({ cad }: CadCanvasProps) {
       return;
     }
 
-    if (cad.activeTool === "line") {
-      cad.handleLineClick(worldPoint);
-      return;
-    }
-
-    if (cad.activeTool === "select") {
-      cad.selectEntity(findNearestLineId(worldPoint, cad));
-    }
+    cad.dispatchPointerDown(
+      createToolPointerEvent({
+        worldPoint,
+        screenPoint,
+        button: event.button,
+        pointerId: event.pointerId,
+        shiftKey: event.shiftKey,
+        ctrlKey: event.ctrlKey,
+        altKey: event.altKey,
+        metaKey: event.metaKey
+      })
+    );
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -123,9 +127,18 @@ export function CadCanvas({ cad }: CadCanvasProps) {
       return;
     }
 
-    if (cad.activeTool === "line") {
-      cad.setLinePreview(worldPoint);
-    }
+    cad.dispatchPointerMove(
+      createToolPointerEvent({
+        worldPoint,
+        screenPoint,
+        button: event.button,
+        pointerId: event.pointerId,
+        shiftKey: event.shiftKey,
+        ctrlKey: event.ctrlKey,
+        altKey: event.altKey,
+        metaKey: event.metaKey
+      })
+    );
   };
 
   return (
@@ -136,7 +149,22 @@ export function CadCanvas({ cad }: CadCanvasProps) {
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={(event) => {
+          const screenPoint = toScreenPoint(event);
+          const worldPoint = screenToWorld(screenPoint, cad.viewport);
+
           panStateRef.current = null;
+          cad.dispatchPointerUp(
+            createToolPointerEvent({
+              worldPoint,
+              screenPoint,
+              button: event.button,
+              pointerId: event.pointerId,
+              shiftKey: event.shiftKey,
+              ctrlKey: event.ctrlKey,
+              altKey: event.altKey,
+              metaKey: event.metaKey
+            })
+          );
           event.currentTarget.releasePointerCapture(event.pointerId);
         }}
         onWheel={(event) => {
@@ -149,27 +177,6 @@ export function CadCanvas({ cad }: CadCanvasProps) {
       />
     </div>
   );
-}
-
-function findNearestLineId(worldPoint: Point2D, cad: CadStore): string | null {
-  const toleranceWorld = 8 / cad.viewport.scale;
-  let nearestId: string | null = null;
-  let nearestDistance = Number.POSITIVE_INFINITY;
-
-  for (const entity of cad.document.entities) {
-    if (entity.type !== "line") {
-      continue;
-    }
-
-    const candidateDistance = distancePointToSegment(worldPoint, entity.start, entity.end);
-
-    if (candidateDistance <= toleranceWorld && candidateDistance < nearestDistance) {
-      nearestDistance = candidateDistance;
-      nearestId = entity.id;
-    }
-  }
-
-  return nearestId;
 }
 
 function renderSelectedEntities(context: CanvasRenderingContext2D, cad: CadStore): void {
@@ -194,13 +201,24 @@ function renderSelectedEntities(context: CanvasRenderingContext2D, cad: CadStore
   context.restore();
 }
 
-function renderLinePreview(context: CanvasRenderingContext2D, cad: CadStore): void {
-  if (cad.lineDraft === null) {
+function renderPreview(context: CanvasRenderingContext2D, cad: CadStore): void {
+  if (cad.preview === null) {
     return;
   }
 
-  const start = worldToScreen(cad.lineDraft.start, cad.viewport);
-  const end = worldToScreen(cad.lineDraft.current, cad.viewport);
+  if (cad.preview.type === "rubberBand") {
+    renderRubberBandPreview(context, cad, cad.preview.from, cad.preview.to);
+  }
+}
+
+function renderRubberBandPreview(
+  context: CanvasRenderingContext2D,
+  cad: CadStore,
+  from: Point2D,
+  to: Point2D
+): void {
+  const start = worldToScreen(from, cad.viewport);
+  const end = worldToScreen(to, cad.viewport);
 
   context.save();
   context.strokeStyle = "#f59e0b";
