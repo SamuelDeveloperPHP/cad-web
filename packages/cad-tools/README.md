@@ -26,6 +26,7 @@ src/
     LineTool.ts
   modify/
     EraseTool.ts
+    MoveTool.ts
   index.ts
 tests/
   CommandRegistry.test.ts
@@ -33,6 +34,7 @@ tests/
   SelectTool.test.ts
   LineTool.test.ts
   EraseTool.test.ts
+  MoveTool.test.ts
 ```
 
 ## Decisoes
@@ -45,4 +47,4 @@ tests/
 
 ## Proxima Etapa
 
-Integrar `SelectTool`, `EraseTool` e `LineTool` no `apps/web`, substituindo os adaptadores temporarios do MVP por ferramentas reais do pacote.
+Integrar os proximos comandos de modificacao (`RotateTool` e `ScaleTool`) mantendo previews como dados e comandos como saida.

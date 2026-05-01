@@ -36,3 +36,18 @@ export function deleteEntitiesCommand(entityIds: ReadonlyArray<EntityId>): CadCo
     } satisfies DeleteEntitiesCommandPayload
   };
 }
+
+export function moveEntitiesCommand(
+  entityIds: ReadonlyArray<EntityId>,
+  displacement: Point2D
+): CadCommand {
+  return {
+    id: `cmd_move_${entityIds.join("_")}`,
+    type: "MoveEntitiesCommand",
+    description: "Moves selected CAD entities.",
+    payload: {
+      entityIds,
+      displacement
+    } satisfies MoveEntitiesCommandPayload
+  };
+}
