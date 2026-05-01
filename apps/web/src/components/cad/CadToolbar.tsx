@@ -2,7 +2,11 @@ import type { ActiveCadTool } from "../../state/useCadStore";
 
 type CadToolbarProps = Readonly<{
   activeTool: ActiveCadTool;
+  canUndo: boolean;
+  canRedo: boolean;
   onToolChange(tool: ActiveCadTool): void;
+  onUndo(): void;
+  onRedo(): void;
   onClear(): void;
   onExport(): void;
   onImport(): void;
@@ -29,6 +33,13 @@ export function CadToolbar(props: CadToolbarProps) {
           {tool.label}
         </button>
       ))}
+      <div className="toolbar-separator" />
+      <button className="tool-button" type="button" onClick={props.onUndo} disabled={!props.canUndo}>
+        Undo
+      </button>
+      <button className="tool-button" type="button" onClick={props.onRedo} disabled={!props.canRedo}>
+        Redo
+      </button>
       <div className="toolbar-separator" />
       <button className="tool-button danger" type="button" onClick={props.onClear}>
         Clear

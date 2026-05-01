@@ -82,6 +82,12 @@ input {
   background: #303437;
 }
 
+.tool-button:disabled {
+  color: #737373;
+  cursor: not-allowed;
+  background: #202123;
+}
+
 .tool-button.active {
   border-color: #22c55e;
   color: #dcfce7;

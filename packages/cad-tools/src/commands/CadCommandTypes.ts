@@ -1,4 +1,10 @@
-import type { CadEntity, EntityId } from "@cad-web/cad-core";
+import {
+  CreateEntityCommand,
+  DeleteEntitiesCommand,
+  MoveEntitiesCommand,
+  type CadEntity,
+  type EntityId
+} from "@cad-web/cad-core";
 import type { Point2D } from "@cad-web/cad-geometry";
 import type { CadCommand } from "../contracts/ToolResult";
 
@@ -16,38 +22,16 @@ export type MoveEntitiesCommandPayload = Readonly<{
 }>;
 
 export function createEntityCommand(entity: CadEntity): CadCommand {
-  return {
-    id: `cmd_create_${entity.id}`,
-    type: "CreateEntityCommand",
-    description: "Creates CAD entity.",
-    payload: {
-      entity
-    } satisfies CreateEntityCommandPayload
-  };
+  return new CreateEntityCommand(entity);
 }
 
 export function deleteEntitiesCommand(entityIds: ReadonlyArray<EntityId>): CadCommand {
-  return {
-    id: `cmd_delete_${entityIds.join("_")}`,
-    type: "DeleteEntitiesCommand",
-    description: "Deletes selected CAD entities.",
-    payload: {
-      entityIds
-    } satisfies DeleteEntitiesCommandPayload
-  };
+  return new DeleteEntitiesCommand(entityIds);
 }
 
 export function moveEntitiesCommand(
   entityIds: ReadonlyArray<EntityId>,
   displacement: Point2D
 ): CadCommand {
-  return {
-    id: `cmd_move_${entityIds.join("_")}`,
-    type: "MoveEntitiesCommand",
-    description: "Moves selected CAD entities.",
-    payload: {
-      entityIds,
-      displacement
-    } satisfies MoveEntitiesCommandPayload
-  };
+  return new MoveEntitiesCommand(entityIds, displacement);
 }

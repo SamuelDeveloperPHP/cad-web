@@ -27,7 +27,7 @@ describe("EraseTool", () => {
     expect(result.type).toBe("command");
     expect(context.commands).toHaveLength(1);
     expect(context.commands[0]?.type).toBe("DeleteEntitiesCommand");
-    expect(context.commands[0]?.payload).toEqual({
+    expect(context.commands[0]).toMatchObject({
       entityIds: ["line_001"]
     });
   });
