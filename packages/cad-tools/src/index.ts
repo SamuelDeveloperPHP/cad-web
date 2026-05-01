@@ -7,6 +7,7 @@ export * from "./contracts/ToolEvent";
 export * from "./contracts/ToolResult";
 export * from "./draw/LineTool";
 export * from "./modify/EraseTool";
+export * from "./modify/MoveTool";
 export * from "./registry/ToolRegistry";
 export * from "./selection/SelectTool";
 export * from "./selection/SelectionBox";
