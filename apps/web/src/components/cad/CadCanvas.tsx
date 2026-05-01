@@ -209,6 +209,10 @@ function renderPreview(context: CanvasRenderingContext2D, cad: CadStore): void {
   if (cad.preview.type === "rubberBand") {
     renderRubberBandPreview(context, cad, cad.preview.from, cad.preview.to);
   }
+
+  if (cad.preview.type === "ghostEntities") {
+    renderGhostEntitiesPreview(context, cad, cad.preview.entities);
+  }
 }
 
 function renderRubberBandPreview(
@@ -228,5 +232,34 @@ function renderRubberBandPreview(
   context.moveTo(start.x, start.y);
   context.lineTo(end.x, end.y);
   context.stroke();
+  context.restore();
+}
+
+function renderGhostEntitiesPreview(
+  context: CanvasRenderingContext2D,
+  cad: CadStore,
+  entities: CadStore["document"]["entities"]
+): void {
+  context.save();
+  context.strokeStyle = "#f59e0b";
+  context.lineWidth = 1.5;
+  context.globalAlpha = 0.65;
+  context.setLineDash([10, 6]);
+
+  // O canvas desenha apenas o preview recebido; a regra de deslocamento permanece no cad-tools.
+  for (const entity of entities) {
+    if (entity.type !== "line") {
+      continue;
+    }
+
+    const start = worldToScreen(entity.start, cad.viewport);
+    const end = worldToScreen(entity.end, cad.viewport);
+
+    context.beginPath();
+    context.moveTo(start.x, start.y);
+    context.lineTo(end.x, end.y);
+    context.stroke();
+  }
+
   context.restore();
 }

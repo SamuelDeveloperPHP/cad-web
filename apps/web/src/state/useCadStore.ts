@@ -12,7 +12,7 @@ import {
 import { applyToolCommand } from "../tools/toolCommandAdapter";
 import { createWebToolRegistry } from "../tools/toolRegistry";
 
-export type ActiveCadTool = "select" | "line" | "erase" | "pan";
+export type ActiveCadTool = "select" | "line" | "move" | "erase" | "pan";
 
 export type CadStore = Readonly<{
   document: CadDocument;
@@ -165,6 +165,11 @@ export function useCadStore(): CadStore {
         return;
       }
 
+      if (event.key.toLowerCase() === "m") {
+        setActiveTool("move");
+        return;
+      }
+
       dispatchToActiveTool((toolId, context) => toolRegistry.resolve(toolId)?.onKeyDown(event, context) ?? { type: "none" });
     },
     [dispatchToActiveTool, runEraseTool, setActiveTool, toolRegistry]
@@ -222,7 +227,7 @@ export function useCadStore(): CadStore {
         return;
       }
 
-      if (resolvedTool?.id === "line" || resolvedTool?.id === "select") {
+      if (resolvedTool?.id === "line" || resolvedTool?.id === "select" || resolvedTool?.id === "move") {
         setActiveTool(resolvedTool.id);
       }
     },
