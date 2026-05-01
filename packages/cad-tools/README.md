@@ -20,10 +20,19 @@ src/
     CommandRegistry.ts
   registry/
     ToolRegistry.ts
+  selection/
+    SelectTool.ts
+  draw/
+    LineTool.ts
+  modify/
+    EraseTool.ts
   index.ts
 tests/
   CommandRegistry.test.ts
   ToolRegistry.test.ts
+  SelectTool.test.ts
+  LineTool.test.ts
+  EraseTool.test.ts
 ```
 
 ## Decisoes
@@ -36,4 +45,4 @@ tests/
 
 ## Proxima Etapa
 
-Implementar `SelectTool`, `EraseTool` e `LineTool` com testes unitarios antes das ferramentas de modificacao.
+Integrar `SelectTool`, `EraseTool` e `LineTool` no `apps/web`, substituindo os adaptadores temporarios do MVP por ferramentas reais do pacote.
