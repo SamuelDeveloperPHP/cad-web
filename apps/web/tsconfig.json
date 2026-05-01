@@ -1,0 +1,34 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "jsx": "react-jsx",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "vite/client"
+    ],
+    "outDir": "dist-types",
+    "rootDir": "src"
+  },
+  "references": [
+    {
+      "path": "../../packages/cad-core"
+    },
+    {
+      "path": "../../packages/cad-geometry"
+    },
+    {
+      "path": "../../packages/cad-renderer"
+    },
+    {
+      "path": "../../packages/cad-tools"
+    }
+  ],
+  "include": [
+    "src"
+  ]
+}
