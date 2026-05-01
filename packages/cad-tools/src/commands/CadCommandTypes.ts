@@ -2,6 +2,7 @@ import {
   CreateEntityCommand,
   DeleteEntitiesCommand,
   MoveEntitiesCommand,
+  RotateEntitiesCommand,
   type CadEntity,
   type EntityId
 } from "@cad-web/cad-core";
@@ -34,4 +35,12 @@ export function moveEntitiesCommand(
   displacement: Point2D
 ): CadCommand {
   return new MoveEntitiesCommand(entityIds, displacement);
+}
+
+export function rotateEntitiesCommand(
+  entityIds: ReadonlyArray<EntityId>,
+  pivot: Point2D,
+  angleRadians: number
+): CadCommand {
+  return new RotateEntitiesCommand(entityIds, pivot, angleRadians);
 }

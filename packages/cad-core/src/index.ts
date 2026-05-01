@@ -1,4 +1,4 @@
-import { addVector, type Point2D } from "@cad-web/cad-geometry";
+import { addVector, rotationMatrix, transformPoint, type Point2D } from "@cad-web/cad-geometry";
 
 export type EntityId = string;
 
@@ -11,6 +11,31 @@ export type LineEntity = BaseEntity & Readonly<{
   type: "line";
   start: Point2D;
   end: Point2D;
+}>;
+
+export type RectangleEntity = BaseEntity & Readonly<{
+  type: "rectangle";
+  min: Point2D;
+  max: Point2D;
+}>;
+
+export type CircleEntity = BaseEntity & Readonly<{
+  type: "circle";
+  center: Point2D;
+  radius: number;
+}>;
+
+export type ArcEntity = BaseEntity & Readonly<{
+  type: "arc";
+  center: Point2D;
+  radius: number;
+  startAngle: number;
+  endAngle: number;
+}>;
+
+export type PolylineEntity = BaseEntity & Readonly<{
+  type: "polyline";
+  vertices: ReadonlyArray<Point2D>;
 }>;
 
 export type CadEntity = LineEntity;
@@ -188,6 +213,29 @@ export class MoveEntitiesCommand implements CadCommand {
   }
 }
 
+export class RotateEntitiesCommand implements CadCommand {
+  readonly type = "RotateEntitiesCommand";
+  readonly description = "Rotates selected CAD entities.";
+
+  constructor(
+    readonly entityIds: ReadonlyArray<EntityId>,
+    readonly pivot: Point2D,
+    readonly angleRadians: number
+  ) {}
+
+  get id(): string {
+    return `cmd_rotate_${this.entityIds.join("_")}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    return rotateEntities(document, this.entityIds, this.pivot, this.angleRadians);
+  }
+
+  undo(document: CadDocument): CadDocument {
+    return rotateEntities(document, this.entityIds, this.pivot, -this.angleRadians);
+  }
+}
+
 export class ClearDocumentCommand implements CadCommand {
   readonly id = "cmd_clear_document";
   readonly type = "ClearDocumentCommand";
@@ -235,5 +283,35 @@ function moveEntity(entity: CadEntity, displacement: Point2D): CadEntity {
     };
   }
 
+  return entity;
+}
+
+function rotateEntities(
+  document: CadDocument,
+  entityIds: ReadonlyArray<EntityId>,
+  pivot: Point2D,
+  angleRadians: number
+): CadDocument {
+  const selectedIds = new Set(entityIds);
+
+  return {
+    ...document,
+    entities: document.entities.map((entity) =>
+      selectedIds.has(entity.id) ? rotateEntity(entity, pivot, angleRadians) : entity
+    )
+  };
+}
+
+export function rotateEntity(entity: CadEntity, pivot: Point2D, angleRadians: number): CadEntity {
+  if (entity.type === "line") {
+    const matrix = rotationMatrix(angleRadians, pivot);
+    return {
+      ...entity,
+      start: transformPoint(entity.start, matrix),
+      end: transformPoint(entity.end, matrix)
+    };
+  }
+  // Para futuras entidades como rectangle, circle, arc e polyline, faríamos a transformação aqui.
+  // CircleEntity rotacionaria apenas o centro (o raio não muda).
   return entity;
 }
