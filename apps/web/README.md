@@ -6,7 +6,7 @@ MVP navegavel do editor CAD-WEB.
 
 ```powershell
 npm install
-npm run dev --workspace @cad-web/web
+npm run dev
 ```
 
 ## Recursos do MVP
