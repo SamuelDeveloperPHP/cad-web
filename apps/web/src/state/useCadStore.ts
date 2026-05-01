@@ -1,4 +1,9 @@
-import type { CadDocument } from "@cad-web/cad-core";
+import {
+  ClearDocumentCommand,
+  CommandHistory,
+  type CadCommand,
+  type CadDocument
+} from "@cad-web/cad-core";
 import type { Point2D } from "@cad-web/cad-geometry";
 import { createViewport, panViewport, type Viewport } from "@cad-web/cad-renderer";
 import type { CadPreview, ToolContext, ToolKeyboardEvent, ToolPointerEvent, ToolResult } from "@cad-web/cad-tools";
@@ -9,7 +14,6 @@ import {
   loadStoredDocument,
   storeDocument
 } from "../services/cadDocumentStorage";
-import { applyToolCommand } from "../tools/toolCommandAdapter";
 import { createWebToolRegistry } from "../tools/toolRegistry";
 
 export type ActiveCadTool = "select" | "line" | "move" | "erase" | "pan";
@@ -21,6 +25,8 @@ export type CadStore = Readonly<{
   mouseWorld: Point2D;
   selectedEntityIds: ReadonlyArray<string>;
   preview: CadPreview | null;
+  canUndo: boolean;
+  canRedo: boolean;
   setActiveTool(tool: ActiveCadTool): void;
   setViewport(viewport: Viewport): void;
   setMouseWorld(point: Point2D): void;
@@ -33,24 +39,42 @@ export type CadStore = Readonly<{
   importDocument(document: CadDocument): void;
   cancelInteraction(): void;
   runCommandLine(command: string): void;
+  undo(): void;
+  redo(): void;
 }>;
 
 export function useCadStore(): CadStore {
   const toolRegistry = useMemo(() => createWebToolRegistry(), []);
   const [document, setDocument] = useState<CadDocument>(() => loadStoredDocument() ?? createInitialDocument());
+  const [history] = useState(() => new CommandHistory(document));
   const [viewport, setViewport] = useState<Viewport>(() => createViewport({ x: -50, y: -30 }, 8));
   const [activeTool, setActiveToolState] = useState<ActiveCadTool>("select");
   const [mouseWorld, setMouseWorld] = useState<Point2D>({ x: 0, y: 0 });
   const [selectedEntityIds, setSelectedEntityIds] = useState<ReadonlyArray<string>>([]);
   const [preview, setPreview] = useState<CadPreview | null>(null);
+  const [historyAvailability, setHistoryAvailability] = useState(() => ({
+    canUndo: history.canUndo,
+    canRedo: history.canRedo
+  }));
 
   useEffect(() => {
     storeDocument(document);
   }, [document]);
 
-  const applyCommand = useCallback((command: Parameters<typeof applyToolCommand>[1]) => {
-    setDocument((currentDocument) => applyToolCommand(currentDocument, command));
-  }, []);
+  const publishDocument = useCallback((nextDocument: CadDocument) => {
+    setDocument(nextDocument);
+    setHistoryAvailability({
+      canUndo: history.canUndo,
+      canRedo: history.canRedo
+    });
+  }, [history]);
+
+  const applyCommand = useCallback(
+    (command: CadCommand) => {
+      publishDocument(history.execute(command));
+    },
+    [history, publishDocument]
+  );
 
   const createToolContext = useCallback(
     (): ToolContext => ({
@@ -88,6 +112,16 @@ export function useCadStore(): CadStore {
       setPreview(null);
     }
   }, []);
+
+  const undo = useCallback(() => {
+    publishDocument(history.undo());
+    setPreview(null);
+  }, [history, publishDocument]);
+
+  const redo = useCallback(() => {
+    publishDocument(history.redo());
+    setPreview(null);
+  }, [history, publishDocument]);
 
   const setActiveTool = useCallback(
     (tool: ActiveCadTool) => {
@@ -160,6 +194,16 @@ export function useCadStore(): CadStore {
         return;
       }
 
+      if (event.ctrlKey && event.key.toLowerCase() === "z") {
+        undo();
+        return;
+      }
+
+      if (event.ctrlKey && event.key.toLowerCase() === "y") {
+        redo();
+        return;
+      }
+
       if (event.key.toLowerCase() === "l") {
         setActiveTool("line");
         return;
@@ -172,21 +216,22 @@ export function useCadStore(): CadStore {
 
       dispatchToActiveTool((toolId, context) => toolRegistry.resolve(toolId)?.onKeyDown(event, context) ?? { type: "none" });
     },
-    [dispatchToActiveTool, runEraseTool, setActiveTool, toolRegistry]
+    [dispatchToActiveTool, redo, runEraseTool, setActiveTool, toolRegistry, undo]
   );
 
   const clearDocument = useCallback(() => {
-    setDocument(createInitialDocument());
+    applyCommand(new ClearDocumentCommand());
     setSelectedEntityIds([]);
     setPreview(null);
     localStorage.removeItem(CAD_DOCUMENT_STORAGE_KEY);
-  }, []);
+  }, [applyCommand]);
 
   const importDocument = useCallback((nextDocument: CadDocument) => {
-    setDocument(nextDocument);
+    history.replaceDocument(nextDocument);
+    publishDocument(nextDocument);
     setSelectedEntityIds([]);
     setPreview(null);
-  }, []);
+  }, [history, publishDocument]);
 
   const cancelInteraction = useCallback(() => {
     const context = createToolContext();
@@ -206,6 +251,16 @@ export function useCadStore(): CadStore {
 
       if (normalizedCommand === "clear") {
         clearDocument();
+        return;
+      }
+
+      if (normalizedCommand === "u" || normalizedCommand === "undo") {
+        undo();
+        return;
+      }
+
+      if (normalizedCommand === "redo") {
+        redo();
         return;
       }
 
@@ -231,7 +286,7 @@ export function useCadStore(): CadStore {
         setActiveTool(resolvedTool.id);
       }
     },
-    [clearDocument, runEraseTool, setActiveTool, toolRegistry]
+    [clearDocument, redo, runEraseTool, setActiveTool, toolRegistry, undo]
   );
 
   return useMemo(
@@ -242,6 +297,8 @@ export function useCadStore(): CadStore {
       mouseWorld,
       selectedEntityIds,
       preview,
+      canUndo: historyAvailability.canUndo,
+      canRedo: historyAvailability.canRedo,
       setActiveTool,
       setViewport,
       setMouseWorld,
@@ -253,7 +310,9 @@ export function useCadStore(): CadStore {
       clearDocument,
       importDocument,
       cancelInteraction,
-      runCommandLine
+      runCommandLine,
+      undo,
+      redo
     }),
     [
       activeTool,
@@ -264,6 +323,8 @@ export function useCadStore(): CadStore {
       dispatchPointerMove,
       dispatchPointerUp,
       document,
+      historyAvailability.canRedo,
+      historyAvailability.canUndo,
       importDocument,
       mouseWorld,
       panByScreenDelta,
@@ -271,6 +332,8 @@ export function useCadStore(): CadStore {
       runCommandLine,
       selectedEntityIds,
       setActiveTool,
+      undo,
+      redo,
       viewport
     ]
   );

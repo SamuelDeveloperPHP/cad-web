@@ -32,7 +32,7 @@ describe("LineTool", () => {
     expect(result.type).toBe("command");
     expect(context.commands).toHaveLength(1);
     expect(context.commands[0]?.type).toBe("CreateEntityCommand");
-    expect(context.commands[0]?.payload).toMatchObject({
+    expect(context.commands[0]).toMatchObject({
       entity: {
         layerId: "default",
         type: "line",
