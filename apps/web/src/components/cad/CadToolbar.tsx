@@ -16,6 +16,7 @@ const tools: ReadonlyArray<Readonly<{ id: ActiveCadTool; label: string }>> = [
   { id: "select", label: "Select" },
   { id: "line", label: "Line" },
   { id: "move", label: "Move" },
+  { id: "rotate", label: "Rotate" },
   { id: "erase", label: "Erase" },
   { id: "pan", label: "Pan" }
 ];
