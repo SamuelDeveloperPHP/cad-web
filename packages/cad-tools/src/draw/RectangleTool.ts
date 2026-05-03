@@ -3,6 +3,7 @@ import { createEntityCommand } from "../commands/CadCommandTypes";
 import type { CadTool } from "../contracts/CadTool";
 import type { ToolContext } from "../contracts/ToolContext";
 import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent";
+import type { ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 
 /**
