@@ -1,6 +1,6 @@
 import type { CadDocument, CadEntity, CircleEntity, LineEntity, RectangleEntity } from "@cad-web/cad-core";
 import type { CadJsonExportOptions } from "./json";
-import { CAD_IO_APPLICATION, CAD_IO_SCHEMA_VERSION, validateCadDocument } from "./json";
+import { CAD_IO_APPLICATION, CAD_IO_SCHEMA_VERSION, CadIoValidationError, validateCadDocument } from "./json";
 
 export type SvgExportOptions = CadJsonExportOptions &
   Readonly<{
@@ -16,8 +16,42 @@ type SvgBounds = Readonly<{
   maxY: number;
 }>;
 
+type ParsedSvgElement = Readonly<{
+  tagName: "line" | "rect" | "circle";
+  attributes: ReadonlyMap<string, string>;
+  sourceIndex: number;
+}>;
+
 export function serializeCadDocumentToSvg(document: CadDocument, options: SvgExportOptions = {}): string {
   return Array.from(createSvgExportChunks(document, options)).join("");
+}
+
+export function parseSvgDocument(source: string): CadDocument {
+  if (!/<svg[\s>]/i.test(source)) {
+    throw new CadIoValidationError("SVG source must contain an svg root element", "$");
+  }
+
+  const sanitizedSource = removeUnsafeSvgBlocks(source);
+  const entities: CadEntity[] = [];
+
+  for (const element of iterateSupportedSvgElements(sanitizedSource)) {
+    const entity = mapSvgElementToEntity(element);
+
+    if (entity !== null) {
+      entities.push(entity);
+    }
+  }
+
+  const document: CadDocument = {
+    schemaVersion: CAD_IO_SCHEMA_VERSION,
+    id: getSvgDocumentId(sanitizedSource),
+    units: "mm",
+    entities
+  };
+
+  validateCadDocument(document);
+
+  return document;
 }
 
 export function* createSvgExportChunks(
@@ -97,6 +131,226 @@ function serializeCircleToSvg(entity: CircleEntity, precision: number): string {
     `cy="${formatNumber(entity.center.y, precision)}"`,
     `r="${formatNumber(entity.radius, precision)}" />`
   ].join(" ");
+}
+
+function removeUnsafeSvgBlocks(source: string): string {
+  // A importacao ignora blocos executaveis antes de procurar entidades suportadas.
+  return source
+    .replace(/<script\b[\s\S]*?<\/script>/gi, "")
+    .replace(/<foreignObject\b[\s\S]*?<\/foreignObject>/gi, "");
+}
+
+function* iterateSupportedSvgElements(source: string): Iterable<ParsedSvgElement> {
+  const elementPattern = /<(line|rect|circle)\b([^>]*)\/?>/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = elementPattern.exec(source)) !== null) {
+    const tagName = match[1];
+    const attributeSource = match[2];
+
+    if (!isSupportedSvgTagName(tagName) || attributeSource === undefined) {
+      continue;
+    }
+
+    yield {
+      tagName,
+      attributes: parseSvgAttributes(attributeSource),
+      sourceIndex: match.index
+    };
+  }
+}
+
+function parseSvgAttributes(source: string): ReadonlyMap<string, string> {
+  const attributes = new Map<string, string>();
+  const attributePattern = /([:\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = attributePattern.exec(source)) !== null) {
+    const rawName = match[1];
+    const value = match[2] ?? match[3] ?? match[4];
+
+    if (rawName === undefined || value === undefined) {
+      continue;
+    }
+
+    const name = rawName.toLowerCase();
+
+    if (name.startsWith("on") || name === "href" || name === "xlink:href") {
+      continue;
+    }
+
+    attributes.set(name, decodeSvgAttribute(value));
+  }
+
+  return attributes;
+}
+
+function mapSvgElementToEntity(element: ParsedSvgElement): CadEntity | null {
+  if (element.tagName === "line") {
+    return mapSvgLineToEntity(element);
+  }
+
+  if (element.tagName === "rect") {
+    return mapSvgRectToEntity(element);
+  }
+
+  return mapSvgCircleToEntity(element);
+}
+
+function mapSvgLineToEntity(element: ParsedSvgElement): LineEntity | null {
+  const x1 = readRequiredNumber(element, "x1");
+  const y1 = readRequiredNumber(element, "y1");
+  const x2 = readRequiredNumber(element, "x2");
+  const y2 = readRequiredNumber(element, "y2");
+
+  if (x1 === null || y1 === null || x2 === null || y2 === null) {
+    return null;
+  }
+
+  return {
+    id: readSvgEntityId(element, "line"),
+    layerId: readSvgLayerId(element),
+    type: "line",
+    start: { x: x1, y: y1 },
+    end: { x: x2, y: y2 }
+  };
+}
+
+function mapSvgRectToEntity(element: ParsedSvgElement): RectangleEntity | null {
+  const width = readRequiredNumber(element, "width");
+  const height = readRequiredNumber(element, "height");
+
+  if (width === null || height === null || width <= 0 || height <= 0) {
+    return null;
+  }
+
+  const x = readOptionalNumber(element, "x", 0);
+  const y = readOptionalNumber(element, "y", 0);
+  const rotation = readSupportedRotation(element, x, y);
+
+  return {
+    id: readSvgEntityId(element, "rect"),
+    layerId: readSvgLayerId(element),
+    type: "rectangle",
+    x,
+    y,
+    width,
+    height,
+    rotation
+  };
+}
+
+function mapSvgCircleToEntity(element: ParsedSvgElement): CircleEntity | null {
+  const radius = readRequiredNumber(element, "r");
+
+  if (radius === null || radius <= 0) {
+    return null;
+  }
+
+  return {
+    id: readSvgEntityId(element, "circle"),
+    layerId: readSvgLayerId(element),
+    type: "circle",
+    center: {
+      x: readOptionalNumber(element, "cx", 0),
+      y: readOptionalNumber(element, "cy", 0)
+    },
+    radius
+  };
+}
+
+function readSvgEntityId(element: ParsedSvgElement, prefix: string): string {
+  return sanitizeSvgIdentifier(element.attributes.get("id")) ?? `${prefix}_${element.sourceIndex}`;
+}
+
+function readSvgLayerId(element: ParsedSvgElement): string {
+  return sanitizeSvgIdentifier(element.attributes.get("data-layer-id")) ?? "default";
+}
+
+function sanitizeSvgIdentifier(value: string | undefined): string | null {
+  const trimmedValue = value?.trim();
+
+  return trimmedValue === undefined || trimmedValue.length === 0 ? null : trimmedValue;
+}
+
+function readRequiredNumber(element: ParsedSvgElement, attributeName: string): number | null {
+  const value = element.attributes.get(attributeName);
+
+  if (value === undefined) {
+    return null;
+  }
+
+  return parseSvgNumber(value);
+}
+
+function readOptionalNumber(element: ParsedSvgElement, attributeName: string, fallback: number): number {
+  const value = element.attributes.get(attributeName);
+
+  if (value === undefined) {
+    return fallback;
+  }
+
+  return parseSvgNumber(value) ?? fallback;
+}
+
+function readSupportedRotation(element: ParsedSvgElement, x: number, y: number): number {
+  const transform = element.attributes.get("transform");
+
+  if (transform === undefined) {
+    return 0;
+  }
+
+  const match = transform.match(/^rotate\(\s*([-+]?\d*\.?\d+(?:e[-+]?\d+)?)(?:[\s,]+([-+]?\d*\.?\d+(?:e[-+]?\d+)?)[\s,]+([-+]?\d*\.?\d+(?:e[-+]?\d+)?))?\s*\)$/i);
+
+  if (match === null || match[1] === undefined) {
+    return 0;
+  }
+
+  const pivotX = match[2] === undefined ? x : parseSvgNumber(match[2]);
+  const pivotY = match[3] === undefined ? y : parseSvgNumber(match[3]);
+
+  if (pivotX === null || pivotY === null || pivotX !== x || pivotY !== y) {
+    return 0;
+  }
+
+  return (Number(match[1]) * Math.PI) / 180;
+}
+
+function parseSvgNumber(value: string): number | null {
+  const match = value.trim().match(/^[-+]?\d*\.?\d+(?:e[-+]?\d+)?/i);
+
+  if (match === null) {
+    return null;
+  }
+
+  const parsedValue = Number(match[0]);
+
+  return Number.isFinite(parsedValue) ? parsedValue : null;
+}
+
+function getSvgDocumentId(source: string): string {
+  const svgOpenTag = source.match(/<svg\b([^>]*)>/i);
+
+  if (svgOpenTag?.[1] === undefined) {
+    return "svg_import";
+  }
+
+  const attributes = parseSvgAttributes(svgOpenTag[1]);
+
+  return sanitizeSvgIdentifier(attributes.get("data-document-id")) ?? sanitizeSvgIdentifier(attributes.get("id")) ?? "svg_import";
+}
+
+function isSupportedSvgTagName(tagName: string | undefined): tagName is ParsedSvgElement["tagName"] {
+  return tagName === "line" || tagName === "rect" || tagName === "circle";
+}
+
+function decodeSvgAttribute(value: string): string {
+  return value
+    .replaceAll("&quot;", "\"")
+    .replaceAll("&apos;", "'")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&amp;", "&");
 }
 
 function calculateDocumentBounds(document: CadDocument): SvgBounds {

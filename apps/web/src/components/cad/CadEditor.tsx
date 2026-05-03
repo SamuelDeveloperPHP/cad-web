@@ -4,11 +4,12 @@ import { CadCommandLine } from "./CadCommandLine";
 import { CadStatusBar } from "./CadStatusBar";
 import { CadToolbar } from "./CadToolbar";
 import { useCadStore } from "../../state/useCadStore";
-import { downloadCadDocument, downloadSvgDocument, readCadDocumentFile } from "../../services/cadJsonExport";
+import { downloadCadDocument, downloadSvgDocument, readCadDocumentFile, readSvgDocumentFile } from "../../services/cadJsonExport";
 import { createToolKeyboardEvent } from "../../tools/toolEvents";
 
 export function CadEditor() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const svgFileInputRef = useRef<HTMLInputElement | null>(null);
   const cad = useCadStore();
 
   useEffect(() => {
@@ -29,6 +30,10 @@ export function CadEditor() {
     fileInputRef.current?.click();
   };
 
+  const handleImportSvgClick = () => {
+    svgFileInputRef.current?.click();
+  };
+
   return (
     <section className="cad-editor">
       <CadToolbar
@@ -44,6 +49,7 @@ export function CadEditor() {
         onExport={() => downloadCadDocument(cad.document)}
         onExportSvg={() => downloadSvgDocument(cad.document)}
         onImport={handleImportClick}
+        onImportSvg={handleImportSvgClick}
       />
       <div className="cad-workspace">
         <CadCanvas cad={cad} />
@@ -70,6 +76,22 @@ export function CadEditor() {
           }
 
           void readCadDocumentFile(file).then(cad.importDocument);
+        }}
+      />
+      <input
+        ref={svgFileInputRef}
+        className="hidden-input"
+        type="file"
+        accept="image/svg+xml,.svg"
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = "";
+
+          if (file === undefined) {
+            return;
+          }
+
+          void readSvgDocumentFile(file).then(cad.importDocument);
         }}
       />
     </section>
