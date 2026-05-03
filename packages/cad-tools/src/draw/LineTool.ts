@@ -6,6 +6,7 @@ import type { ToolContext } from "../contracts/ToolContext";
 import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent";
 import type { ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
+import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
 
 export class LineTool implements CadTool {
   readonly id = "line";
@@ -26,7 +27,7 @@ export class LineTool implements CadTool {
   }
 
   onPointerDown(event: ToolPointerEvent, context: ToolContext): ToolResult {
-    const snappedPoint = context.snapService.findSnap(event.worldPoint, context)?.point ?? event.worldPoint;
+    const snappedPoint = resolveSnappedPoint(event, context);
 
     if (this.startPoint === null) {
       this.startPoint = snappedPoint;
@@ -53,7 +54,7 @@ export class LineTool implements CadTool {
       return TOOL_RESULT_NONE;
     }
 
-    const snappedPoint = context.snapService.findSnap(event.worldPoint, context)?.point ?? event.worldPoint;
+    const snappedPoint = resolveSnappedPoint(event, context);
     this.currentPoint = snappedPoint;
     const preview = {
       type: "rubberBand" as const,

@@ -105,6 +105,38 @@ input {
   background: #3f4549;
 }
 
+.snap-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.snap-control summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  list-style: none;
+}
+
+.snap-control summary::-webkit-details-marker {
+  display: none;
+}
+
+.snap-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  color: #d4d4d4;
+  font-size: 12px;
+}
+
+.snap-option input {
+  width: 14px;
+  height: 14px;
+  accent-color: #22c55e;
+}
+
 .cad-workspace {
   position: relative;
   display: grid;

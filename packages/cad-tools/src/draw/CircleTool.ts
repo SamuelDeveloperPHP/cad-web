@@ -6,6 +6,7 @@ import type { ToolContext } from "../contracts/ToolContext";
 import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent";
 import type { ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
+import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
 
 /**
  * Ferramenta responsável por desenhar círculos.
@@ -29,7 +30,7 @@ export class CircleTool implements CadTool {
   }
 
   onPointerDown(event: ToolPointerEvent, context: ToolContext): ToolResult {
-    const point = context.snapService.findSnap(event.worldPoint, context)?.point ?? event.worldPoint;
+    const point = resolveSnappedPoint(event, context);
 
     if (this.centerPoint === null) {
       this.centerPoint = point;
@@ -43,7 +44,7 @@ export class CircleTool implements CadTool {
   }
 
   onPointerMove(event: ToolPointerEvent, context: ToolContext): ToolResult {
-    const point = context.snapService.findSnap(event.worldPoint, context)?.point ?? event.worldPoint;
+    const point = resolveSnappedPoint(event, context);
     this.currentPoint = point;
 
     if (this.centerPoint === null) {

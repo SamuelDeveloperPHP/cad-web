@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LineTool } from "../src";
+import { LineTool, type SnapService } from "../src";
 import { createKeyboardEvent, createMockToolContext, createPointerEvent } from "./testContext";
 
 describe("LineTool", () => {
@@ -36,6 +36,29 @@ describe("LineTool", () => {
       entity: {
         layerId: "default",
         type: "line",
+        start: { x: 0, y: 0 },
+        end: { x: 10, y: 0 }
+      }
+    });
+  });
+
+  it("uses snapped points when creating the entity", () => {
+    const snapService: SnapService = {
+      findSnap: (event) => ({
+        snapped: true,
+        point: event.worldPoint.x < 5 ? { x: 0, y: 0 } : { x: 10, y: 0 },
+        rawPoint: event.worldPoint
+      })
+    };
+    const tool = new LineTool();
+    const context = createMockToolContext({ snapService });
+
+    tool.onPointerDown(createPointerEvent({ x: 0.4, y: 0.2 }), context);
+    const result = tool.onPointerDown(createPointerEvent({ x: 9.7, y: 0.1 }), context);
+
+    expect(result.type).toBe("command");
+    expect(context.commands[0]).toMatchObject({
+      entity: {
         start: { x: 0, y: 0 },
         end: { x: 10, y: 0 }
       }
