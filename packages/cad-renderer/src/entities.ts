@@ -47,6 +47,13 @@ export function renderDocument2D(
       context.lineTo(sp4.x, sp4.y);
       context.closePath();
       context.stroke();
+    } else if (entity.type === "circle") {
+      const center = worldToScreen(entity.center, viewport);
+      const radiusScreen = entity.radius * viewport.scale;
+
+      context.beginPath();
+      context.arc(center.x, center.y, radiusScreen, 0, Math.PI * 2);
+      context.stroke();
     }
   }
 
