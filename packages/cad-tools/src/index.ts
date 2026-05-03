@@ -6,6 +6,7 @@ export * from "./contracts/ToolContext";
 export * from "./contracts/ToolEvent";
 export * from "./contracts/ToolResult";
 export * from "./draw/LineTool";
+export * from "./draw/RectangleTool";
 export * from "./modify/EraseTool";
 export * from "./modify/MoveTool";
 export * from "./modify/RotateTool";

@@ -15,8 +15,11 @@ export type LineEntity = BaseEntity & Readonly<{
 
 export type RectangleEntity = BaseEntity & Readonly<{
   type: "rectangle";
-  min: Point2D;
-  max: Point2D;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation?: number;
 }>;
 
 export type CircleEntity = BaseEntity & Readonly<{
@@ -38,7 +41,7 @@ export type PolylineEntity = BaseEntity & Readonly<{
   vertices: ReadonlyArray<Point2D>;
 }>;
 
-export type CadEntity = LineEntity;
+export type CadEntity = LineEntity | RectangleEntity;
 
 export type CadDocument = Readonly<{
   schemaVersion: string;
@@ -282,6 +285,14 @@ function moveEntity(entity: CadEntity, displacement: Point2D): CadEntity {
       end: addVector(entity.end, displacement)
     };
   }
+  
+  if (entity.type === "rectangle") {
+    return {
+      ...entity,
+      x: entity.x + displacement.x,
+      y: entity.y + displacement.y
+    };
+  }
 
   return entity;
 }
@@ -311,7 +322,21 @@ export function rotateEntity(entity: CadEntity, pivot: Point2D, angleRadians: nu
       end: transformPoint(entity.end, matrix)
     };
   }
-  // Para futuras entidades como rectangle, circle, arc e polyline, faríamos a transformação aqui.
+
+  if (entity.type === "rectangle") {
+    // Para rotacionar um retângulo sobre um pivô, podemos apenas rotacionar seu (x,y)
+    // e adicionar o ângulo à sua rotação interna.
+    const matrix = rotationMatrix(angleRadians, pivot);
+    const origin = transformPoint({ x: entity.x, y: entity.y }, matrix);
+    return {
+      ...entity,
+      x: origin.x,
+      y: origin.y,
+      rotation: (entity.rotation || 0) + angleRadians
+    };
+  }
+
+  // Para futuras entidades como circle, arc e polyline, faríamos a transformação aqui.
   // CircleEntity rotacionaria apenas o centro (o raio não muda).
   return entity;
 }
