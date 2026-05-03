@@ -1,6 +1,6 @@
-import type { CadDocument } from "@cad-web/cad-core";
+import { getDocumentSpatialIndex, type CadDocument } from "@cad-web/cad-core";
 import { rotationMatrix, transformPoint, type Point2D } from "@cad-web/cad-geometry";
-import { worldToScreen } from "./viewport";
+import { screenToWorld, worldToScreen } from "./viewport";
 import { DEFAULT_RENDER_STYLE, type RenderStyle, type Viewport } from "./types";
 
 export function renderDocument2D(
@@ -12,7 +12,23 @@ export function renderDocument2D(
   context.save();
   applyStrokeStyle(context, style);
 
-  for (const entity of document.entities) {
+  const canvasWidth = context.canvas.width;
+  const canvasHeight = context.canvas.height;
+  
+  const topLeft = screenToWorld({ x: 0, y: 0 }, viewport);
+  const bottomRight = screenToWorld({ x: canvasWidth, y: canvasHeight }, viewport);
+  
+  const viewportBounds = {
+    minX: topLeft.x,
+    minY: topLeft.y,
+    maxX: bottomRight.x,
+    maxY: bottomRight.y
+  };
+
+  const spatialIndex = getDocumentSpatialIndex(document);
+  const visibleEntities = spatialIndex.query(viewportBounds);
+
+  for (const entity of visibleEntities) {
     if (entity.type === "line") {
       const start = worldToScreen(entity.start, viewport);
       const end = worldToScreen(entity.end, viewport);

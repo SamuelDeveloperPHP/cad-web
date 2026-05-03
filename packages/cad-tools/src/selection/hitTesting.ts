@@ -1,4 +1,4 @@
-import type { CadDocument, EntityId } from "@cad-web/cad-core";
+import { getDocumentSpatialIndex, type CadDocument, type EntityId } from "@cad-web/cad-core";
 import { distance, distancePointToSegment, rotationMatrix, transformPoint, type Point2D } from "@cad-web/cad-geometry";
 
 export type HitTestOptions = Readonly<{
@@ -10,7 +10,17 @@ export function findNearestEntityId(document: CadDocument, options: HitTestOptio
   let nearestId: EntityId | null = null;
   let nearestDistance = Number.POSITIVE_INFINITY;
 
-  for (const entity of document.entities) {
+  const searchBox = {
+    minX: options.worldPoint.x - options.toleranceWorld,
+    minY: options.worldPoint.y - options.toleranceWorld,
+    maxX: options.worldPoint.x + options.toleranceWorld,
+    maxY: options.worldPoint.y + options.toleranceWorld
+  };
+
+  const spatialIndex = getDocumentSpatialIndex(document);
+  const candidates = spatialIndex.query(searchBox);
+
+  for (const entity of candidates) {
     let candidateDistance = Number.POSITIVE_INFINITY;
 
     if (entity.type === "line") {

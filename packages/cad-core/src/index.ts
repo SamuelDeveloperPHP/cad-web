@@ -437,3 +437,5 @@ function assertPositiveScaleFactor(factor: number): void {
     throw new Error("Scale factor must be greater than zero.");
   }
 }
+
+export * from "./spatial";

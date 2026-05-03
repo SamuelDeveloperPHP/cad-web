@@ -1,11 +1,13 @@
 import {
   DEFAULT_SNAP_SETTINGS,
   findBestSnap,
+  snapToleranceWorld,
   type Point2D,
   type SnapEntity,
   type SnapResult,
   type SnapSettings
 } from "@cad-web/cad-geometry";
+import { getDocumentSpatialIndex } from "@cad-web/cad-core";
 import type { ToolContext } from "../contracts/ToolContext";
 import type { ToolPointerEvent } from "../contracts/ToolEvent";
 import type { SnapService } from "../contracts/ToolContext";
@@ -14,10 +16,31 @@ export class ObjectSnapService implements SnapService {
   constructor(private readonly settings: SnapSettings = DEFAULT_SNAP_SETTINGS) {}
 
   findSnap(event: ToolPointerEvent, context: ToolContext): SnapResult | null {
+    if (!this.settings.enabled || this.settings.tolerancePx <= 0) {
+      return findBestSnap(
+        event.worldPoint,
+        event.screenPoint,
+        [],
+        this.settings,
+        context.viewport
+      );
+    }
+
+    const tolerance = snapToleranceWorld(this.settings, context.viewport);
+    const searchBox = {
+      minX: event.worldPoint.x - tolerance,
+      minY: event.worldPoint.y - tolerance,
+      maxX: event.worldPoint.x + tolerance,
+      maxY: event.worldPoint.y + tolerance
+    };
+
+    const spatialIndex = getDocumentSpatialIndex(context.document);
+    const candidates = spatialIndex.query(searchBox);
+
     return findBestSnap(
       event.worldPoint,
       event.screenPoint,
-      context.document.entities as ReadonlyArray<SnapEntity>,
+      candidates as ReadonlyArray<SnapEntity>,
       this.settings,
       context.viewport
     );
