@@ -1,5 +1,5 @@
 import type { CadCommand, CadEntity } from "@cad-web/cad-core";
-import type { Point2D } from "@cad-web/cad-geometry";
+import type { Point2D, SnapType } from "@cad-web/cad-geometry";
 
 export type { CadCommand };
 
@@ -24,7 +24,7 @@ export type CadPreview =
   | Readonly<{
       type: "snapMarker";
       point: Point2D;
-      snapType: string;
+      snapType: SnapType;
     }>
   | Readonly<{
       type: "message";

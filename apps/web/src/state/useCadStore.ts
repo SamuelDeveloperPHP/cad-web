@@ -4,9 +4,16 @@ import {
   type CadCommand,
   type CadDocument
 } from "@cad-web/cad-core";
-import type { Point2D } from "@cad-web/cad-geometry";
+import type { Point2D, SnapResult, SnapSettings } from "@cad-web/cad-geometry";
 import { createViewport, panViewport, type Viewport } from "@cad-web/cad-renderer";
-import type { CadPreview, ToolContext, ToolKeyboardEvent, ToolPointerEvent, ToolResult } from "@cad-web/cad-tools";
+import {
+  ObjectSnapService,
+  type CadPreview,
+  type ToolContext,
+  type ToolKeyboardEvent,
+  type ToolPointerEvent,
+  type ToolResult
+} from "@cad-web/cad-tools";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CAD_DOCUMENT_STORAGE_KEY,
@@ -14,9 +21,10 @@ import {
   loadStoredDocument,
   storeDocument
 } from "../services/cadDocumentStorage";
+import { loadStoredSnapSettings, storeSnapSettings } from "../services/snapSettingsStorage";
 import { createWebToolRegistry } from "../tools/toolRegistry";
 
-export type ActiveCadTool = "select" | "line" | "rectangle" | "circle" | "move" | "rotate" | "erase" | "pan";
+export type ActiveCadTool = "select" | "line" | "rectangle" | "circle" | "move" | "rotate" | "scale" | "erase" | "pan";
 
 export type CadStore = Readonly<{
   document: CadDocument;
@@ -25,11 +33,14 @@ export type CadStore = Readonly<{
   mouseWorld: Point2D;
   selectedEntityIds: ReadonlyArray<string>;
   preview: CadPreview | null;
+  snapSettings: SnapSettings;
+  snapResult: SnapResult | null;
   canUndo: boolean;
   canRedo: boolean;
   setActiveTool(tool: ActiveCadTool): void;
   setViewport(viewport: Viewport): void;
   setMouseWorld(point: Point2D): void;
+  setSnapSettings(settings: SnapSettings): void;
   panByScreenDelta(delta: Point2D): void;
   dispatchPointerDown(event: ToolPointerEvent): void;
   dispatchPointerMove(event: ToolPointerEvent): void;
@@ -52,14 +63,26 @@ export function useCadStore(): CadStore {
   const [mouseWorld, setMouseWorld] = useState<Point2D>({ x: 0, y: 0 });
   const [selectedEntityIds, setSelectedEntityIds] = useState<ReadonlyArray<string>>([]);
   const [preview, setPreview] = useState<CadPreview | null>(null);
+  const [snapSettings, setSnapSettingsState] = useState<SnapSettings>(() => loadStoredSnapSettings());
+  const [snapResult, setSnapResult] = useState<SnapResult | null>(null);
   const [historyAvailability, setHistoryAvailability] = useState(() => ({
     canUndo: history.canUndo,
     canRedo: history.canRedo
   }));
+  const snapService = useMemo(() => new ObjectSnapService(snapSettings), [snapSettings]);
+
+  const setSnapSettings = useCallback((settings: SnapSettings) => {
+    setSnapSettingsState(settings);
+    setSnapResult(null);
+  }, []);
 
   useEffect(() => {
     storeDocument(document);
   }, [document]);
+
+  useEffect(() => {
+    storeSnapSettings(snapSettings);
+  }, [snapSettings]);
 
   const publishDocument = useCallback((nextDocument: CadDocument) => {
     setDocument(nextDocument);
@@ -81,9 +104,7 @@ export function useCadStore(): CadStore {
       document,
       selection: { entityIds: selectedEntityIds },
       viewport,
-      snapService: {
-        findSnap: () => null
-      },
+      snapService,
       commandBus: {
         execute: applyCommand
       },
@@ -99,8 +120,13 @@ export function useCadStore(): CadStore {
       requestNumericInput: () => undefined,
       cancelCurrentTool: () => setPreview(null)
     }),
-    [applyCommand, document, selectedEntityIds, viewport]
+    [applyCommand, document, selectedEntityIds, snapService, viewport]
   );
+
+  const updateSnapResultFromPointer = useCallback((event: ToolPointerEvent, context: ToolContext) => {
+    const result = context.snapService.findSnap(event, context);
+    setSnapResult(result?.snapped === true ? result : null);
+  }, []);
 
   const processToolResult = useCallback((result: ToolResult) => {
     if (result.type === "preview") {
@@ -116,11 +142,13 @@ export function useCadStore(): CadStore {
   const undo = useCallback(() => {
     publishDocument(history.undo());
     setPreview(null);
+    setSnapResult(null);
   }, [history, publishDocument]);
 
   const redo = useCallback(() => {
     publishDocument(history.redo());
     setPreview(null);
+    setSnapResult(null);
   }, [history, publishDocument]);
 
   const setActiveTool = useCallback(
@@ -132,6 +160,7 @@ export function useCadStore(): CadStore {
       }
 
       setPreview(null);
+      setSnapResult(null);
       setActiveToolState(tool);
 
       if (tool !== "pan") {
@@ -159,23 +188,32 @@ export function useCadStore(): CadStore {
 
   const dispatchPointerDown = useCallback(
     (event: ToolPointerEvent) => {
-      dispatchToActiveTool((toolId, context) => toolRegistry.resolve(toolId)?.onPointerDown(event, context) ?? { type: "none" });
+      dispatchToActiveTool((toolId, context) => {
+        updateSnapResultFromPointer(event, context);
+        return toolRegistry.resolve(toolId)?.onPointerDown(event, context) ?? { type: "none" };
+      });
     },
-    [dispatchToActiveTool, toolRegistry]
+    [dispatchToActiveTool, toolRegistry, updateSnapResultFromPointer]
   );
 
   const dispatchPointerMove = useCallback(
     (event: ToolPointerEvent) => {
-      dispatchToActiveTool((toolId, context) => toolRegistry.resolve(toolId)?.onPointerMove(event, context) ?? { type: "none" });
+      dispatchToActiveTool((toolId, context) => {
+        updateSnapResultFromPointer(event, context);
+        return toolRegistry.resolve(toolId)?.onPointerMove(event, context) ?? { type: "none" };
+      });
     },
-    [dispatchToActiveTool, toolRegistry]
+    [dispatchToActiveTool, toolRegistry, updateSnapResultFromPointer]
   );
 
   const dispatchPointerUp = useCallback(
     (event: ToolPointerEvent) => {
-      dispatchToActiveTool((toolId, context) => toolRegistry.resolve(toolId)?.onPointerUp(event, context) ?? { type: "none" });
+      dispatchToActiveTool((toolId, context) => {
+        updateSnapResultFromPointer(event, context);
+        return toolRegistry.resolve(toolId)?.onPointerUp(event, context) ?? { type: "none" };
+      });
     },
-    [dispatchToActiveTool, toolRegistry]
+    [dispatchToActiveTool, toolRegistry, updateSnapResultFromPointer]
   );
 
   const runEraseTool = useCallback(
@@ -223,6 +261,7 @@ export function useCadStore(): CadStore {
     applyCommand(new ClearDocumentCommand());
     setSelectedEntityIds([]);
     setPreview(null);
+    setSnapResult(null);
     localStorage.removeItem(CAD_DOCUMENT_STORAGE_KEY);
   }, [applyCommand]);
 
@@ -231,6 +270,7 @@ export function useCadStore(): CadStore {
     publishDocument(nextDocument);
     setSelectedEntityIds([]);
     setPreview(null);
+    setSnapResult(null);
   }, [history, publishDocument]);
 
   const cancelInteraction = useCallback(() => {
@@ -242,6 +282,7 @@ export function useCadStore(): CadStore {
 
     setSelectedEntityIds([]);
     setPreview(null);
+    setSnapResult(null);
   }, [activeTool, createToolContext, toolRegistry]);
 
   const runCommandLine = useCallback(
@@ -282,7 +323,7 @@ export function useCadStore(): CadStore {
         return;
       }
 
-      if (resolvedTool?.id === "line" || resolvedTool?.id === "rectangle" || resolvedTool?.id === "circle" || resolvedTool?.id === "select" || resolvedTool?.id === "move" || resolvedTool?.id === "rotate") {
+      if (resolvedTool?.id === "line" || resolvedTool?.id === "rectangle" || resolvedTool?.id === "circle" || resolvedTool?.id === "select" || resolvedTool?.id === "move" || resolvedTool?.id === "rotate" || resolvedTool?.id === "scale") {
         setActiveTool(resolvedTool.id as ActiveCadTool);
       }
     },
@@ -297,11 +338,14 @@ export function useCadStore(): CadStore {
       mouseWorld,
       selectedEntityIds,
       preview,
+      snapSettings,
+      snapResult,
       canUndo: historyAvailability.canUndo,
       canRedo: historyAvailability.canRedo,
       setActiveTool,
       setViewport,
       setMouseWorld,
+      setSnapSettings,
       panByScreenDelta,
       dispatchPointerDown,
       dispatchPointerMove,
@@ -332,6 +376,8 @@ export function useCadStore(): CadStore {
       runCommandLine,
       selectedEntityIds,
       setActiveTool,
+      snapSettings,
+      snapResult,
       undo,
       redo,
       viewport
