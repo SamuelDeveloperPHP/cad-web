@@ -1,4 +1,5 @@
 import type { CadDocument } from "@cad-web/cad-core";
+import { parseCadDocument, serializeCadDocument } from "@cad-web/cad-io";
 
 export const CAD_DOCUMENT_STORAGE_KEY = "cad-web:mvp-document";
 
@@ -35,15 +36,5 @@ export function loadStoredDocument(): CadDocument | null {
 }
 
 export function storeDocument(document: CadDocument): void {
-  localStorage.setItem(CAD_DOCUMENT_STORAGE_KEY, JSON.stringify(document, null, 2));
-}
-
-export function parseCadDocument(source: string): CadDocument {
-  const parsed = JSON.parse(source) as CadDocument;
-
-  if (!Array.isArray(parsed.entities)) {
-    throw new Error("Invalid CAD document: entities must be an array.");
-  }
-
-  return parsed;
+  localStorage.setItem(CAD_DOCUMENT_STORAGE_KEY, serializeCadDocument(document));
 }

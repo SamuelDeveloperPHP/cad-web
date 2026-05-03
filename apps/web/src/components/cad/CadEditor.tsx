@@ -4,7 +4,7 @@ import { CadCommandLine } from "./CadCommandLine";
 import { CadStatusBar } from "./CadStatusBar";
 import { CadToolbar } from "./CadToolbar";
 import { useCadStore } from "../../state/useCadStore";
-import { downloadCadDocument, readCadDocumentFile } from "../../services/cadJsonExport";
+import { downloadCadDocument, downloadSvgDocument, readCadDocumentFile } from "../../services/cadJsonExport";
 import { createToolKeyboardEvent } from "../../tools/toolEvents";
 
 export function CadEditor() {
@@ -42,6 +42,7 @@ export function CadEditor() {
         onRedo={cad.redo}
         onClear={cad.clearDocument}
         onExport={() => downloadCadDocument(cad.document)}
+        onExportSvg={() => downloadSvgDocument(cad.document)}
         onImport={handleImportClick}
       />
       <div className="cad-workspace">

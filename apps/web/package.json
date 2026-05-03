@@ -11,6 +11,7 @@
   "dependencies": {
     "@cad-web/cad-core": "file:../../packages/cad-core",
     "@cad-web/cad-geometry": "file:../../packages/cad-geometry",
+    "@cad-web/cad-io": "file:../../packages/cad-io",
     "@cad-web/cad-renderer": "file:../../packages/cad-renderer",
     "@cad-web/cad-tools": "file:../../packages/cad-tools",
     "react": "^19.1.0",
