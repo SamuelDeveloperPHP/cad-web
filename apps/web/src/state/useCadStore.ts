@@ -16,7 +16,7 @@ import {
 } from "../services/cadDocumentStorage";
 import { createWebToolRegistry } from "../tools/toolRegistry";
 
-export type ActiveCadTool = "select" | "line" | "move" | "rotate" | "erase" | "pan";
+export type ActiveCadTool = "select" | "line" | "rectangle" | "move" | "rotate" | "erase" | "pan";
 
 export type CadStore = Readonly<{
   document: CadDocument;
@@ -282,7 +282,7 @@ export function useCadStore(): CadStore {
         return;
       }
 
-      if (resolvedTool?.id === "line" || resolvedTool?.id === "select" || resolvedTool?.id === "move" || resolvedTool?.id === "rotate") {
+      if (resolvedTool?.id === "line" || resolvedTool?.id === "rectangle" || resolvedTool?.id === "select" || resolvedTool?.id === "move" || resolvedTool?.id === "rotate") {
         setActiveTool(resolvedTool.id as ActiveCadTool);
       }
     },
