@@ -3,6 +3,7 @@ import {
   configureCanvasForDevicePixelRatio,
   renderDocument2D,
   renderGrid2D,
+  renderSnapMarker2D,
   screenToWorld,
   worldToScreen,
   zoomViewportAtScreenPoint
@@ -65,6 +66,7 @@ export function CadCanvas({ cad }: CadCanvasProps) {
     renderDocument2D(context, cad.document, cad.viewport);
     renderSelectedEntities(context, cad);
     renderPreview(context, cad);
+    renderActiveSnapMarker(context, cad);
   }, [cad, screenSize]);
 
   const toScreenPoint = (event: ReactMouseEvent<HTMLCanvasElement>): Point2D => {
@@ -206,6 +208,10 @@ function renderPreview(context: CanvasRenderingContext2D, cad: CadStore): void {
   if (cad.preview.type === "ghostEntities") {
     renderGhostEntitiesPreview(context, cad, cad.preview.entities);
   }
+
+  if (cad.preview.type === "snapMarker") {
+    renderSnapMarker2D(context, worldToScreen(cad.preview.point, cad.viewport), cad.preview.snapType);
+  }
 }
 
 function renderRubberBandPreview(
@@ -226,6 +232,18 @@ function renderRubberBandPreview(
   context.lineTo(end.x, end.y);
   context.stroke();
   context.restore();
+}
+
+function renderActiveSnapMarker(context: CanvasRenderingContext2D, cad: CadStore): void {
+  if (cad.snapResult?.snapped !== true || cad.snapResult.candidate === undefined) {
+    return;
+  }
+
+  renderSnapMarker2D(
+    context,
+    worldToScreen(cad.snapResult.point, cad.viewport),
+    cad.snapResult.candidate.type
+  );
 }
 
 function renderGhostEntitiesPreview(
