@@ -3,6 +3,7 @@ import {
   DeleteEntitiesCommand,
   MoveEntitiesCommand,
   RotateEntitiesCommand,
+  ScaleEntitiesCommand,
   type CadEntity,
   type EntityId
 } from "@cad-web/cad-core";
@@ -20,6 +21,12 @@ export type DeleteEntitiesCommandPayload = Readonly<{
 export type MoveEntitiesCommandPayload = Readonly<{
   entityIds: ReadonlyArray<EntityId>;
   displacement: Point2D;
+}>;
+
+export type ScaleEntitiesCommandPayload = Readonly<{
+  entityIds: ReadonlyArray<EntityId>;
+  pivot: Point2D;
+  factor: number;
 }>;
 
 export function createEntityCommand(entity: CadEntity): CadCommand {
@@ -43,4 +50,12 @@ export function rotateEntitiesCommand(
   angleRadians: number
 ): CadCommand {
   return new RotateEntitiesCommand(entityIds, pivot, angleRadians);
+}
+
+export function scaleEntitiesCommand(
+  entityIds: ReadonlyArray<EntityId>,
+  pivot: Point2D,
+  factor: number
+): CadCommand {
+  return new ScaleEntitiesCommand(entityIds, pivot, factor);
 }

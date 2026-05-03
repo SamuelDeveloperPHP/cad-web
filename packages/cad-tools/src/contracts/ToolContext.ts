@@ -1,5 +1,6 @@
 import type { CadDocument, EntityId } from "@cad-web/cad-core";
-import type { Point2D } from "@cad-web/cad-geometry";
+import type { Point2D, SnapResult } from "@cad-web/cad-geometry";
+import type { ToolPointerEvent } from "./ToolEvent";
 import type { CadCommand, CadPreview } from "./ToolResult";
 
 export type SelectionState = Readonly<{
@@ -11,16 +12,8 @@ export type ViewportState = Readonly<{
   scale: number;
 }>;
 
-export type SnapType = "endpoint" | "midpoint" | "center" | "intersection" | "nearest";
-
-export type SnapResult = Readonly<{
-  point: Point2D;
-  type: SnapType;
-  entityId?: EntityId;
-}>;
-
 export interface SnapService {
-  findSnap(point: Point2D, context: ToolContext): SnapResult | null;
+  findSnap(event: ToolPointerEvent, context: ToolContext): SnapResult | null;
 }
 
 export interface CommandBus {

@@ -1,6 +1,6 @@
-import type { CadEntity } from "@cad-web/cad-core";
-import { addVector, pointsNearlyEqual, subtractPoints, type Point2D } from "@cad-web/cad-geometry";
-import { moveEntitiesCommand } from "../commands/CadCommandTypes";
+import { scaleEntity, type CadEntity } from "@cad-web/cad-core";
+import { CAD_EPSILON, distance, type Point2D } from "@cad-web/cad-geometry";
+import { scaleEntitiesCommand } from "../commands/CadCommandTypes";
 import type { CadTool } from "../contracts/CadTool";
 import type { ToolContext } from "../contracts/ToolContext";
 import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent";
@@ -8,10 +8,10 @@ import type { ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
 
-export class MoveTool implements CadTool {
-  readonly id = "move";
-  readonly name = "Move";
-  readonly aliases = ["m", "move"];
+export class ScaleTool implements CadTool {
+  readonly id = "scale";
+  readonly name = "Scale";
+  readonly aliases = ["sc", "scale"];
 
   private basePoint: Point2D | null = null;
   private currentPoint: Point2D | null = null;
@@ -21,11 +21,11 @@ export class MoveTool implements CadTool {
     this.currentPoint = null;
 
     if (context.selection.entityIds.length === 0) {
-      context.showMessage("Select entities before MOVE.");
+      context.showMessage("Select entities before SCALE.");
       return;
     }
 
-    context.showMessage("Specify base point.");
+    context.showMessage("Specify base point for SCALE.");
   }
 
   deactivate(context: ToolContext): void {
@@ -34,7 +34,7 @@ export class MoveTool implements CadTool {
 
   onPointerDown(event: ToolPointerEvent, context: ToolContext): ToolResult {
     if (context.selection.entityIds.length === 0) {
-      return { type: "error", message: "Move requires selected entities." };
+      return { type: "error", message: "Scale requires selected entities." };
     }
 
     const point = resolveSnappedPoint(event, context);
@@ -42,11 +42,11 @@ export class MoveTool implements CadTool {
     if (this.basePoint === null) {
       this.basePoint = point;
       this.currentPoint = point;
-      context.showMessage("Specify destination point.");
+      context.showMessage("Specify scale factor or click distance point.");
       return TOOL_RESULT_NONE;
     }
 
-    return this.confirmMove(point, context);
+    return this.confirmScale(this.getVisualFactor(point), context);
   }
 
   onPointerMove(event: ToolPointerEvent, context: ToolContext): ToolResult {
@@ -56,13 +56,18 @@ export class MoveTool implements CadTool {
 
     const point = resolveSnappedPoint(event, context);
     this.currentPoint = point;
-    const displacement = subtractPoints(point, this.basePoint);
+    const factor = this.getVisualFactor(point);
+
+    if (factor <= CAD_EPSILON) {
+      context.clearPreview();
+      return TOOL_RESULT_NONE;
+    }
+
     const preview = {
       type: "ghostEntities" as const,
-      entities: getSelectedEntities(context).map((entity) => moveEntity(entity, displacement))
+      entities: getSelectedEntities(context).map((entity) => scaleEntity(entity, this.basePoint!, factor))
     };
 
-    // A ferramenta entrega entidades fantasmas; o renderer decide como desenhar o preview.
     context.setPreview(preview);
 
     return { type: "preview", preview };
@@ -78,36 +83,51 @@ export class MoveTool implements CadTool {
       return { type: "cancel" };
     }
 
-    if (event.key === "Enter" && this.basePoint !== null && this.currentPoint !== null) {
-      return this.confirmMove(this.currentPoint, context);
+    if (event.key === "Enter" && this.currentPoint !== null) {
+      return this.confirmScale(this.getVisualFactor(this.currentPoint), context);
     }
 
     return TOOL_RESULT_NONE;
   }
 
   onCommandInput(input: string, context: ToolContext): ToolResult {
-    if (input.trim().length === 0 && this.basePoint !== null && this.currentPoint !== null) {
-      return this.confirmMove(this.currentPoint, context);
+    const text = input.trim();
+
+    if (this.basePoint === null || text.length === 0) {
+      return TOOL_RESULT_NONE;
     }
 
-    return TOOL_RESULT_NONE;
+    const factor = Number(text);
+
+    if (!Number.isFinite(factor) || factor <= 0) {
+      return { type: "error", message: "Scale factor must be greater than zero." };
+    }
+
+    return this.confirmScale(factor, context);
   }
 
-  private confirmMove(destinationPoint: Point2D, context: ToolContext): ToolResult {
+  private confirmScale(factor: number, context: ToolContext): ToolResult {
     if (this.basePoint === null) {
       return TOOL_RESULT_NONE;
     }
 
-    if (pointsNearlyEqual(this.basePoint, destinationPoint)) {
-      return { type: "error", message: "Move requires a non-zero displacement." };
+    if (!Number.isFinite(factor) || factor <= CAD_EPSILON) {
+      return { type: "error", message: "Scale factor must be greater than zero." };
     }
 
-    const displacement = subtractPoints(destinationPoint, this.basePoint);
-    const command = moveEntitiesCommand(context.selection.entityIds, displacement);
+    const command = scaleEntitiesCommand(context.selection.entityIds, this.basePoint, factor);
     context.executeCommand(command);
     this.reset(context);
 
     return { type: "command", command };
+  }
+
+  private getVisualFactor(point: Point2D): number {
+    if (this.basePoint === null) {
+      return 0;
+    }
+
+    return distance(this.basePoint, point);
   }
 
   private reset(context: ToolContext): void {
@@ -121,31 +141,4 @@ function getSelectedEntities(context: ToolContext): ReadonlyArray<CadEntity> {
   const selectedIds = new Set(context.selection.entityIds);
 
   return context.document.entities.filter((entity) => selectedIds.has(entity.id));
-}
-
-function moveEntity(entity: CadEntity, displacement: Point2D): CadEntity {
-  if (entity.type === "line") {
-    return {
-      ...entity,
-      start: addVector(entity.start, displacement),
-      end: addVector(entity.end, displacement)
-    };
-  }
-
-  if (entity.type === "rectangle") {
-    return {
-      ...entity,
-      x: entity.x + displacement.x,
-      y: entity.y + displacement.y
-    };
-  }
-
-  if (entity.type === "circle") {
-    return {
-      ...entity,
-      center: addVector(entity.center, displacement)
-    };
-  }
-
-  return entity;
 }
