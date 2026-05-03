@@ -1,4 +1,4 @@
-import { addVector, rotationMatrix, transformPoint, type Point2D } from "@cad-web/cad-geometry";
+import { addVector, rotationMatrix, scaleMatrix, transformPoint, type Point2D } from "@cad-web/cad-geometry";
 
 export type EntityId = string;
 
@@ -239,6 +239,31 @@ export class RotateEntitiesCommand implements CadCommand {
   }
 }
 
+export class ScaleEntitiesCommand implements CadCommand {
+  readonly type = "ScaleEntitiesCommand";
+  readonly description = "Scales selected CAD entities.";
+
+  constructor(
+    readonly entityIds: ReadonlyArray<EntityId>,
+    readonly pivot: Point2D,
+    readonly factor: number
+  ) {
+    assertPositiveScaleFactor(factor);
+  }
+
+  get id(): string {
+    return `cmd_scale_${this.entityIds.join("_")}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    return scaleEntities(document, this.entityIds, this.pivot, this.factor);
+  }
+
+  undo(document: CadDocument): CadDocument {
+    return scaleEntities(document, this.entityIds, this.pivot, 1 / this.factor);
+  }
+}
+
 export class ClearDocumentCommand implements CadCommand {
   readonly id = "cmd_clear_document";
   readonly type = "ClearDocumentCommand";
@@ -353,4 +378,62 @@ export function rotateEntity(entity: CadEntity, pivot: Point2D, angleRadians: nu
 
   // Para futuras entidades como arc e polyline, faríamos a transformação aqui.
   return entity;
+}
+
+function scaleEntities(
+  document: CadDocument,
+  entityIds: ReadonlyArray<EntityId>,
+  pivot: Point2D,
+  factor: number
+): CadDocument {
+  const selectedIds = new Set(entityIds);
+
+  return {
+    ...document,
+    entities: document.entities.map((entity) =>
+      selectedIds.has(entity.id) ? scaleEntity(entity, pivot, factor) : entity
+    )
+  };
+}
+
+export function scaleEntity(entity: CadEntity, pivot: Point2D, factor: number): CadEntity {
+  assertPositiveScaleFactor(factor);
+
+  const matrix = scaleMatrix(factor, factor, pivot);
+
+  if (entity.type === "line") {
+    return {
+      ...entity,
+      start: transformPoint(entity.start, matrix),
+      end: transformPoint(entity.end, matrix)
+    };
+  }
+
+  if (entity.type === "rectangle") {
+    const origin = transformPoint({ x: entity.x, y: entity.y }, matrix);
+
+    return {
+      ...entity,
+      x: origin.x,
+      y: origin.y,
+      width: entity.width * factor,
+      height: entity.height * factor
+    };
+  }
+
+  if (entity.type === "circle") {
+    return {
+      ...entity,
+      center: transformPoint(entity.center, matrix),
+      radius: entity.radius * factor
+    };
+  }
+
+  return entity;
+}
+
+function assertPositiveScaleFactor(factor: number): void {
+  if (factor <= 0 || !Number.isFinite(factor)) {
+    throw new Error("Scale factor must be greater than zero.");
+  }
 }

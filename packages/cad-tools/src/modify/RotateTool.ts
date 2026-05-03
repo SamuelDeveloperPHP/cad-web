@@ -6,6 +6,7 @@ import type { ToolContext } from "../contracts/ToolContext";
 import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent";
 import type { ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
+import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
 
 /**
  * Ferramenta responsável por rotacionar as entidades selecionadas em torno de um pivô.
@@ -41,7 +42,7 @@ export class RotateTool implements CadTool {
       return { type: "error", message: "Rotate requires selected entities." };
     }
 
-    const point = context.snapService.findSnap(event.worldPoint, context)?.point ?? event.worldPoint;
+    const point = resolveSnappedPoint(event, context);
 
     if (this.basePoint === null) {
       this.basePoint = point;
@@ -60,7 +61,7 @@ export class RotateTool implements CadTool {
       return TOOL_RESULT_NONE;
     }
 
-    const point = context.snapService.findSnap(event.worldPoint, context)?.point ?? event.worldPoint;
+    const point = resolveSnappedPoint(event, context);
     this.currentPoint = point;
     
     // Se não tiver deslocamento suficiente do pivô, não exibe o preview (pode bugar o atan2 ou ficar piscando)
