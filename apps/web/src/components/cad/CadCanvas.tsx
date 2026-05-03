@@ -180,24 +180,17 @@ export function CadCanvas({ cad }: CadCanvasProps) {
 }
 
 function renderSelectedEntities(context: CanvasRenderingContext2D, cad: CadStore): void {
-  context.save();
-  context.strokeStyle = "#22c55e";
-  context.lineWidth = 2;
-
-  for (const entity of cad.document.entities) {
-    if (entity.type !== "line" || !cad.selectedEntityIds.includes(entity.id)) {
-      continue;
-    }
-
-    const start = worldToScreen(entity.start, cad.viewport);
-    const end = worldToScreen(entity.end, cad.viewport);
-
-    context.beginPath();
-    context.moveTo(start.x, start.y);
-    context.lineTo(end.x, end.y);
-    context.stroke();
+  const selectedEntities = cad.document.entities.filter((entity) => cad.selectedEntityIds.includes(entity.id));
+  
+  if (selectedEntities.length === 0) {
+    return;
   }
 
+  context.save();
+  renderDocument2D(context, { ...cad.document, entities: selectedEntities }, cad.viewport, {
+    strokeColor: "#22c55e",
+    lineWidth: 2
+  });
   context.restore();
 }
 
@@ -240,26 +233,18 @@ function renderGhostEntitiesPreview(
   cad: CadStore,
   entities: CadStore["document"]["entities"]
 ): void {
+  if (entities.length === 0) {
+    return;
+  }
+
   context.save();
-  context.strokeStyle = "#f59e0b";
-  context.lineWidth = 1.5;
   context.globalAlpha = 0.65;
   context.setLineDash([10, 6]);
-
-  // O canvas desenha apenas o preview recebido; a regra de deslocamento permanece no cad-tools.
-  for (const entity of entities) {
-    if (entity.type !== "line") {
-      continue;
-    }
-
-    const start = worldToScreen(entity.start, cad.viewport);
-    const end = worldToScreen(entity.end, cad.viewport);
-
-    context.beginPath();
-    context.moveTo(start.x, start.y);
-    context.lineTo(end.x, end.y);
-    context.stroke();
-  }
+  
+  renderDocument2D(context, { ...cad.document, entities }, cad.viewport, {
+    strokeColor: "#f59e0b",
+    lineWidth: 1.5
+  });
 
   context.restore();
 }
