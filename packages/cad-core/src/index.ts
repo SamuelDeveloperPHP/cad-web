@@ -41,7 +41,7 @@ export type PolylineEntity = BaseEntity & Readonly<{
   vertices: ReadonlyArray<Point2D>;
 }>;
 
-export type CadEntity = LineEntity | RectangleEntity;
+export type CadEntity = LineEntity | RectangleEntity | CircleEntity;
 
 export type CadDocument = Readonly<{
   schemaVersion: string;
@@ -294,6 +294,13 @@ function moveEntity(entity: CadEntity, displacement: Point2D): CadEntity {
     };
   }
 
+  if (entity.type === "circle") {
+    return {
+      ...entity,
+      center: addVector(entity.center, displacement)
+    };
+  }
+
   return entity;
 }
 
@@ -336,7 +343,14 @@ export function rotateEntity(entity: CadEntity, pivot: Point2D, angleRadians: nu
     };
   }
 
-  // Para futuras entidades como circle, arc e polyline, faríamos a transformação aqui.
-  // CircleEntity rotacionaria apenas o centro (o raio não muda).
+  if (entity.type === "circle") {
+    const matrix = rotationMatrix(angleRadians, pivot);
+    return {
+      ...entity,
+      center: transformPoint(entity.center, matrix)
+    };
+  }
+
+  // Para futuras entidades como arc e polyline, faríamos a transformação aqui.
   return entity;
 }

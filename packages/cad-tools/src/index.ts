@@ -5,6 +5,7 @@ export * from "./contracts/CadTool";
 export * from "./contracts/ToolContext";
 export * from "./contracts/ToolEvent";
 export * from "./contracts/ToolResult";
+export * from "./draw/CircleTool";
 export * from "./draw/LineTool";
 export * from "./draw/RectangleTool";
 export * from "./modify/EraseTool";

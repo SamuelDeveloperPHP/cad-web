@@ -1,5 +1,5 @@
 import type { CadDocument, EntityId } from "@cad-web/cad-core";
-import { distancePointToSegment, rotationMatrix, transformPoint, type Point2D } from "@cad-web/cad-geometry";
+import { distance, distancePointToSegment, rotationMatrix, transformPoint, type Point2D } from "@cad-web/cad-geometry";
 
 export type HitTestOptions = Readonly<{
   worldPoint: Point2D;
@@ -35,6 +35,9 @@ export function findNearestEntityId(document: CadDocument, options: HitTestOptio
         distancePointToSegment(options.worldPoint, p3, p4),
         distancePointToSegment(options.worldPoint, p4, p1)
       );
+    } else if (entity.type === "circle") {
+      const distToCenter = distance(options.worldPoint, entity.center);
+      candidateDistance = Math.abs(distToCenter - entity.radius);
     } else {
       continue;
     }
