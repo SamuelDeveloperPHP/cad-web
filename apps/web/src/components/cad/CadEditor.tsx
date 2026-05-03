@@ -35,7 +35,9 @@ export function CadEditor() {
         activeTool={cad.activeTool}
         canUndo={cad.canUndo}
         canRedo={cad.canRedo}
+        snapSettings={cad.snapSettings}
         onToolChange={cad.setActiveTool}
+        onSnapSettingsChange={cad.setSnapSettings}
         onUndo={cad.undo}
         onRedo={cad.redo}
         onClear={cad.clearDocument}
@@ -51,6 +53,7 @@ export function CadEditor() {
         mouseWorld={cad.mouseWorld}
         zoom={cad.viewport.scale}
         entityCount={cad.document.entities.length}
+        snapSettings={cad.snapSettings}
       />
       <input
         ref={fileInputRef}

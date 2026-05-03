@@ -34,8 +34,8 @@ export type RenderStyle = Readonly<{
   strokeColor: string;
   fillColor?: string;
   lineWidth: number;
-  selectedStrokeColor: string;
-  previewStrokeColor: string;
+  selectedStrokeColor?: string;
+  previewStrokeColor?: string;
 }>;
 
 export type GridLine = Readonly<{
