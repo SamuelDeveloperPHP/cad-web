@@ -1,12 +1,23 @@
 import type { CadDocument } from "@cad-web/cad-core";
-import { parseCadDocument } from "./cadDocumentStorage";
+import { parseCadDocument, serializeCadDocument, serializeCadDocumentToSvg } from "@cad-web/cad-io";
 
 export function downloadCadDocument(document: CadDocument): void {
-  const blob = new Blob([JSON.stringify(document, null, 2)], {
+  const blob = new Blob([serializeCadDocument(document)], {
     type: "application/json"
   });
   const url = URL.createObjectURL(blob);
-  const anchor = documentCreateDownloadAnchor(url);
+  const anchor = documentCreateDownloadAnchor(url, "cad-web-drawing.json");
+
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export function downloadSvgDocument(document: CadDocument): void {
+  const blob = new Blob([serializeCadDocumentToSvg(document)], {
+    type: "image/svg+xml"
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = documentCreateDownloadAnchor(url, "cad-web-drawing.svg");
 
   anchor.click();
   URL.revokeObjectURL(url);
@@ -16,10 +27,10 @@ export async function readCadDocumentFile(file: File): Promise<CadDocument> {
   return parseCadDocument(await file.text());
 }
 
-function documentCreateDownloadAnchor(url: string): HTMLAnchorElement {
+function documentCreateDownloadAnchor(url: string, filename: string): HTMLAnchorElement {
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = "cad-web-drawing.json";
+  anchor.download = filename;
   anchor.rel = "noopener";
 
   return anchor;
