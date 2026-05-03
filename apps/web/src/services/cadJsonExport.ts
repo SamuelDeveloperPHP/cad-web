@@ -1,5 +1,5 @@
 import type { CadDocument } from "@cad-web/cad-core";
-import { parseCadDocument, serializeCadDocument, serializeCadDocumentToSvg } from "@cad-web/cad-io";
+import { parseCadDocument, parseSvgDocument, serializeCadDocument, serializeCadDocumentToSvg } from "@cad-web/cad-io";
 
 export function downloadCadDocument(document: CadDocument): void {
   const blob = new Blob([serializeCadDocument(document)], {
@@ -25,6 +25,10 @@ export function downloadSvgDocument(document: CadDocument): void {
 
 export async function readCadDocumentFile(file: File): Promise<CadDocument> {
   return parseCadDocument(await file.text());
+}
+
+export async function readSvgDocumentFile(file: File): Promise<CadDocument> {
+  return parseSvgDocument(await file.text());
 }
 
 function documentCreateDownloadAnchor(url: string, filename: string): HTMLAnchorElement {

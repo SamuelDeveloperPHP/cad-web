@@ -14,6 +14,7 @@ type CadToolbarProps = Readonly<{
   onExport(): void;
   onExportSvg(): void;
   onImport(): void;
+  onImportSvg(): void;
 }>;
 
 const tools: ReadonlyArray<Readonly<{ id: ActiveCadTool; label: string }>> = [
@@ -113,6 +114,9 @@ export function CadToolbar(props: CadToolbarProps) {
       </button>
       <button className="tool-button" type="button" onClick={props.onImport}>
         Import JSON
+      </button>
+      <button className="tool-button" type="button" onClick={props.onImportSvg}>
+        Import SVG
       </button>
     </aside>
   );
