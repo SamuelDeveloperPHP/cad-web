@@ -22,6 +22,9 @@
       "path": "../../packages/cad-geometry"
     },
     {
+      "path": "../../packages/cad-io"
+    },
+    {
       "path": "../../packages/cad-renderer"
     },
     {

@@ -12,6 +12,7 @@ type CadToolbarProps = Readonly<{
   onRedo(): void;
   onClear(): void;
   onExport(): void;
+  onExportSvg(): void;
   onImport(): void;
 }>;
 
@@ -106,6 +107,9 @@ export function CadToolbar(props: CadToolbarProps) {
       </button>
       <button className="tool-button" type="button" onClick={props.onExport}>
         Export JSON
+      </button>
+      <button className="tool-button" type="button" onClick={props.onExportSvg}>
+        Export SVG
       </button>
       <button className="tool-button" type="button" onClick={props.onImport}>
         Import JSON
