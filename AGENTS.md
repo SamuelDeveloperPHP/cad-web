@@ -55,6 +55,21 @@ Ao implementar, explique:
 - comandos para testar;
 - próximos passos recomendados.
 
+## Política de economia de contexto/tokens para Codex
+
+Este repositório pode crescer muito. Ao usar Codex:
+
+1. Trabalhar sempre por MVP/tarefa pequena.
+2. Ler apenas arquivos diretamente relacionados à tarefa.
+3. Não reescrever arquivos grandes sem necessidade.
+4. Não imprimir arquivos completos na resposta final.
+5. Não repetir documentação já existente.
+6. Usar respostas finais curtas: arquivos alterados, testes e próximos passos.
+7. Antes de refatorações grandes, apresentar plano curto.
+8. Evitar varrer o repositório inteiro.
+9. Usar TODOs claros para adaptações temporárias.
+10. Preservar arquitetura modular.
+
 ## Não fazer
 
 - Não colocar cálculo geométrico dentro de componente React.

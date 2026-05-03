@@ -41,3 +41,16 @@ export function unionBoundingBoxes(a: BoundingBox, b: BoundingBox): BoundingBox 
 export function boundingBoxContainsPoint(box: BoundingBox, point: Point2D): boolean {
   return point.x >= box.minX && point.x <= box.maxX && point.y >= box.minY && point.y <= box.maxY;
 }
+
+export function boundingBoxesIntersect(a: BoundingBox, b: BoundingBox): boolean {
+  return a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY;
+}
+
+export function boundingBoxAroundPoint(point: Point2D, tolerance: number): BoundingBox {
+  return {
+    minX: point.x - tolerance,
+    minY: point.y - tolerance,
+    maxX: point.x + tolerance,
+    maxY: point.y + tolerance
+  };
+}
