@@ -18,7 +18,8 @@ export const COMMAND_ALIASES = {
   measure: ["mea", "measure"],
   undo: ["u", "undo"],
   redo: ["redo"],
-  zoomExtents: ["z", "za", "zoom", "zoomall"]
+  zoomExtents: ["z", "za", "zoom", "zoomall"],
+  clear: ["clear", "cls", "limpar", "limpartela", "clearall"]
 } as const;
 
 export type CommandId = keyof typeof COMMAND_ALIASES;

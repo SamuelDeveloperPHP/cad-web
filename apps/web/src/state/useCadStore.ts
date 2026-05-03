@@ -14,7 +14,7 @@ import {
   type ToolPointerEvent,
   type ToolResult
 } from "@cad-web/cad-tools";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CAD_DOCUMENT_STORAGE_KEY,
   createInitialDocument,
@@ -37,6 +37,7 @@ export type CadStore = Readonly<{
   snapResult: SnapResult | null;
   canUndo: boolean;
   canRedo: boolean;
+  message: string;
   setActiveTool(tool: ActiveCadTool): void;
   setViewport(viewport: Viewport): void;
   setMouseWorld(point: Point2D): void;
@@ -65,6 +66,17 @@ export function useCadStore(): CadStore {
   const [preview, setPreview] = useState<CadPreview | null>(null);
   const [snapSettings, setSnapSettingsState] = useState<SnapSettings>(() => loadStoredSnapSettings());
   const [snapResult, setSnapResult] = useState<SnapResult | null>(null);
+  const [message, setMessageState] = useState<string>("");
+  const messageTimeoutRef = useRef<number | null>(null);
+
+  const showMessage = useCallback((msg: string) => {
+    setMessageState(msg);
+    if (messageTimeoutRef.current !== null) {
+      window.clearTimeout(messageTimeoutRef.current);
+    }
+    messageTimeoutRef.current = window.setTimeout(() => setMessageState(""), 3000);
+  }, []);
+
   const [historyAvailability, setHistoryAvailability] = useState(() => ({
     canUndo: history.canUndo,
     canRedo: history.canRedo
@@ -116,7 +128,7 @@ export function useCadStore(): CadStore {
       selectEntities: setSelectedEntityIds,
       clearSelection: () => setSelectedEntityIds([]),
       executeCommand: applyCommand,
-      showMessage: () => undefined,
+      showMessage,
       requestNumericInput: () => undefined,
       cancelCurrentTool: () => setPreview(null)
     }),
@@ -290,8 +302,13 @@ export function useCadStore(): CadStore {
       const normalizedCommand = command.trim().toLowerCase();
       const resolvedTool = toolRegistry.resolve(normalizedCommand);
 
-      if (normalizedCommand === "clear") {
-        clearDocument();
+      if (["clear", "cls", "limpar", "limpartela", "clearall"].includes(normalizedCommand)) {
+        if (document.entities.length === 0) {
+          showMessage("Nenhuma entidade para limpar.");
+        } else {
+          clearDocument();
+          showMessage("Desenho limpo.");
+        }
         return;
       }
 
@@ -342,6 +359,7 @@ export function useCadStore(): CadStore {
       snapResult,
       canUndo: historyAvailability.canUndo,
       canRedo: historyAvailability.canRedo,
+      message,
       setActiveTool,
       setViewport,
       setMouseWorld,
@@ -378,6 +396,8 @@ export function useCadStore(): CadStore {
       setActiveTool,
       snapSettings,
       snapResult,
+      message,
+      showMessage,
       undo,
       redo,
       viewport

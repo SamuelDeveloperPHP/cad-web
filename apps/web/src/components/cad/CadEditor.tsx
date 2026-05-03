@@ -53,7 +53,7 @@ export function CadEditor() {
       />
       <div className="cad-workspace">
         <CadCanvas cad={cad} />
-        <CadCommandLine onSubmit={cad.runCommandLine} />
+        <CadCommandLine onSubmit={cad.runCommandLine} message={cad.message} />
       </div>
       <CadStatusBar
         activeTool={cad.activeTool}
