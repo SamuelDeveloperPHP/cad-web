@@ -18,7 +18,15 @@ export function findNearestEntityId(document: CadDocument, options: HitTestOptio
   };
 
   const spatialIndex = getDocumentSpatialIndex(document);
-  const candidates = spatialIndex.query(searchBox);
+  let candidates = spatialIndex.query(searchBox);
+
+  const invisibleLayerIds = new Set(
+    document.layers.filter((l) => !l.visible).map((l) => l.id)
+  );
+
+  if (invisibleLayerIds.size > 0) {
+    candidates = candidates.filter((e) => !invisibleLayerIds.has(e.layerId || "layer_0"));
+  }
 
   for (const entity of candidates) {
     let candidateDistance = Number.POSITIVE_INFINITY;

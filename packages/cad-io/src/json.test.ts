@@ -21,12 +21,15 @@ describe("cad-io JSON", () => {
       precision: 3,
       layers: [
         {
-          id: "default",
-          name: "Default",
+          id: "layer_0",
+          name: "Layer 0",
+          color: "#ffffff",
           visible: true,
-          locked: false
+          locked: false,
+          order: 0
         }
-      ]
+      ],
+      activeLayerId: "layer_0"
     });
   });
 
@@ -56,7 +59,7 @@ describe("cad-io JSON", () => {
       entities: [
         {
           id: "arc_001",
-          layerId: "default",
+          layerId: "layer_0",
           type: "arc",
           center: { x: 0, y: 0 },
           radius: 10
@@ -74,10 +77,15 @@ function createDocument(): CadDocument {
     schemaVersion: "1.0.0",
     id: "doc_001",
     units: "mm",
+    layers: [
+      { id: "layer_0", name: "Layer 0", color: "#ffffff", visible: true, locked: false, order: 0 },
+      { id: "reference", name: "reference", color: "#ffffff", visible: true, locked: false, order: 1 }
+    ],
+    activeLayerId: "layer_0",
     entities: [
       {
         id: "line_001",
-        layerId: "default",
+        layerId: "layer_0",
         type: "line",
         start: { x: 0, y: 0 },
         end: { x: 10, y: 0 }

@@ -40,7 +40,22 @@ export function renderDocument2D(
   const indexQueryTimeMs = performance.now() - indexStartTime;
   let renderedEntities = 0;
 
+  const layerMap = new Map(document.layers.map(l => [l.id, l]));
+
   for (const entity of visibleEntities) {
+    const layer = layerMap.get(entity.layerId || "layer_0");
+    if (layer && !layer.visible) continue;
+
+    context.strokeStyle = entity.color || layer?.color || style.strokeColor;
+    context.lineWidth = entity.lineThickness !== undefined ? entity.lineThickness : style.lineWidth;
+    
+    if (entity.lineType === "dashed") {
+      context.setLineDash([8, 6]);
+    } else if (entity.lineType === "dotted") {
+      context.setLineDash([2, 4]);
+    } else {
+      context.setLineDash([]);
+    }
     if (entity.type === "line") {
       const start = worldToScreen(entity.start, viewport);
       const end = worldToScreen(entity.end, viewport);

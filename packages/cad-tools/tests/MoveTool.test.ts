@@ -30,7 +30,7 @@ describe("MoveTool", () => {
       entities: [
         {
           id: "line_001",
-          layerId: "default",
+          layerId: "layer_0",
           type: "line",
           start: { x: 10, y: 5 },
           end: { x: 110, y: 5 }

@@ -115,7 +115,20 @@ export class ScaleTool implements CadTool {
       return { type: "error", message: "Scale factor must be greater than zero." };
     }
 
-    const command = scaleEntitiesCommand(context.selection.entityIds, this.basePoint, factor);
+    const lockedLayerIds = new Set(
+      context.document.layers.filter((l) => l.locked).map((l) => l.id)
+    );
+
+    const validEntityIds = context.selection.entityIds.filter((id) => {
+      const entity = context.document.entities.find((e) => e.id === id);
+      return entity && !lockedLayerIds.has(entity.layerId || "layer_0");
+    });
+
+    if (validEntityIds.length === 0) {
+      return { type: "error", message: "No modifiable entities selected." };
+    }
+
+    const command = scaleEntitiesCommand(validEntityIds, this.basePoint, factor);
     context.executeCommand(command);
     this.reset(context);
 
@@ -140,5 +153,11 @@ export class ScaleTool implements CadTool {
 function getSelectedEntities(context: ToolContext): ReadonlyArray<CadEntity> {
   const selectedIds = new Set(context.selection.entityIds);
 
-  return context.document.entities.filter((entity) => selectedIds.has(entity.id));
+  const lockedLayerIds = new Set(
+    context.document.layers.filter((l) => l.locked).map((l) => l.id)
+  );
+
+  return context.document.entities.filter(
+    (entity) => selectedIds.has(entity.id) && !lockedLayerIds.has(entity.layerId || "layer_0")
+  );
 }

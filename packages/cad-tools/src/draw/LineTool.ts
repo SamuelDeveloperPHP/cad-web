@@ -41,7 +41,7 @@ export class LineTool implements CadTool {
       return { type: "error", message: "Line requires two distinct points." };
     }
 
-    const entity = createLineEntity(this.startPoint, snappedPoint);
+    const entity = createLineEntity(this.startPoint, snappedPoint, context.document.activeLayerId);
     const command = createEntityCommand(entity);
     context.executeCommand(command);
     this.reset(context);
@@ -102,7 +102,7 @@ export class LineTool implements CadTool {
       return { type: "error", message: "Line requires two distinct points." };
     }
 
-    const entity = createLineEntity(this.startPoint, this.currentPoint);
+    const entity = createLineEntity(this.startPoint, this.currentPoint, context.document.activeLayerId);
     const command = createEntityCommand(entity);
     context.executeCommand(command);
     this.reset(context);
@@ -117,10 +117,10 @@ export class LineTool implements CadTool {
   }
 }
 
-function createLineEntity(start: Point2D, end: Point2D): LineEntity {
+function createLineEntity(start: Point2D, end: Point2D, layerId: string): LineEntity {
   return {
     id: `line_${crypto.randomUUID()}`,
-    layerId: "default",
+    layerId,
     type: "line",
     start,
     end

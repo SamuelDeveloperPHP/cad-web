@@ -55,7 +55,20 @@ export class EraseTool implements CadTool {
       return { type: "error", message: "Erase requires selected entities." };
     }
 
-    const command = deleteEntitiesCommand(context.selection.entityIds);
+    const lockedLayerIds = new Set(
+      context.document.layers.filter((l) => l.locked).map((l) => l.id)
+    );
+
+    const validEntityIds = context.selection.entityIds.filter((id) => {
+      const entity = context.document.entities.find((e) => e.id === id);
+      return entity && !lockedLayerIds.has(entity.layerId || "layer_0");
+    });
+
+    if (validEntityIds.length === 0) {
+      return { type: "error", message: "No modifiable entities selected." };
+    }
+
+    const command = deleteEntitiesCommand(validEntityIds);
     context.executeCommand(command);
 
     return { type: "command", command };

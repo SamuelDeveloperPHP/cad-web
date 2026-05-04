@@ -17,6 +17,10 @@ describe("cad-core", () => {
       schemaVersion: "1.0.0",
       id: "doc_001",
       units: "mm",
+      layers: [
+        { id: "layer_0", name: "Layer 0", color: "#ffffff", visible: true, locked: false, order: 0 }
+      ],
+      activeLayerId: "layer_0",
       entities: []
     });
   });

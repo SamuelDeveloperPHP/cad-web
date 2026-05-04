@@ -59,7 +59,7 @@ export class CircleTool implements CadTool {
 
     const preview = {
       type: "ghostEntities" as const,
-      entities: [this.createCircleEntity(this.centerPoint, radius, "preview_circle")]
+      entities: [this.createCircleEntity(this.centerPoint, radius, "preview_circle", context.document.activeLayerId)]
     };
 
     context.setPreview(preview);
@@ -96,7 +96,7 @@ export class CircleTool implements CadTool {
       return { type: "error", message: "Radius must be greater than zero." };
     }
 
-    const entity = this.createCircleEntity(this.centerPoint, radius, `circle_${crypto.randomUUID()}`);
+    const entity = this.createCircleEntity(this.centerPoint, radius, `circle_${crypto.randomUUID()}`, context.document.activeLayerId);
     const command = createEntityCommand(entity);
     
     context.executeCommand(command);
@@ -105,10 +105,10 @@ export class CircleTool implements CadTool {
     return { type: "command", command };
   }
 
-  private createCircleEntity(center: Point2D, radius: number, id: string) {
+  private createCircleEntity(center: Point2D, radius: number, id: string, layerId: string) {
     return {
       id,
-      layerId: "default",
+      layerId,
       type: "circle" as const,
       center,
       radius

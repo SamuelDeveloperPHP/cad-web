@@ -102,8 +102,21 @@ export class MoveTool implements CadTool {
       return { type: "error", message: "Move requires a non-zero displacement." };
     }
 
+    const lockedLayerIds = new Set(
+      context.document.layers.filter((l) => l.locked).map((l) => l.id)
+    );
+
+    const validEntityIds = context.selection.entityIds.filter((id) => {
+      const entity = context.document.entities.find((e) => e.id === id);
+      return entity && !lockedLayerIds.has(entity.layerId || "layer_0");
+    });
+
+    if (validEntityIds.length === 0) {
+      return { type: "error", message: "No modifiable entities selected." };
+    }
+
     const displacement = subtractPoints(destinationPoint, this.basePoint);
-    const command = moveEntitiesCommand(context.selection.entityIds, displacement);
+    const command = moveEntitiesCommand(validEntityIds, displacement);
     context.executeCommand(command);
     this.reset(context);
 
@@ -120,7 +133,13 @@ export class MoveTool implements CadTool {
 function getSelectedEntities(context: ToolContext): ReadonlyArray<CadEntity> {
   const selectedIds = new Set(context.selection.entityIds);
 
-  return context.document.entities.filter((entity) => selectedIds.has(entity.id));
+  const lockedLayerIds = new Set(
+    context.document.layers.filter((l) => l.locked).map((l) => l.id)
+  );
+
+  return context.document.entities.filter(
+    (entity) => selectedIds.has(entity.id) && !lockedLayerIds.has(entity.layerId || "layer_0")
+  );
 }
 
 function moveEntity(entity: CadEntity, displacement: Point2D): CadEntity {
