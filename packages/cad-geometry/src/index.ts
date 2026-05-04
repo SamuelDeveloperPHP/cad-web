@@ -7,3 +7,4 @@ export * from "./snap";
 export * from "./types";
 export * from "./vector";
 export * from "./measurements";
+export * from "./offset";

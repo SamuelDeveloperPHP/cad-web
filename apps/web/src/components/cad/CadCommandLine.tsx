@@ -15,6 +15,7 @@ const toolPrompts: Record<ActiveCadTool, string> = {
   move: "[Move] Specify base point",
   rotate: "[Rotate] Specify pivot point",
   scale: "[Scale] Specify base point",
+  offset: "[Offset] Specify offset distance",
   erase: "[Erase] Select objects or press Delete",
   pan: "[Pan] Drag to pan view"
 };
