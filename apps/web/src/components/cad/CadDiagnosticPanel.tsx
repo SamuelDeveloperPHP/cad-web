@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { cadDiagnostics, type CadMetrics } from "../../../diagnostics/CadDiagnosticsService";
-import { generateEntities } from "../../../diagnostics/dev/internal/EntityGenerator";
+import { cadDiagnostics, type CadMetrics } from "../../diagnostics/CadDiagnosticsService";
+import { generateEntities } from "../../diagnostics/dev/internal/EntityGenerator";
 import { AddMultipleEntitiesCommand, ClearDocumentCommand } from "@cad-web/cad-core";
-import { useCadStore } from "../../../state/useCadStore";
+import { useCadStore } from "../../state/useCadStore";
 
 export function CadDiagnosticPanel() {
   const isEnabled = import.meta.env.DEV || import.meta.env.VITE_ENABLE_CAD_DIAGNOSTICS === "true";
