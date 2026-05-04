@@ -3,7 +3,7 @@ import type { ActiveCadTool } from "../../state/useCadStore";
 import type { SnapSettings } from "@cad-web/cad-geometry";
 import { 
   Minus, Square, Circle, 
-  Move, RotateCw, Scaling, Eraser,
+  Move, RotateCw, Scaling, Eraser, Copy,
   Magnet, Grip, Maximize, 
   Layers, Upload, Download, Trash2
 } from "lucide-react";
@@ -89,6 +89,14 @@ export function CadRibbon(props: CadRibbonProps) {
           >
             <Eraser size={24} />
             <span style={{ fontSize: '10px' }}>Erase</span>
+          </button>
+          <button 
+            className={`cad-ribbon-btn ${props.activeTool === "offset" ? "active" : ""}`}
+            onClick={() => props.onToolChange("offset" as any)}
+            title="Offset"
+          >
+            <Copy size={24} />
+            <span style={{ fontSize: '10px' }}>Offset</span>
           </button>
         </div>
         <div className="cad-ribbon-title">Modificar</div>

@@ -21,6 +21,7 @@ const toolLabels: Record<ActiveCadTool, string> = {
   move: "Move",
   rotate: "Rotate",
   scale: "Scale",
+  offset: "Offset",
   erase: "Erase",
   pan: "Pan"
 };

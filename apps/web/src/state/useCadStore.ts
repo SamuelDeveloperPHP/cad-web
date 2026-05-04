@@ -24,7 +24,7 @@ import {
 import { loadStoredSnapSettings, storeSnapSettings } from "../services/snapSettingsStorage";
 import { createWebToolRegistry } from "../tools/toolRegistry";
 
-export type ActiveCadTool = "select" | "line" | "rectangle" | "circle" | "move" | "rotate" | "scale" | "erase" | "pan";
+export type ActiveCadTool = "select" | "line" | "rectangle" | "circle" | "move" | "rotate" | "scale" | "offset" | "erase" | "pan";
 
 export type CadStore = Readonly<{
   document: CadDocument;
