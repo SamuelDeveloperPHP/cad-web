@@ -10,7 +10,10 @@ type CadStatusBarProps = Readonly<{
   entityCount: number;
   snapSettings: SnapSettings;
   activeLayerName: string;
+  displayUnit: string;
+  documentUnits: string;
   onSnapSettingsChange(settings: SnapSettings): void;
+  onDisplayUnitChange(unit: string): void;
 }>;
 
 const toolLabels: Record<ActiveCadTool, string> = {
@@ -28,7 +31,7 @@ const toolLabels: Record<ActiveCadTool, string> = {
   dimAligned: "Aligned Dimension"
 };
 
-export function CadStatusBar({ activeTool, mouseWorld, zoom, entityCount, snapSettings, activeLayerName, onSnapSettingsChange }: CadStatusBarProps) {
+export function CadStatusBar({ activeTool, mouseWorld, zoom, entityCount, snapSettings, activeLayerName, displayUnit, documentUnits, onSnapSettingsChange, onDisplayUnitChange }: CadStatusBarProps) {
   const toggleSnap = () => {
     onSnapSettingsChange({ ...snapSettings, enabled: !snapSettings.enabled });
   };
@@ -53,6 +56,24 @@ export function CadStatusBar({ activeTool, mouseWorld, zoom, entityCount, snapSe
         </span>
         <span className="cad-statusbar-item" title="Entity Count">
           Entities: {entityCount}
+        </span>
+
+        <div style={{ width: '1px', height: '16px', background: 'var(--cad-border)', margin: '0 4px' }}></div>
+
+        <span className="cad-statusbar-item" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          Units: 
+          <select 
+            className="bg-transparent text-cad-text outline-none cursor-pointer"
+            value={displayUnit}
+            onChange={e => onDisplayUnitChange(e.target.value)}
+          >
+            <option value="um">µm</option>
+            <option value="mm">mm</option>
+            <option value="cm">cm</option>
+            <option value="m">m</option>
+            <option value="km">km</option>
+            <option value="in">in</option>
+          </select>
         </span>
 
         <div style={{ width: '1px', height: '16px', background: 'var(--cad-border)' }}></div>

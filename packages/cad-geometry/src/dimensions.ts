@@ -35,11 +35,14 @@ export type DimensionGeometryResult = Readonly<{
   visualPoints: ReadonlyArray<Point2D>;
 }>;
 
-export function formatDimensionValue(value: number, precision: number, suffix: string): string {
-  return value.toFixed(precision) + suffix;
+import { formatMeasurement } from "./measurements";
+
+export function formatDimensionValue(value: number, precision: number, suffix: string, docUnit: string = "mm", displayUnit: string = "mm"): string {
+  const formatted = formatMeasurement(value, docUnit, displayUnit, precision);
+  return `${formatted}${suffix}`;
 }
 
-export function buildLinearDimensionGeometry(def: LinearDimensionDefGeom, style: DimensionStyleGeom): DimensionGeometryResult {
+export function buildLinearDimensionGeometry(def: LinearDimensionDefGeom, style: DimensionStyleGeom, docUnit: string = "mm", displayUnit: string = "mm"): DimensionGeometryResult {
   let isHorizontal = true;
 
   if (def.orientation === "auto") {
@@ -86,7 +89,7 @@ export function buildLinearDimensionGeometry(def: LinearDimensionDefGeom, style:
   const ext2LineStart = addVector(p2, scaleVector(extDir2, style.extensionOffset));
 
   const measuredValue = distance(dimStart, dimEnd);
-  const formattedText = formatDimensionValue(measuredValue, style.precision, style.unitSuffix);
+  const formattedText = formatDimensionValue(measuredValue, style.precision, style.unitSuffix, docUnit, displayUnit);
 
   const textPosition = {
     x: (dimStart.x + dimEnd.x) / 2,
@@ -110,13 +113,13 @@ export function buildLinearDimensionGeometry(def: LinearDimensionDefGeom, style:
   };
 }
 
-export function buildAlignedDimensionGeometry(def: AlignedDimensionDefGeom, style: DimensionStyleGeom): DimensionGeometryResult {
+export function buildAlignedDimensionGeometry(def: AlignedDimensionDefGeom, style: DimensionStyleGeom, docUnit: string = "mm", displayUnit: string = "mm"): DimensionGeometryResult {
   const p1 = def.firstPoint;
   const p2 = def.secondPoint;
   const dl = def.dimensionLinePoint;
 
   const measuredValue = distance(p1, p2);
-  const formattedText = formatDimensionValue(measuredValue, style.precision, style.unitSuffix);
+  const formattedText = formatDimensionValue(measuredValue, style.precision, style.unitSuffix, docUnit, displayUnit);
 
   if (measuredValue < 1e-6) {
     return {

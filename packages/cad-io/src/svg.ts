@@ -93,7 +93,7 @@ export function* createSvgExportChunks(
 
     yield `    <g data-layer-id="${escapeSvgAttribute(layer.id)}" data-layer-name="${escapeSvgAttribute(layer.name)}">\n`;
     for (const entity of layerEntities) {
-    yield `    ${serializeEntityToSvg(entity, precision)}\n`;
+    yield `    ${serializeEntityToSvg(entity, precision, document)}\n`;
   }
 
     yield `    </g>\n`;
@@ -103,7 +103,7 @@ export function* createSvgExportChunks(
   yield "</svg>\n";
 }
 
-function serializeEntityToSvg(entity: CadEntity, precision: number): string {
+function serializeEntityToSvg(entity: CadEntity, precision: number, document: any): string {
   if (entity.type === "line") {
     return serializeLineToSvg(entity, precision);
   }
@@ -117,7 +117,7 @@ function serializeEntityToSvg(entity: CadEntity, precision: number): string {
   }
 
   if (entity.type === "dimension") {
-    return serializeDimensionToSvg(entity as any, precision);
+    return serializeDimensionToSvg(entity as any, precision, document);
   }
 
   return "";
@@ -125,7 +125,7 @@ function serializeEntityToSvg(entity: CadEntity, precision: number): string {
 
 import { buildAlignedDimensionGeometry, buildLinearDimensionGeometry } from "@cad-web/cad-geometry";
 
-function serializeDimensionToSvg(entity: any, precision: number): string {
+function serializeDimensionToSvg(entity: any, precision: number, document: any): string {
   const defaultStyle = {
     textHeight: entity.style?.textHeight ?? 12,
     arrowSize: entity.style?.arrowSize ?? 6,
@@ -137,14 +137,38 @@ function serializeDimensionToSvg(entity: any, precision: number): string {
   };
 
   const geom = entity.dimensionType === "linear" 
-    ? buildLinearDimensionGeometry(entity.definition, defaultStyle)
-    : buildAlignedDimensionGeometry(entity.definition, defaultStyle);
+    ? buildLinearDimensionGeometry(entity.definition, defaultStyle, document.units, document.displayUnit || document.units)
+    : buildAlignedDimensionGeometry(entity.definition, defaultStyle, document.units, document.displayUnit || document.units);
 
   const lines = [
     `<line x1="${formatNumber(geom.extensionLine1.start.x, precision)}" y1="${formatNumber(geom.extensionLine1.start.y, precision)}" x2="${formatNumber(geom.extensionLine1.end.x, precision)}" y2="${formatNumber(geom.extensionLine1.end.y, precision)}" />`,
     `<line x1="${formatNumber(geom.extensionLine2.start.x, precision)}" y1="${formatNumber(geom.extensionLine2.start.y, precision)}" x2="${formatNumber(geom.extensionLine2.end.x, precision)}" y2="${formatNumber(geom.extensionLine2.end.y, precision)}" />`,
     `<line x1="${formatNumber(geom.dimensionLine.start.x, precision)}" y1="${formatNumber(geom.dimensionLine.start.y, precision)}" x2="${formatNumber(geom.dimensionLine.end.x, precision)}" y2="${formatNumber(geom.dimensionLine.end.y, precision)}" />`
   ];
+
+  if (defaultStyle.arrowType === "arrow") {
+    // Generate SVG for filled arrows
+    const drawArrow = (p1: {x:number, y:number}, p2: {x:number, y:number}) => {
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const len = Math.hypot(dx, dy);
+      if (len === 0) return "";
+      const nx = dx / len;
+      const ny = dy / len;
+      const aLen = defaultStyle.arrowSize;
+      const aWid = defaultStyle.arrowSize * 0.3;
+      const pnt1 = { x: p1.x + nx * aLen - ny * aWid, y: p1.y + ny * aLen + nx * aWid };
+      const pnt2 = { x: p1.x + nx * aLen + ny * aWid, y: p1.y + ny * aLen - nx * aWid };
+      return `<polygon points="${formatNumber(p1.x, precision)},${formatNumber(p1.y, precision)} ${formatNumber(pnt1.x, precision)},${formatNumber(pnt1.y, precision)} ${formatNumber(pnt2.x, precision)},${formatNumber(pnt2.y, precision)}" />`;
+    };
+    lines.push(drawArrow(geom.dimensionLine.start, geom.dimensionLine.end));
+    lines.push(drawArrow(geom.dimensionLine.end, geom.dimensionLine.start));
+  } else {
+    // Draw Ticks
+    const ts = defaultStyle.arrowSize * 0.5;
+    lines.push(`<line x1="${formatNumber(geom.dimensionLine.start.x - ts, precision)}" y1="${formatNumber(geom.dimensionLine.start.y + ts, precision)}" x2="${formatNumber(geom.dimensionLine.start.x + ts, precision)}" y2="${formatNumber(geom.dimensionLine.start.y - ts, precision)}" stroke-width="1.5" />`);
+    lines.push(`<line x1="${formatNumber(geom.dimensionLine.end.x - ts, precision)}" y1="${formatNumber(geom.dimensionLine.end.y + ts, precision)}" x2="${formatNumber(geom.dimensionLine.end.x + ts, precision)}" y2="${formatNumber(geom.dimensionLine.end.y - ts, precision)}" stroke-width="1.5" />`);
+  }
 
   const textVal = entity.textOverride || geom.formattedText;
   const rotDeg = (geom.textRotation * 180) / Math.PI;

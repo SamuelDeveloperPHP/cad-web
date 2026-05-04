@@ -21,6 +21,15 @@ Estamos desenvolvendo um CAD-WEB comercial de alta performance para empresas de 
 - Redis para cache, filas e realtime
 - JSON próprio como formato nativo
 - SVG para importação/exportação
+- Criar branches de projeto
+- Criar commits de projeto
+- comentar os códigos na terceira pessoa
+- nao misturar codigo frontend com backend
+- nao quebrar o projeto
+- nao apagar arquivos sem permissao
+- nao criar arquivos sem permissao
+- nao criar branches sem permissao
+
 
 ## Arquitetura obrigatória
 

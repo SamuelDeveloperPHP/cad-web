@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useCadStore } from "../../state/useCadStore";
 import { UpdateEntityCommand, UpdateEntitiesBatchCommand, type CadEntity } from "@cad-web/cad-core";
-import { lineLength, lineAngle, rectangleArea, rectanglePerimeter, circleArea, circleCircumference } from "@cad-web/cad-geometry";
+import { lineLength, lineAngle, rectangleArea, rectanglePerimeter, circleArea, circleCircumference, formatMeasurement } from "@cad-web/cad-geometry";
 
 function PropertyRow({ label, children }: { label: string, children: React.ReactNode }) {
   return (
@@ -274,14 +274,20 @@ export function CadPropertiesPanel({ cad }: { cad: CadStore }) {
             />
           </PropertyRow>
           <PropertyRow label="Measured Value">
-            {/* For real implementation, we could import distance/measurements from cad-geometry, but we can compute distance directly or just show it readonly via the builder if we had access. For now we calculate distance */}
             <PropertyInput 
               value={
-                (entity as any).dimensionType === "linear" && (entity as any).definition.orientation === "horizontal"
-                  ? Math.abs((entity as any).definition.secondPoint.x - (entity as any).definition.firstPoint.x).toFixed((entity as any).style?.precision ?? 2)
-                  : (entity as any).dimensionType === "linear" && (entity as any).definition.orientation === "vertical"
-                  ? Math.abs((entity as any).definition.secondPoint.y - (entity as any).definition.firstPoint.y).toFixed((entity as any).style?.precision ?? 2)
-                  : lineLength((entity as any).definition.firstPoint, (entity as any).definition.secondPoint).toFixed((entity as any).style?.precision ?? 2)
+                (() => {
+                  const def = (entity as any).definition;
+                  let val = 0;
+                  if ((entity as any).dimensionType === "linear" && def.orientation === "horizontal") {
+                    val = Math.abs(def.secondPoint.x - def.firstPoint.x);
+                  } else if ((entity as any).dimensionType === "linear" && def.orientation === "vertical") {
+                    val = Math.abs(def.secondPoint.y - def.firstPoint.y);
+                  } else {
+                    val = lineLength(def.firstPoint, def.secondPoint);
+                  }
+                  return formatMeasurement(val, cad.document.units, cad.document.displayUnit || cad.document.units, (entity as any).style?.precision ?? 2);
+                })()
               } 
               readOnly 
             />
@@ -300,6 +306,17 @@ export function CadPropertiesPanel({ cad }: { cad: CadStore }) {
               readOnly={isLocked}
               onChange={val => handleUpdateSingle(entity.id, { style: { ...(entity as any).style, unitSuffix: val } } as any)} 
             />
+          </PropertyRow>
+          <PropertyRow label="Arrow Type">
+            <select
+              value={(entity as any).style?.arrowType ?? "tick"}
+              disabled={isLocked}
+              className="w-full bg-cad-bg dark:bg-[#1A1D20] text-cad-text text-sm rounded border border-cad-border px-2 py-1 focus:outline-none focus:border-cad-primary transition-colors"
+              onChange={e => handleUpdateSingle(entity.id, { style: { ...(entity as any).style, arrowType: e.target.value } } as any)}
+            >
+              <option value="tick">Architectural Tick</option>
+              <option value="arrow">Filled Arrow</option>
+            </select>
           </PropertyRow>
         </>
       )}

@@ -88,10 +88,13 @@ export type CadLayer = Readonly<{
   order: number;
 }>;
 
+export type CadDisplayUnit = "um" | "mm" | "cm" | "m" | "km";
+
 export type CadDocument = Readonly<{
   schemaVersion: string;
   id: string;
   units: "mm" | "cm" | "m" | "in";
+  displayUnit?: CadDisplayUnit;
   entities: ReadonlyArray<CadEntity>;
   layers: ReadonlyArray<CadLayer>;
   activeLayerId: string;
