@@ -44,7 +44,39 @@ export type PolylineEntity = BaseEntity & Readonly<{
   vertices: ReadonlyArray<Point2D>;
 }>;
 
-export type CadEntity = LineEntity | RectangleEntity | CircleEntity;
+export type DimensionStyle = Readonly<{
+  textHeight: number;
+  arrowSize: number;
+  extensionOffset: number;
+  extensionOvershoot: number;
+  precision: number;
+  unitSuffix: string;
+  color?: string;
+  arrowType?: "tick" | "arrow";
+}>;
+
+export type LinearDimensionDef = Readonly<{
+  firstPoint: Point2D;
+  secondPoint: Point2D;
+  dimensionLinePoint: Point2D;
+  orientation: "horizontal" | "vertical" | "auto";
+}>;
+
+export type AlignedDimensionDef = Readonly<{
+  firstPoint: Point2D;
+  secondPoint: Point2D;
+  dimensionLinePoint: Point2D;
+}>;
+
+export type DimensionEntity = BaseEntity & Readonly<{
+  type: "dimension";
+  dimensionType: "linear" | "aligned";
+  style?: DimensionStyle;
+  definition: LinearDimensionDef | AlignedDimensionDef;
+  textOverride?: string;
+}>;
+
+export type CadEntity = LineEntity | RectangleEntity | CircleEntity | DimensionEntity;
 
 export type CadLayer = Readonly<{
   id: string;

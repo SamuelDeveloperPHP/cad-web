@@ -1,4 +1,17 @@
-import { CircleTool, EraseTool, LineTool, MoveTool, OffsetTool, RectangleTool, RotateTool, ScaleTool, SelectTool, ToolRegistry } from "@cad-web/cad-tools";
+import { 
+  ToolRegistry, 
+  SelectTool, 
+  LineTool, 
+  RectangleTool, 
+  CircleTool, 
+  MoveTool, 
+  RotateTool, 
+  ScaleTool,
+  OffsetTool,
+  EraseTool, 
+  DimLinearTool,
+  DimAlignedTool
+} from "@cad-web/cad-tools";
 
 export function createWebToolRegistry(): ToolRegistry {
   const registry = new ToolRegistry();
@@ -12,6 +25,8 @@ export function createWebToolRegistry(): ToolRegistry {
   registry.register(new ScaleTool());
   registry.register(new OffsetTool());
   registry.register(new EraseTool());
+  registry.register(new DimLinearTool());
+  registry.register(new DimAlignedTool());
 
   return registry;
 }

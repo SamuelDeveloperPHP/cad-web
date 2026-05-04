@@ -231,7 +231,19 @@ function validateCadEntity(entity: CadEntity | undefined, path: string): void {
     return;
   }
 
-  throw new CadIoValidationError("CAD entity type is not supported by this schema", `${path}.type`);
+  if (entity.type === "dimension") {
+    assertString((entity as any).dimensionType, `${path}.dimensionType`);
+    if (!isRecord((entity as any).definition)) {
+      throw new CadIoValidationError("CAD dimension definition must be an object", `${path}.definition`);
+    }
+    const def = (entity as any).definition;
+    validatePoint(def.firstPoint, `${path}.definition.firstPoint`);
+    validatePoint(def.secondPoint, `${path}.definition.secondPoint`);
+    validatePoint(def.dimensionLinePoint, `${path}.definition.dimensionLinePoint`);
+    return;
+  }
+
+  throw new CadIoValidationError(`CAD entity type '${entity.type}' is not supported by this schema`, `${path}.type`);
 }
 
 function validatePoint(value: unknown, path: string): void {

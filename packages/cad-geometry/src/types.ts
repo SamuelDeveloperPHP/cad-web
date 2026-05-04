@@ -73,10 +73,20 @@ export type ArcGeometry = Readonly<{
   clockwise: boolean;
 }>;
 
+export type DimensionGeometry = Readonly<{
+  type: "dimension";
+  id?: GeometryId;
+  dimensionType: "linear" | "aligned";
+  style?: any;
+  definition: any;
+  textOverride?: string;
+}>;
+
 export type GeometryEntity =
   | LineGeometry
   | SegmentGeometry
   | PolylineGeometry
   | RectangleGeometry
   | CircleGeometry
-  | ArcGeometry;
+  | ArcGeometry
+  | DimensionGeometry;

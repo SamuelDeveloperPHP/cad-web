@@ -112,7 +112,53 @@ function serializeEntityToSvg(entity: CadEntity, precision: number): string {
     return serializeRectangleToSvg(entity, precision);
   }
 
-  return serializeCircleToSvg(entity, precision);
+  if (entity.type === "circle") {
+    return serializeCircleToSvg(entity, precision);
+  }
+
+  if (entity.type === "dimension") {
+    return serializeDimensionToSvg(entity as any, precision);
+  }
+
+  return "";
+}
+
+import { buildAlignedDimensionGeometry, buildLinearDimensionGeometry } from "@cad-web/cad-geometry";
+
+function serializeDimensionToSvg(entity: any, precision: number): string {
+  const defaultStyle = {
+    textHeight: entity.style?.textHeight ?? 12,
+    arrowSize: entity.style?.arrowSize ?? 6,
+    extensionOffset: entity.style?.extensionOffset ?? 2,
+    extensionOvershoot: entity.style?.extensionOvershoot ?? 3,
+    precision: entity.style?.precision ?? 2,
+    unitSuffix: entity.style?.unitSuffix ?? " mm",
+    arrowType: entity.style?.arrowType ?? "tick",
+  };
+
+  const geom = entity.dimensionType === "linear" 
+    ? buildLinearDimensionGeometry(entity.definition, defaultStyle)
+    : buildAlignedDimensionGeometry(entity.definition, defaultStyle);
+
+  const lines = [
+    `<line x1="${formatNumber(geom.extensionLine1.start.x, precision)}" y1="${formatNumber(geom.extensionLine1.start.y, precision)}" x2="${formatNumber(geom.extensionLine1.end.x, precision)}" y2="${formatNumber(geom.extensionLine1.end.y, precision)}" />`,
+    `<line x1="${formatNumber(geom.extensionLine2.start.x, precision)}" y1="${formatNumber(geom.extensionLine2.start.y, precision)}" x2="${formatNumber(geom.extensionLine2.end.x, precision)}" y2="${formatNumber(geom.extensionLine2.end.y, precision)}" />`,
+    `<line x1="${formatNumber(geom.dimensionLine.start.x, precision)}" y1="${formatNumber(geom.dimensionLine.start.y, precision)}" x2="${formatNumber(geom.dimensionLine.end.x, precision)}" y2="${formatNumber(geom.dimensionLine.end.y, precision)}" />`
+  ];
+
+  const textVal = entity.textOverride || geom.formattedText;
+  const rotDeg = (geom.textRotation * 180) / Math.PI;
+
+  const textTransform = rotDeg !== 0 
+    ? `transform="rotate(${formatNumber(rotDeg, precision)} ${formatNumber(geom.textPosition.x, precision)} ${formatNumber(geom.textPosition.y, precision)})"` 
+    : "";
+
+  const text = `<text x="${formatNumber(geom.textPosition.x, precision)}" y="${formatNumber(geom.textPosition.y, precision)}" text-anchor="middle" dominant-baseline="central" font-size="${formatNumber(defaultStyle.textHeight, precision)}px" font-family="Arial, sans-serif" ${textTransform}>${escapeSvgAttribute(textVal)}</text>`;
+
+  return `<g data-entity-type="dimension" data-dimension-type="${escapeSvgAttribute(entity.dimensionType)}" id="${escapeSvgAttribute(entity.id)}" data-layer-id="${escapeSvgAttribute(entity.layerId)}">
+    ${lines.join("\n    ")}
+    ${text}
+  </g>`;
 }
 
 function serializeLineToSvg(entity: LineEntity, precision: number): string {
@@ -404,6 +450,24 @@ function calculateEntityBounds(entity: CadEntity): SvgBounds {
 
   if (entity.type === "rectangle") {
     return calculateBoundsFromPoints(getRectangleCorners(entity));
+  }
+
+  if (entity.type === "dimension") {
+    // Basic approximation since we don't have text width here easily
+    const defaultStyle = {
+      textHeight: entity.style?.textHeight ?? 12,
+      arrowSize: entity.style?.arrowSize ?? 6,
+      extensionOffset: entity.style?.extensionOffset ?? 2,
+      extensionOvershoot: entity.style?.extensionOvershoot ?? 3,
+      precision: entity.style?.precision ?? 2,
+      unitSuffix: entity.style?.unitSuffix ?? " mm",
+      arrowType: entity.style?.arrowType ?? "tick",
+    };
+    const geom = entity.dimensionType === "linear" 
+      ? buildLinearDimensionGeometry(entity.definition as any, defaultStyle)
+      : buildAlignedDimensionGeometry(entity.definition as any, defaultStyle);
+      
+    return calculateBoundsFromPoints(geom.visualPoints as ReadonlyArray<Readonly<{ x: number; y: number }>>);
   }
 
   return {

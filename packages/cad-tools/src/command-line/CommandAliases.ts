@@ -12,6 +12,7 @@ export const COMMAND_ALIASES = {
   explode: ["x", "explode"],
   erase: ["e", "erase"],
   dimLinear: ["dli", "dimlinear"],
+  dimAligned: ["dal", "dimaligned"],
   dimRadius: ["dra", "dimradius"],
   dimDiameter: ["ddi", "dimdiameter"],
   dimAngular: ["dan", "dimangular"],
