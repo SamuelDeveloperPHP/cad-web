@@ -243,7 +243,7 @@ function validateCadEntity(entity: CadEntity | undefined, path: string): void {
     return;
   }
 
-  throw new CadIoValidationError(`CAD entity type '${entity.type}' is not supported by this schema`, `${path}.type`);
+  throw new CadIoValidationError(`CAD entity type '${(entity as any).type}' is not supported by this schema`, `${path}.type`);
 }
 
 function validatePoint(value: unknown, path: string): void {
