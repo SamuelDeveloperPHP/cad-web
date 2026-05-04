@@ -10,6 +10,7 @@ import { CadRibbon } from "./CadRibbon";
 import { useCadStore } from "../../state/useCadStore";
 import { downloadCadDocument, downloadSvgDocument, readCadDocumentFile, readSvgDocumentFile } from "../../services/cadJsonExport";
 import { createToolKeyboardEvent } from "../../tools/toolEvents";
+import { ChangeDisplayUnitCommand } from "@cad-web/cad-tools";
 
 export function CadEditor() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -98,7 +99,10 @@ export function CadEditor() {
         entityCount={cad.document.entities.length}
         snapSettings={cad.snapSettings}
         activeLayerName={activeLayerName}
+        displayUnit={cad.document.displayUnit || cad.document.units}
+        documentUnits={cad.document.units}
         onSnapSettingsChange={cad.setSnapSettings}
+        onDisplayUnitChange={(unit) => cad.executeCommand(new ChangeDisplayUnitCommand(unit as any))}
       />
 
       <input

@@ -18,6 +18,7 @@ export type CadJsonDocument = Readonly<{
   application: typeof CAD_IO_APPLICATION;
   id: string;
   unit: CadDocument["units"];
+  displayUnit?: string;
   precision: number;
   metadata: Readonly<Record<string, unknown>>;
   layers: ReadonlyArray<CadJsonLayer>;
@@ -48,6 +49,7 @@ export function toCadJsonDocument(document: CadDocument, options: CadJsonExportO
     application: CAD_IO_APPLICATION,
     id: document.id,
     unit: document.units,
+    ...(document.displayUnit ? { displayUnit: document.displayUnit } : {}),
     precision: options.precision ?? 3,
     metadata: {},
     layers: document.layers,
@@ -121,6 +123,10 @@ export function validateCadDocument(document: CadDocument): void {
   assertString(document.id, "$.id");
   assertUnit(document.units, "$.units");
 
+  if (document.displayUnit !== undefined && typeof document.displayUnit !== "string") {
+    throw new CadIoValidationError("Document displayUnit must be a string", "$.displayUnit");
+  }
+
   if (!Array.isArray(document.entities)) {
     throw new CadIoValidationError("CAD document entities must be an array", "$.entities");
   }
@@ -148,6 +154,7 @@ function fromNativeCadJsonDocument(source: Record<string, unknown>): CadDocument
     schemaVersion: source.schemaVersion,
     id: source.id,
     units: source.unit,
+    ...(source.displayUnit ? { displayUnit: source.displayUnit as any } : {}),
     layers: (source.layers as ReadonlyArray<CadJsonLayer>) ?? createFallbackLayers(source.entities as ReadonlyArray<CadEntity>),
     activeLayerId: (source.activeLayerId as string) ?? "layer_0",
     entities: source.entities as ReadonlyArray<CadEntity>

@@ -1,6 +1,7 @@
 export * from "./command-line/CommandAliases";
 export * from "./command-line/CommandRegistry";
 export * from "./commands/CadCommandTypes";
+export * from "./commands/ChangeDisplayUnitCommand";
 export * from "./contracts/CadTool";
 export * from "./contracts/ToolContext";
 export * from "./contracts/ToolEvent";

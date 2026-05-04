@@ -48,3 +48,37 @@ export function circleArea(radius: number): number {
 export function circleCircumference(radius: number): number {
   return 2 * Math.PI * radius;
 }
+/**
+ * Convert a value from document unit to display unit.
+ */
+export function convertUnit(value: number, fromUnit: string, toUnit: string): number {
+  if (fromUnit === toUnit) return value;
+
+  const mmFactor: Record<string, number> = {
+    um: 0.001,
+    mm: 1,
+    cm: 10,
+    m: 1000,
+    km: 1000000,
+    in: 25.4
+  };
+
+  const fromMm = mmFactor[fromUnit] || 1;
+  const toMm = mmFactor[toUnit] || 1;
+
+  // Convert to mm first, then to target unit
+  const inMm = value * fromMm;
+  return inMm / toMm;
+}
+
+/**
+ * Format a measurement for display based on the display unit.
+ */
+export function formatMeasurement(value: number, docUnit: string, displayUnit: string, precision: number): string {
+  const converted = convertUnit(value, docUnit, displayUnit);
+  
+  if (precision === 0) {
+    return Math.round(converted).toString();
+  }
+  return converted.toFixed(precision);
+}

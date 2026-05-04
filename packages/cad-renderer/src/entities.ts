@@ -109,8 +109,8 @@ export function renderDocument2D(
       };
 
       const geom = entity.dimensionType === "linear" 
-        ? buildLinearDimensionGeometry(entity.definition as any, defaultStyle)
-        : buildAlignedDimensionGeometry(entity.definition as any, defaultStyle);
+        ? buildLinearDimensionGeometry(entity.definition as any, defaultStyle, document.units, document.displayUnit || document.units)
+        : buildAlignedDimensionGeometry(entity.definition as any, defaultStyle, document.units, document.displayUnit || document.units);
 
       // Draw extension lines
       const ext1Start = worldToScreen(geom.extensionLine1.start, viewport);
@@ -134,23 +134,48 @@ export function renderDocument2D(
       context.lineTo(dimEnd.x, dimEnd.y);
       context.stroke();
 
-      // Draw Architectural Ticks
       const tickSizeScreen = defaultStyle.arrowSize * viewport.scale;
-      // Ticks are 45 degree lines at the ends
-      // For simplicity, a standard 45 degree tick
-      const tickDx = tickSizeScreen * 0.5;
-      const tickDy = tickSizeScreen * 0.5;
 
-      context.beginPath();
-      context.moveTo(dimStart.x - tickDx, dimStart.y + tickDy);
-      context.lineTo(dimStart.x + tickDx, dimStart.y - tickDy);
-      context.moveTo(dimEnd.x - tickDx, dimEnd.y + tickDy);
-      context.lineTo(dimEnd.x + tickDx, dimEnd.y - tickDy);
-      // Ticks are usually drawn slightly thicker
-      const oldLineWidth = context.lineWidth;
-      context.lineWidth = oldLineWidth * 1.5;
-      context.stroke();
-      context.lineWidth = oldLineWidth;
+      if (defaultStyle.arrowType === "arrow") {
+        // Draw filled arrows
+        const drawArrow = (point: {x:number, y:number}, opposite: {x:number, y:number}) => {
+          const dirX = opposite.x - point.x;
+          const dirY = opposite.y - point.y;
+          const len = Math.hypot(dirX, dirY);
+          if (len === 0) return;
+          const nx = dirX / len;
+          const ny = dirY / len;
+          
+          const arrowLen = tickSizeScreen;
+          const arrowWidth = tickSizeScreen * 0.3;
+          
+          context.beginPath();
+          context.moveTo(point.x, point.y);
+          context.lineTo(point.x + nx * arrowLen - ny * arrowWidth, point.y + ny * arrowLen + nx * arrowWidth);
+          context.lineTo(point.x + nx * arrowLen + ny * arrowWidth, point.y + ny * arrowLen - nx * arrowWidth);
+          context.closePath();
+          context.fillStyle = context.strokeStyle;
+          context.fill();
+        };
+
+        drawArrow(dimStart, dimEnd);
+        drawArrow(dimEnd, dimStart);
+      } else {
+        // Draw Architectural Ticks (45 degree lines at the ends)
+        const tickDx = tickSizeScreen * 0.5;
+        const tickDy = tickSizeScreen * 0.5;
+
+        context.beginPath();
+        context.moveTo(dimStart.x - tickDx, dimStart.y + tickDy);
+        context.lineTo(dimStart.x + tickDx, dimStart.y - tickDy);
+        context.moveTo(dimEnd.x - tickDx, dimEnd.y + tickDy);
+        context.lineTo(dimEnd.x + tickDx, dimEnd.y - tickDy);
+        // Ticks are usually drawn slightly thicker
+        const oldLineWidth = context.lineWidth;
+        context.lineWidth = oldLineWidth * 1.5;
+        context.stroke();
+        context.lineWidth = oldLineWidth;
+      }
 
       // Draw Text
       const textPos = worldToScreen(geom.textPosition, viewport);
@@ -165,12 +190,12 @@ export function renderDocument2D(
       context.textAlign = "center";
       context.textBaseline = "middle";
 
-      // Draw whiteout (background) to hide the dimension line beneath the text
+      // Draw whiteout (background) more discreetly
       const textMetrics = context.measureText(textVal);
       const textWidth = textMetrics.width;
-      const padding = fontSizeScreen * 0.2;
+      const padding = fontSizeScreen * 0.1; // Reduced padding
       
-      context.fillStyle = "var(--cad-bg-dark, #111315)"; // Ideally use a passed background color
+      context.fillStyle = "rgba(17, 19, 21, 0.85)"; // Reduced opacity, dark bg
       context.fillRect(-textWidth/2 - padding, -fontSizeScreen/2 - padding, textWidth + padding*2, fontSizeScreen + padding*2);
 
       context.fillStyle = context.strokeStyle;
