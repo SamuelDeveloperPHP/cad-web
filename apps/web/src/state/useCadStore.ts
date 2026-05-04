@@ -51,6 +51,7 @@ export type CadStore = Readonly<{
   importDocument(document: CadDocument): void;
   cancelInteraction(): void;
   runCommandLine(command: string): void;
+  executeCommand(command: CadCommand): void;
   undo(): void;
   redo(): void;
 }>;
@@ -373,6 +374,7 @@ export function useCadStore(): CadStore {
       importDocument,
       cancelInteraction,
       runCommandLine,
+      executeCommand: applyCommand,
       undo,
       redo
     }),
@@ -385,6 +387,7 @@ export function useCadStore(): CadStore {
       dispatchPointerMove,
       dispatchPointerUp,
       document,
+      executeCommand: applyCommand,
       historyAvailability.canRedo,
       historyAvailability.canUndo,
       importDocument,

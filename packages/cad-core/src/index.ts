@@ -287,6 +287,35 @@ export class ClearDocumentCommand implements CadCommand {
   }
 }
 
+export class AddMultipleEntitiesCommand implements CadCommand {
+  readonly id: string;
+  readonly type = "AddMultipleEntitiesCommand";
+  readonly description = "Adds multiple CAD entities in batch.";
+  private addedEntityIds: ReadonlyArray<string>;
+
+  constructor(readonly entities: ReadonlyArray<CadEntity>) {
+    this.id = `cmd_add_multiple_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    this.addedEntityIds = entities.map((e) => e.id);
+  }
+
+  execute(document: CadDocument): CadDocument {
+    // TODO: Se o modelo atual exigir imutabilidade profunda no futuro, otimizar esta clonagem massiva
+    // (Ex: migrar para estrutura de dados persistente, B-Tree, ou permitir mutabilidade interna com flag)
+    return {
+      ...document,
+      entities: document.entities.concat(this.entities)
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    const idsToRemove = new Set(this.addedEntityIds);
+    return {
+      ...document,
+      entities: document.entities.filter((entity) => !idsToRemove.has(entity.id))
+    };
+  }
+}
+
 function moveEntities(
   document: CadDocument,
   entityIds: ReadonlyArray<EntityId>,

@@ -17,6 +17,7 @@ import {
 } from "react";
 import type { CadStore } from "../../state/useCadStore";
 import { createToolPointerEvent } from "../../tools/toolEvents";
+import { cadDiagnostics } from "../../diagnostics/CadDiagnosticsService";
 
 type CadCanvasProps = Readonly<{
   cad: CadStore;
@@ -63,7 +64,8 @@ export function CadCanvas({ cad }: CadCanvasProps) {
     const context = configureCanvasForDevicePixelRatio(canvas, screenSize);
     context.clearRect(0, 0, screenSize.width, screenSize.height);
     renderGrid2D(context, cad.viewport, screenSize);
-    renderDocument2D(context, cad.document, cad.viewport);
+    const stats = renderDocument2D(context, cad.document, cad.viewport);
+    cadDiagnostics.reportFrame(stats);
     renderSelectedEntities(context, cad);
     renderPreview(context, cad);
     renderActiveSnapMarker(context, cad);

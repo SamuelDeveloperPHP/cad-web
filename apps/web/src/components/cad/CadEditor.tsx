@@ -3,6 +3,7 @@ import { CadCanvas } from "./CadCanvas";
 import { CadCommandLine } from "./CadCommandLine";
 import { CadStatusBar } from "./CadStatusBar";
 import { CadToolbar } from "./CadToolbar";
+import { CadDiagnosticPanel } from "./CadDiagnosticPanel";
 import { useCadStore } from "../../state/useCadStore";
 import { downloadCadDocument, downloadSvgDocument, readCadDocumentFile, readSvgDocumentFile } from "../../services/cadJsonExport";
 import { createToolKeyboardEvent } from "../../tools/toolEvents";
@@ -46,12 +47,27 @@ export function CadEditor() {
         onUndo={cad.undo}
         onRedo={cad.redo}
         onClear={cad.clearDocument}
-        onExport={() => downloadCadDocument(cad.document)}
-        onExportSvg={() => downloadSvgDocument(cad.document)}
+        onExport={() => {
+          if (cad.document.entities.length > 50000) {
+            if (!window.confirm("Atenção: Exportar um arquivo com mais de 50.000 entidades pode causar travamento temporário no navegador. Deseja prosseguir?")) {
+              return;
+            }
+          }
+          downloadCadDocument(cad.document);
+        }}
+        onExportSvg={() => {
+          if (cad.document.entities.length > 50000) {
+            if (!window.confirm("Atenção: Exportar um arquivo com mais de 50.000 entidades pode causar travamento temporário no navegador. Deseja prosseguir?")) {
+              return;
+            }
+          }
+          downloadSvgDocument(cad.document);
+        }}
         onImport={handleImportClick}
         onImportSvg={handleImportSvgClick}
       />
       <div className="cad-workspace">
+        <CadDiagnosticPanel />
         <CadCanvas cad={cad} />
         <CadCommandLine onSubmit={cad.runCommandLine} message={cad.message} />
       </div>
