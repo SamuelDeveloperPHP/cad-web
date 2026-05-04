@@ -387,7 +387,7 @@ export function useCadStore(): CadStore {
       dispatchPointerMove,
       dispatchPointerUp,
       document,
-      executeCommand: applyCommand,
+      applyCommand,
       historyAvailability.canRedo,
       historyAvailability.canUndo,
       importDocument,
