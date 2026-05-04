@@ -17,7 +17,9 @@ const toolPrompts: Record<ActiveCadTool, string> = {
   scale: "[Scale] Specify base point",
   offset: "[Offset] Specify offset distance",
   erase: "[Erase] Select objects or press Delete",
-  pan: "[Pan] Drag to pan view"
+  pan: "[Pan] Drag to pan view",
+  dimLinear: "[DimLinear] Specify first extension line origin",
+  dimAligned: "[DimAligned] Specify first extension line origin"
 };
 
 export function CadCommandLine({ activeTool, onSubmit, message }: CadCommandLineProps) {

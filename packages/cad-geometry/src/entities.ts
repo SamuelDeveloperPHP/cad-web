@@ -1,4 +1,5 @@
 import { boundingBoxFromPoints, expandBoundingBox } from "./bounding-box";
+import { buildAlignedDimensionGeometry, buildLinearDimensionGeometry } from "./dimensions";
 import type { BoundingBox, GeometryEntity, Point2D } from "./types";
 
 export function createLine(start: Point2D, end: Point2D, id?: string): GeometryEntity {
@@ -59,6 +60,35 @@ export function getEntityBoundingBox(entity: GeometryEntity): BoundingBox {
         },
         entity.radius
       );
+    case "dimension": {
+      let points: Point2D[] = [];
+      const defaultStyle = {
+        textHeight: entity.style?.textHeight ?? 12,
+        arrowSize: entity.style?.arrowSize ?? 6,
+        extensionOffset: entity.style?.extensionOffset ?? 2,
+        extensionOvershoot: entity.style?.extensionOvershoot ?? 3,
+        precision: entity.style?.precision ?? 2,
+        unitSuffix: entity.style?.unitSuffix ?? " mm",
+      };
+
+      if (entity.dimensionType === "linear") {
+        const geom = buildLinearDimensionGeometry(entity.definition, defaultStyle);
+        points = [...geom.visualPoints];
+      } else if (entity.dimensionType === "aligned") {
+        const geom = buildAlignedDimensionGeometry(entity.definition, defaultStyle);
+        points = [...geom.visualPoints];
+      } else {
+        points = [entity.definition.firstPoint, entity.definition.secondPoint, entity.definition.dimensionLinePoint];
+      }
+
+      // Approximate text width = textHeight * 0.7 * characters
+      // Since visualPoints already includes textPosition, we expand the box by text width/height
+      const charCount = (entity.textOverride || "000.00 mm").length;
+      const textWidth = defaultStyle.textHeight * 0.7 * charCount;
+      const padding = Math.max(defaultStyle.textHeight, textWidth / 2);
+
+      return expandBoundingBox(boundingBoxFromPoints(points), padding);
+    }
   }
 }
 

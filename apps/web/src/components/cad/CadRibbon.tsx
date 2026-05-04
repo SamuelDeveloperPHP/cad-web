@@ -3,7 +3,7 @@ import type { ActiveCadTool } from "../../state/useCadStore";
 import type { SnapSettings } from "@cad-web/cad-geometry";
 import { 
   Minus, Square, Circle, 
-  Move, RotateCw, Scaling, Eraser, Copy,
+  Move, RotateCw, Scaling, Eraser, Copy, MoveDiagonal,
   Magnet, Grip, Maximize, 
   Layers, Upload, Download, Trash2
 } from "lucide-react";
@@ -100,6 +100,29 @@ export function CadRibbon(props: CadRibbonProps) {
           </button>
         </div>
         <div className="cad-ribbon-title">Modificar</div>
+      </div>
+
+      {/* Group: Cotas */}
+      <div className="cad-ribbon-group">
+        <div className="cad-ribbon-tools">
+          <button 
+            className={`cad-ribbon-btn ${props.activeTool === "dimLinear" ? "active" : ""}`}
+            onClick={() => props.onToolChange("dimLinear" as any)}
+            title="Linear Dimension"
+          >
+            <Move size={24} />
+            <span style={{ fontSize: '10px' }}>Linear</span>
+          </button>
+          <button 
+            className={`cad-ribbon-btn ${props.activeTool === "dimAligned" ? "active" : ""}`}
+            onClick={() => props.onToolChange("dimAligned" as any)}
+            title="Aligned Dimension"
+          >
+            <MoveDiagonal size={24} />
+            <span style={{ fontSize: '10px' }}>Aligned</span>
+          </button>
+        </div>
+        <div className="cad-ribbon-title">Cotas</div>
       </div>
 
       {/* Group: Precisão */}

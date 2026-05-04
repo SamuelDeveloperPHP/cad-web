@@ -23,7 +23,9 @@ const toolLabels: Record<ActiveCadTool, string> = {
   scale: "Scale",
   offset: "Offset",
   erase: "Erase",
-  pan: "Pan"
+  pan: "Pan",
+  dimLinear: "Linear Dimension",
+  dimAligned: "Aligned Dimension"
 };
 
 export function CadStatusBar({ activeTool, mouseWorld, zoom, entityCount, snapSettings, activeLayerName, onSnapSettingsChange }: CadStatusBarProps) {

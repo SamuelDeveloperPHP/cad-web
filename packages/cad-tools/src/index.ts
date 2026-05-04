@@ -13,6 +13,7 @@ export * from "./modify/MoveTool";
 export * from "./modify/RotateTool";
 export * from "./modify/ScaleTool";
 export * from "./modify/OffsetTool";
+export * from "./dimensions/DimensionsTool";
 export * from "./registry/ToolRegistry";
 export * from "./selection/SelectTool";
 export * from "./selection/SelectionBox";

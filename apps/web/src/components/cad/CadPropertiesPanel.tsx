@@ -262,6 +262,47 @@ export function CadPropertiesPanel({ cad }: { cad: CadStore }) {
           <PropertyRow label="Circumference"><PropertyInput value={circleCircumference((entity as any).radius).toFixed(3)} readOnly /></PropertyRow>
         </>
       )}
+
+      {entity.type === "dimension" && (
+        <>
+          <PropertyRow label="Dimension Type"><PropertyInput value={(entity as any).dimensionType} readOnly /></PropertyRow>
+          <PropertyRow label="Text Override">
+            <PropertyInput 
+              value={(entity as any).textOverride || ""} 
+              readOnly={isLocked} 
+              onChange={val => handleUpdateSingle(entity.id, { textOverride: val } as any)} 
+            />
+          </PropertyRow>
+          <PropertyRow label="Measured Value">
+            {/* For real implementation, we could import distance/measurements from cad-geometry, but we can compute distance directly or just show it readonly via the builder if we had access. For now we calculate distance */}
+            <PropertyInput 
+              value={
+                (entity as any).dimensionType === "linear" && (entity as any).definition.orientation === "horizontal"
+                  ? Math.abs((entity as any).definition.secondPoint.x - (entity as any).definition.firstPoint.x).toFixed((entity as any).style?.precision ?? 2)
+                  : (entity as any).dimensionType === "linear" && (entity as any).definition.orientation === "vertical"
+                  ? Math.abs((entity as any).definition.secondPoint.y - (entity as any).definition.firstPoint.y).toFixed((entity as any).style?.precision ?? 2)
+                  : lineLength((entity as any).definition.firstPoint, (entity as any).definition.secondPoint).toFixed((entity as any).style?.precision ?? 2)
+              } 
+              readOnly 
+            />
+          </PropertyRow>
+          <PropertyRow label="Precision">
+            <PropertyInput 
+              type="number"
+              value={(entity as any).style?.precision ?? 2} 
+              readOnly={isLocked}
+              onChange={val => handleUpdateSingle(entity.id, { style: { ...(entity as any).style, precision: parseNumber(val, 2) } } as any)} 
+            />
+          </PropertyRow>
+          <PropertyRow label="Unit Suffix">
+            <PropertyInput 
+              value={(entity as any).style?.unitSuffix ?? " mm"} 
+              readOnly={isLocked}
+              onChange={val => handleUpdateSingle(entity.id, { style: { ...(entity as any).style, unitSuffix: val } } as any)} 
+            />
+          </PropertyRow>
+        </>
+      )}
     </div>
   );
 }
