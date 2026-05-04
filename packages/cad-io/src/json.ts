@@ -6,8 +6,11 @@ export const CAD_IO_SCHEMA_VERSION = "1.0.0";
 export type CadJsonLayer = Readonly<{
   id: string;
   name: string;
+  color: string;
   visible: boolean;
   locked: boolean;
+  opacity?: number;
+  order: number;
 }>;
 
 export type CadJsonDocument = Readonly<{
@@ -18,6 +21,7 @@ export type CadJsonDocument = Readonly<{
   precision: number;
   metadata: Readonly<Record<string, unknown>>;
   layers: ReadonlyArray<CadJsonLayer>;
+  activeLayerId: string;
   entities: ReadonlyArray<CadEntity>;
 }>;
 
@@ -46,7 +50,8 @@ export function toCadJsonDocument(document: CadDocument, options: CadJsonExportO
     unit: document.units,
     precision: options.precision ?? 3,
     metadata: {},
-    layers: createLayerList(document.entities),
+    layers: document.layers,
+    activeLayerId: document.activeLayerId,
     entities: document.entities
   };
 }
@@ -73,6 +78,7 @@ export function* createCadJsonChunks(
   yield `${indent}"precision": ${JSON.stringify(nativeDocument.precision)}${separator}`;
   yield `${indent}"metadata": ${JSON.stringify(nativeDocument.metadata)}${separator}`;
   yield `${indent}"layers": ${JSON.stringify(nativeDocument.layers)}${separator}`;
+  yield `${indent}"activeLayerId": ${JSON.stringify(nativeDocument.activeLayerId)}${separator}`;
   yield `${indent}"entities": [${newline}`;
 
   for (let index = 0; index < nativeDocument.entities.length; index += 1) {
@@ -142,6 +148,8 @@ function fromNativeCadJsonDocument(source: Record<string, unknown>): CadDocument
     schemaVersion: source.schemaVersion,
     id: source.id,
     units: source.unit,
+    layers: (source.layers as ReadonlyArray<CadJsonLayer>) ?? createFallbackLayers(source.entities as ReadonlyArray<CadEntity>),
+    activeLayerId: (source.activeLayerId as string) ?? "layer_0",
     entities: source.entities as ReadonlyArray<CadEntity>
   };
 
@@ -159,11 +167,14 @@ function fromLegacyCadDocument(source: Record<string, unknown>): CadDocument {
     throw new CadIoValidationError("CAD document entities must be an array", "$.entities");
   }
 
+  const entities = source.entities as ReadonlyArray<CadEntity>;
   const document: CadDocument = {
     schemaVersion: source.schemaVersion,
     id: source.id,
     units: source.units,
-    entities: source.entities as ReadonlyArray<CadEntity>
+    layers: createFallbackLayers(entities),
+    activeLayerId: "layer_0",
+    entities: entities.map((e) => ({ ...e, layerId: e.layerId || "layer_0" }))
   };
 
   validateCadDocument(document);
@@ -171,15 +182,19 @@ function fromLegacyCadDocument(source: Record<string, unknown>): CadDocument {
   return document;
 }
 
-function createLayerList(entities: ReadonlyArray<CadEntity>): ReadonlyArray<CadJsonLayer> {
-  const layerIds = new Set(entities.map((entity) => entity.layerId));
-  const normalizedLayerIds = layerIds.size > 0 ? [...layerIds].sort() : ["default"];
+function createFallbackLayers(entities: ReadonlyArray<CadEntity>): ReadonlyArray<CadJsonLayer> {
+  const layerIds = new Set(entities.map((entity) => entity.layerId || "layer_0"));
+  layerIds.add("layer_0");
 
-  return normalizedLayerIds.map((id) => ({
+  const normalizedLayerIds = [...layerIds].sort();
+
+  return normalizedLayerIds.map((id, index) => ({
     id,
-    name: id === "default" ? "Default" : id,
+    name: id === "layer_0" ? "Layer 0" : id,
+    color: "#ffffff",
     visible: true,
-    locked: false
+    locked: false,
+    order: index
   }));
 }
 

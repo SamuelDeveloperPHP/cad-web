@@ -51,7 +51,7 @@ export class RectangleTool implements CadTool {
 
     const preview = {
       type: "ghostEntities" as const,
-      entities: [this.createRectangleEntity(this.startPoint, this.currentPoint, "preview_rect")]
+      entities: [this.createRectangleEntity(this.startPoint, this.currentPoint, "preview_rect", context.document.activeLayerId)]
     };
 
     context.setPreview(preview);
@@ -92,7 +92,7 @@ export class RectangleTool implements CadTool {
       return TOOL_RESULT_NONE;
     }
 
-    const entity = this.createRectangleEntity(this.startPoint, endPoint, `rect_${crypto.randomUUID()}`);
+    const entity = this.createRectangleEntity(this.startPoint, endPoint, `rect_${crypto.randomUUID()}`, context.document.activeLayerId);
     const command = createEntityCommand(entity);
     
     context.executeCommand(command);
@@ -101,7 +101,7 @@ export class RectangleTool implements CadTool {
     return { type: "command", command };
   }
 
-  private createRectangleEntity(start: Point2D, end: Point2D, id: string) {
+  private createRectangleEntity(start: Point2D, end: Point2D, id: string, layerId: string) {
     const minX = Math.min(start.x, end.x);
     const maxX = Math.max(start.x, end.x);
     const minY = Math.min(start.y, end.y);
@@ -109,7 +109,7 @@ export class RectangleTool implements CadTool {
 
     return {
       id,
-      layerId: "default",
+      layerId,
       type: "rectangle" as const,
       x: minX,
       y: minY,

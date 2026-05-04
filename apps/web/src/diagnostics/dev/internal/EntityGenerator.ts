@@ -54,7 +54,7 @@ function generateGridEntities(options: EntityGeneratorOptions): ReadonlyArray<Ca
     if (typeRnd === 0) {
       entities.push({
         id: generateRandomId(),
-        layerId: "default",
+        layerId: "layer_0",
         type: "line",
         start: { x, y },
         end: { x: x + spacing * 0.8, y: y + spacing * 0.8 }
@@ -62,7 +62,7 @@ function generateGridEntities(options: EntityGeneratorOptions): ReadonlyArray<Ca
     } else if (typeRnd === 1) {
       entities.push({
         id: generateRandomId(),
-        layerId: "default",
+        layerId: "layer_0",
         type: "rectangle",
         x,
         y,
@@ -72,7 +72,7 @@ function generateGridEntities(options: EntityGeneratorOptions): ReadonlyArray<Ca
     } else {
       entities.push({
         id: generateRandomId(),
-        layerId: "default",
+        layerId: "layer_0",
         type: "circle",
         center: { x: x + spacing * 0.4, y: y + spacing * 0.4 },
         radius: spacing * 0.4
@@ -100,7 +100,7 @@ function generateRandomEntities(options: EntityGeneratorOptions): ReadonlyArray<
     if (typeRnd === 0) {
       entities.push({
         id: generateRandomId(),
-        layerId: "default",
+        layerId: "layer_0",
         type: "line",
         start: { x, y },
         end: { x: x + size, y: y + size }
@@ -108,7 +108,7 @@ function generateRandomEntities(options: EntityGeneratorOptions): ReadonlyArray<
     } else if (typeRnd === 1) {
       entities.push({
         id: generateRandomId(),
-        layerId: "default",
+        layerId: "layer_0",
         type: "rectangle",
         x,
         y,
@@ -119,7 +119,7 @@ function generateRandomEntities(options: EntityGeneratorOptions): ReadonlyArray<
     } else {
       entities.push({
         id: generateRandomId(),
-        layerId: "default",
+        layerId: "layer_0",
         type: "circle",
         center: { x, y },
         radius: size / 2

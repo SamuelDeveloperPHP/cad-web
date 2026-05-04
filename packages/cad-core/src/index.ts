@@ -5,6 +5,9 @@ export type EntityId = string;
 export type BaseEntity = Readonly<{
   id: EntityId;
   layerId: string;
+  color?: string; // override layer color
+  lineThickness?: number;
+  lineType?: "solid" | "dashed" | "dotted";
 }>;
 
 export type LineEntity = BaseEntity & Readonly<{
@@ -43,11 +46,23 @@ export type PolylineEntity = BaseEntity & Readonly<{
 
 export type CadEntity = LineEntity | RectangleEntity | CircleEntity;
 
+export type CadLayer = Readonly<{
+  id: string;
+  name: string;
+  color: string;
+  visible: boolean;
+  locked: boolean;
+  opacity?: number;
+  order: number;
+}>;
+
 export type CadDocument = Readonly<{
   schemaVersion: string;
   id: string;
   units: "mm" | "cm" | "m" | "in";
   entities: ReadonlyArray<CadEntity>;
+  layers: ReadonlyArray<CadLayer>;
+  activeLayerId: string;
 }>;
 
 export interface CadCommand {
@@ -64,7 +79,18 @@ export function createEmptyDocument(id: string): CadDocument {
     schemaVersion: "1.0.0",
     id,
     units: "mm",
-    entities: []
+    entities: [],
+    layers: [
+      {
+        id: "layer_0",
+        name: "Layer 0",
+        color: "#ffffff",
+        visible: true,
+        locked: false,
+        order: 0
+      }
+    ],
+    activeLayerId: "layer_0"
   };
 }
 
@@ -287,6 +313,254 @@ export class ClearDocumentCommand implements CadCommand {
   }
 }
 
+export class CreateLayerCommand implements CadCommand {
+  readonly type = "CreateLayerCommand";
+  readonly description = "Creates a new layer.";
+
+  constructor(readonly layer: CadLayer) {}
+
+  get id(): string {
+    return `cmd_create_layer_${this.layer.id}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    return {
+      ...document,
+      layers: [...document.layers, this.layer]
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    return {
+      ...document,
+      layers: document.layers.filter((l) => l.id !== this.layer.id)
+    };
+  }
+}
+
+export class RenameLayerCommand implements CadCommand {
+  readonly type = "RenameLayerCommand";
+  readonly description = "Renames a layer.";
+  private oldName: string = "";
+
+  constructor(
+    readonly layerId: string,
+    readonly newName: string
+  ) {}
+
+  get id(): string {
+    return `cmd_rename_layer_${this.layerId}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    const layer = document.layers.find((l) => l.id === this.layerId);
+    if (layer) {
+      this.oldName = layer.name;
+    }
+
+    return {
+      ...document,
+      layers: document.layers.map((l) =>
+        l.id === this.layerId ? { ...l, name: this.newName } : l
+      )
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    return {
+      ...document,
+      layers: document.layers.map((l) =>
+        l.id === this.layerId ? { ...l, name: this.oldName } : l
+      )
+    };
+  }
+}
+
+export class DeleteLayerCommand implements CadCommand {
+  readonly type = "DeleteLayerCommand";
+  readonly description = "Deletes a layer.";
+  private deletedLayer: CadLayer | undefined;
+  private previousActiveLayerId: string = "layer_0";
+  private entitiesMovedToLayer0: ReadonlyArray<string> = [];
+
+  constructor(readonly layerId: string) {}
+
+  get id(): string {
+    return `cmd_delete_layer_${this.layerId}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    if (this.layerId === "layer_0") {
+      return document; // Cannot delete layer_0
+    }
+
+    this.deletedLayer = document.layers.find((l) => l.id === this.layerId);
+    if (!this.deletedLayer) return document;
+
+    this.previousActiveLayerId = document.activeLayerId;
+    const newActiveLayerId = document.activeLayerId === this.layerId ? "layer_0" : document.activeLayerId;
+
+    const entitiesToMove = document.entities.filter((e) => e.layerId === this.layerId);
+    this.entitiesMovedToLayer0 = entitiesToMove.map((e) => e.id);
+    const movedIds = new Set(this.entitiesMovedToLayer0);
+
+    return {
+      ...document,
+      activeLayerId: newActiveLayerId,
+      layers: document.layers.filter((l) => l.id !== this.layerId),
+      entities: document.entities.map((e) =>
+        movedIds.has(e.id) ? { ...e, layerId: "layer_0" } : e
+      )
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    if (!this.deletedLayer) return document;
+
+    const movedIds = new Set(this.entitiesMovedToLayer0);
+
+    return {
+      ...document,
+      activeLayerId: this.previousActiveLayerId,
+      layers: [...document.layers, this.deletedLayer].sort((a, b) => a.order - b.order),
+      entities: document.entities.map((e) =>
+        movedIds.has(e.id) ? { ...e, layerId: this.layerId } : e
+      )
+    };
+  }
+}
+
+export class ChangeLayerColorCommand implements CadCommand {
+  readonly type = "ChangeLayerColorCommand";
+  readonly description = "Changes a layer's color.";
+  private oldColor: string = "";
+
+  constructor(
+    readonly layerId: string,
+    readonly newColor: string
+  ) {}
+
+  get id(): string {
+    return `cmd_change_color_layer_${this.layerId}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    const layer = document.layers.find((l) => l.id === this.layerId);
+    if (layer) {
+      this.oldColor = layer.color;
+    }
+
+    return {
+      ...document,
+      layers: document.layers.map((l) =>
+        l.id === this.layerId ? { ...l, color: this.newColor } : l
+      )
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    return {
+      ...document,
+      layers: document.layers.map((l) =>
+        l.id === this.layerId ? { ...l, color: this.oldColor } : l
+      )
+    };
+  }
+}
+
+export class ToggleLayerVisibilityCommand implements CadCommand {
+  readonly type = "ToggleLayerVisibilityCommand";
+  readonly description = "Toggles layer visibility.";
+
+  constructor(
+    readonly layerId: string,
+    readonly visible: boolean
+  ) {}
+
+  get id(): string {
+    return `cmd_toggle_vis_layer_${this.layerId}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    return {
+      ...document,
+      layers: document.layers.map((l) =>
+        l.id === this.layerId ? { ...l, visible: this.visible } : l
+      )
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    return {
+      ...document,
+      layers: document.layers.map((l) =>
+        l.id === this.layerId ? { ...l, visible: !this.visible } : l
+      )
+    };
+  }
+}
+
+export class ToggleLayerLockCommand implements CadCommand {
+  readonly type = "ToggleLayerLockCommand";
+  readonly description = "Toggles layer lock state.";
+
+  constructor(
+    readonly layerId: string,
+    readonly locked: boolean
+  ) {}
+
+  get id(): string {
+    return `cmd_toggle_lock_layer_${this.layerId}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    return {
+      ...document,
+      layers: document.layers.map((l) =>
+        l.id === this.layerId ? { ...l, locked: this.locked } : l
+      )
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    return {
+      ...document,
+      layers: document.layers.map((l) =>
+        l.id === this.layerId ? { ...l, locked: !this.locked } : l
+      )
+    };
+  }
+}
+
+export class SetActiveLayerCommand implements CadCommand {
+  readonly type = "SetActiveLayerCommand";
+  readonly description = "Sets the active layer.";
+  private previousActiveLayerId: string = "layer_0";
+
+  constructor(readonly layerId: string) {}
+
+  get id(): string {
+    return `cmd_set_active_layer_${this.layerId}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    if (!document.layers.find((l) => l.id === this.layerId)) return document;
+    
+    this.previousActiveLayerId = document.activeLayerId;
+    return {
+      ...document,
+      activeLayerId: this.layerId
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    return {
+      ...document,
+      activeLayerId: this.previousActiveLayerId
+    };
+  }
+}
+
 export class AddMultipleEntitiesCommand implements CadCommand {
   readonly id: string;
   readonly type = "AddMultipleEntitiesCommand";
@@ -312,6 +586,112 @@ export class AddMultipleEntitiesCommand implements CadCommand {
     return {
       ...document,
       entities: document.entities.filter((entity) => !idsToRemove.has(entity.id))
+    };
+  }
+}
+
+/**
+ * Represents a command that updates the properties of a single entity.
+ * It manages the original state to allow for undo operations.
+ */
+export class UpdateEntityCommand implements CadCommand {
+  readonly type = "UpdateEntityCommand";
+  readonly description = "Updates properties of an entity.";
+  private oldEntity: CadEntity | undefined;
+
+  constructor(
+    readonly entityId: string,
+    readonly patch: Partial<CadEntity>
+  ) {}
+
+  get id(): string {
+    return `cmd_update_entity_${this.entityId}_${Date.now()}`;
+  }
+
+  /**
+   * Executes the command, returning a new document state with the updated entity.
+   */
+  execute(document: CadDocument): CadDocument {
+    const entityIndex = document.entities.findIndex((e) => e.id === this.entityId);
+    if (entityIndex === -1) return document;
+
+    this.oldEntity = document.entities[entityIndex];
+    const newEntity = { ...this.oldEntity, ...this.patch } as CadEntity;
+
+    const newEntities = [...document.entities];
+    newEntities[entityIndex] = newEntity;
+
+    return {
+      ...document,
+      entities: newEntities
+    };
+  }
+
+  /**
+   * Reverts the command, restoring the entity's previous properties.
+   */
+  undo(document: CadDocument): CadDocument {
+    if (!this.oldEntity) return document;
+
+    const entityIndex = document.entities.findIndex((e) => e.id === this.entityId);
+    if (entityIndex === -1) return document;
+
+    const newEntities = [...document.entities];
+    newEntities[entityIndex] = this.oldEntity;
+
+    return {
+      ...document,
+      entities: newEntities
+    };
+  }
+}
+
+export class UpdateEntitiesBatchCommand implements CadCommand {
+  readonly type = "UpdateEntitiesBatchCommand";
+  readonly description = "Updates properties of multiple entities in batch.";
+  private oldEntities = new Map<string, CadEntity>();
+
+  constructor(
+    readonly entityIds: ReadonlyArray<string>,
+    readonly patch: Partial<CadEntity>
+  ) {}
+
+  get id(): string {
+    return `cmd_update_batch_${Date.now()}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    const idsToUpdate = new Set(this.entityIds);
+    let changed = false;
+
+    const newEntities = document.entities.map((entity) => {
+      if (idsToUpdate.has(entity.id)) {
+        this.oldEntities.set(entity.id, entity);
+        changed = true;
+        return { ...entity, ...this.patch } as CadEntity;
+      }
+      return entity;
+    });
+
+    if (!changed) return document;
+
+    return {
+      ...document,
+      entities: newEntities
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    if (this.oldEntities.size === 0) return document;
+
+    const newEntities = document.entities.map((entity) => {
+      const oldEntity = this.oldEntities.get(entity.id);
+      return oldEntity ? oldEntity : entity;
+    });
+
+    return {
+      ...document,
+      entities: newEntities
     };
   }
 }

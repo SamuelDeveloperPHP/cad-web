@@ -35,7 +35,15 @@ export class ObjectSnapService implements SnapService {
     };
 
     const spatialIndex = getDocumentSpatialIndex(context.document);
-    const candidates = spatialIndex.query(searchBox);
+    let candidates = spatialIndex.query(searchBox);
+
+    const invisibleLayerIds = new Set(
+      context.document.layers.filter((l) => !l.visible).map((l) => l.id)
+    );
+
+    if (invisibleLayerIds.size > 0) {
+      candidates = candidates.filter((e) => !invisibleLayerIds.has(e.layerId || "layer_0"));
+    }
 
     return findBestSnap(
       event.worldPoint,

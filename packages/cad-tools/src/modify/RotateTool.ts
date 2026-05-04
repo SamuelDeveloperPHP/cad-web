@@ -118,7 +118,20 @@ export class RotateTool implements CadTool {
   }
 
   private confirmRotate(pivot: Point2D, angleRadians: number, context: ToolContext): ToolResult {
-    const command = rotateEntitiesCommand(context.selection.entityIds, pivot, angleRadians);
+    const lockedLayerIds = new Set(
+      context.document.layers.filter((l) => l.locked).map((l) => l.id)
+    );
+
+    const validEntityIds = context.selection.entityIds.filter((id) => {
+      const entity = context.document.entities.find((e) => e.id === id);
+      return entity && !lockedLayerIds.has(entity.layerId || "layer_0");
+    });
+
+    if (validEntityIds.length === 0) {
+      return { type: "error", message: "No modifiable entities selected." };
+    }
+
+    const command = rotateEntitiesCommand(validEntityIds, pivot, angleRadians);
     context.executeCommand(command);
     this.reset(context);
 
@@ -136,5 +149,11 @@ export class RotateTool implements CadTool {
 function getSelectedEntities(context: ToolContext): ReadonlyArray<CadEntity> {
   const selectedIds = new Set(context.selection.entityIds);
 
-  return context.document.entities.filter((entity) => selectedIds.has(entity.id));
+  const lockedLayerIds = new Set(
+    context.document.layers.filter((l) => l.locked).map((l) => l.id)
+  );
+
+  return context.document.entities.filter(
+    (entity) => selectedIds.has(entity.id) && !lockedLayerIds.has(entity.layerId || "layer_0")
+  );
 }

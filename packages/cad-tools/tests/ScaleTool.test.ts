@@ -30,7 +30,7 @@ describe("ScaleTool", () => {
       entities: [
         {
           id: "line_001",
-          layerId: "default",
+          layerId: "layer_0",
           type: "line",
           start: { x: 0, y: 0 },
           end: { x: 200, y: 0 }

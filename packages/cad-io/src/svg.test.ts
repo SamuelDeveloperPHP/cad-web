@@ -43,10 +43,12 @@ describe("cad-io SVG", () => {
         schemaVersion: "1.0.0",
         id: "doc_rotated",
         units: "mm",
-        entities: [
+    layers: [{ id: "layer_0", name: "Layer 0", color: "#ffffff", visible: true, locked: false, order: 0 }],
+    activeLayerId: "layer_0",
+    entities: [
           {
             id: "rect_rotated",
-            layerId: "default",
+            layerId: "layer_0",
             type: "rectangle",
             x: 0,
             y: 0,
@@ -75,6 +77,11 @@ describe("cad-io SVG", () => {
       schemaVersion: "1.0.0",
       id: "imported_svg",
       units: "mm",
+      layers: [
+        { id: "layer_0", name: "Layer 0", color: "#ffffff", visible: true, locked: false, order: 0 },
+        
+      ],
+      activeLayerId: "layer_0",
       entities: [
         {
           id: "line_a",
@@ -85,7 +92,7 @@ describe("cad-io SVG", () => {
         },
         {
           id: "rect_a",
-          layerId: "default",
+          layerId: "layer_0",
           type: "rectangle",
           x: 2,
           y: 3,
@@ -95,7 +102,7 @@ describe("cad-io SVG", () => {
         },
         {
           id: "circle_a",
-          layerId: "default",
+          layerId: "layer_0",
           type: "circle",
           center: { x: 7, y: 8 },
           radius: 9
@@ -146,17 +153,19 @@ function createDocument(): CadDocument {
     schemaVersion: "1.0.0",
     id: "doc_svg",
     units: "mm",
+    layers: [{ id: "layer_0", name: "Layer 0", color: "#ffffff", visible: true, locked: false, order: 0 }],
+    activeLayerId: "layer_0",
     entities: [
       {
         id: "line_001",
-        layerId: "default",
+        layerId: "layer_0",
         type: "line",
         start: { x: 0, y: 0 },
         end: { x: 20, y: 0 }
       },
       {
         id: "rect_001",
-        layerId: "default",
+        layerId: "layer_0",
         type: "rectangle",
         x: 2,
         y: 2,
@@ -166,7 +175,7 @@ function createDocument(): CadDocument {
       },
       {
         id: "circle_001",
-        layerId: "default",
+        layerId: "layer_0",
         type: "circle",
         center: { x: 10, y: 17 },
         radius: 3

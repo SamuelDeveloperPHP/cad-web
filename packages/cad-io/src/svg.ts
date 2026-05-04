@@ -42,10 +42,17 @@ export function parseSvgDocument(source: string): CadDocument {
     }
   }
 
+  const layersFromGroups = extractLayersFromSvg(sanitizedSource);
+  const layers = layersFromGroups.length > 0 ? layersFromGroups : [
+    { id: "layer_0", name: "Layer 0", color: "#ffffff", visible: true, locked: false, order: 0 }
+  ];
+
   const document: CadDocument = {
     schemaVersion: CAD_IO_SCHEMA_VERSION,
     id: getSvgDocumentId(sanitizedSource),
     units: "mm",
+    layers,
+    activeLayerId: layers[0]?.id ?? "layer_0",
     entities
   };
 
@@ -71,8 +78,25 @@ export function* createSvgExportChunks(
   yield `<svg xmlns="http://www.w3.org/2000/svg" data-application="${CAD_IO_APPLICATION}" data-schema-version="${CAD_IO_SCHEMA_VERSION}" data-document-id="${escapeSvgAttribute(document.id)}" viewBox="${formatNumber(bounds.minX, precision)} ${formatNumber(bounds.minY, precision)} ${formatNumber(width, precision)} ${formatNumber(height, precision)}">\n`;
   yield `  <g fill="none" stroke="${strokeColor}" stroke-width="${strokeWidth}" vector-effect="non-scaling-stroke">\n`;
 
+  const entitiesByLayer = new Map<string, CadEntity[]>();
   for (const entity of document.entities) {
+    const layerId = entity.layerId || "layer_0";
+    if (!entitiesByLayer.has(layerId)) {
+      entitiesByLayer.set(layerId, []);
+    }
+    entitiesByLayer.get(layerId)!.push(entity);
+  }
+
+  for (const layer of document.layers) {
+    const layerEntities = entitiesByLayer.get(layer.id) || [];
+    if (layerEntities.length === 0) continue;
+
+    yield `    <g data-layer-id="${escapeSvgAttribute(layer.id)}" data-layer-name="${escapeSvgAttribute(layer.name)}">\n`;
+    for (const entity of layerEntities) {
     yield `    ${serializeEntityToSvg(entity, precision)}\n`;
+  }
+
+    yield `    </g>\n`;
   }
 
   yield "  </g>\n";
@@ -264,7 +288,7 @@ function readSvgEntityId(element: ParsedSvgElement, prefix: string): string {
 }
 
 function readSvgLayerId(element: ParsedSvgElement): string {
-  return sanitizeSvgIdentifier(element.attributes.get("data-layer-id")) ?? "default";
+  return sanitizeSvgIdentifier(element.attributes.get("data-layer-id")) ?? "layer_0";
 }
 
 function sanitizeSvgIdentifier(value: string | undefined): string | null {
@@ -466,6 +490,24 @@ function formatNumber(value: number, precision: number): string {
   const roundedValue = Number(normalizedValue.toFixed(precision));
 
   return String(roundedValue);
+}
+
+function extractLayersFromSvg(source: string) {
+  const groupsPattern = /<g\b[^>]*data-layer-id="([^"]+)"[^>]*data-layer-name="([^"]+)"[^>]*>/gi;
+  const layers = [];
+  let match: RegExpExecArray | null;
+  let order = 0;
+  while ((match = groupsPattern.exec(source)) !== null) {
+    layers.push({
+      id: decodeSvgAttribute(match[1]!),
+      name: decodeSvgAttribute(match[2]!),
+      color: "#ffffff",
+      visible: true,
+      locked: false,
+      order: order++
+    });
+  }
+  return layers;
 }
 
 function escapeSvgAttribute(value: string): string {
