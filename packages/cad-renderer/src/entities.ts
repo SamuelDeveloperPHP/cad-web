@@ -3,12 +3,21 @@ import { rotationMatrix, transformPoint, type Point2D } from "@cad-web/cad-geome
 import { screenToWorld, worldToScreen } from "./viewport";
 import { DEFAULT_RENDER_STYLE, type RenderStyle, type Viewport } from "./types";
 
+export type RenderStats = {
+  visibleEntities: number;
+  renderedEntities: number;
+  totalEntities: number;
+  indexQueryTimeMs: number;
+  renderTimeMs: number;
+};
+
 export function renderDocument2D(
   context: CanvasRenderingContext2D,
   document: CadDocument,
   viewport: Viewport,
   style: RenderStyle = DEFAULT_RENDER_STYLE
-): void {
+): RenderStats {
+  const renderStartTime = performance.now();
   context.save();
   applyStrokeStyle(context, style);
 
@@ -25,8 +34,11 @@ export function renderDocument2D(
     maxY: bottomRight.y
   };
 
+  const indexStartTime = performance.now();
   const spatialIndex = getDocumentSpatialIndex(document);
   const visibleEntities = spatialIndex.query(viewportBounds);
+  const indexQueryTimeMs = performance.now() - indexStartTime;
+  let renderedEntities = 0;
 
   for (const entity of visibleEntities) {
     if (entity.type === "line") {
@@ -71,9 +83,18 @@ export function renderDocument2D(
       context.arc(center.x, center.y, radiusScreen, 0, Math.PI * 2);
       context.stroke();
     }
+    renderedEntities += 1;
   }
 
   context.restore();
+
+  return {
+    visibleEntities: visibleEntities.length,
+    renderedEntities,
+    totalEntities: document.entities.length,
+    indexQueryTimeMs,
+    renderTimeMs: performance.now() - renderStartTime
+  };
 }
 
 function applyStrokeStyle(context: CanvasRenderingContext2D, style: RenderStyle): void {
