@@ -17,6 +17,7 @@ const toolPrompts: Record<ActiveCadTool, string> = {
   rotate: "[Rotate] Specify pivot point",
   scale: "[Scale] Specify base point",
   offset: "[Offset] Specify offset distance",
+  trim: "[Trim] Select cutting edges or press Enter for all",
   erase: "[Erase] Select objects or press Delete",
   pan: "[Pan] Drag to pan view",
   dimLinear: "[DimLinear] Specify first extension origin",

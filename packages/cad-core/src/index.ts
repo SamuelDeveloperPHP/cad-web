@@ -781,6 +781,57 @@ export class UpdateEntitiesBatchCommand implements CadCommand {
   }
 }
 
+export class TrimLineCommand implements CadCommand {
+  readonly type = "TrimLineCommand";
+  readonly description = "Trims a line by replacing it with remaining segments.";
+  private originalIndex = -1;
+
+  constructor(
+    readonly originalEntity: LineEntity,
+    readonly resultEntities: ReadonlyArray<LineEntity>
+  ) {}
+
+  get id(): string {
+    return `cmd_trim_line_${this.originalEntity.id}_${Date.now()}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    // O comando substitui a linha original pelos segmentos restantes em uma única troca imutável.
+    const entityIndex = document.entities.findIndex((entity) => entity.id === this.originalEntity.id);
+
+    if (entityIndex === -1) {
+      return document;
+    }
+
+    this.originalIndex = entityIndex;
+
+    return {
+      ...document,
+      entities: [
+        ...document.entities.slice(0, entityIndex),
+        ...this.resultEntities,
+        ...document.entities.slice(entityIndex + 1)
+      ]
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    // O undo remove os segmentos criados e reinsere a entidade original na posição anterior.
+    const resultIds = new Set(this.resultEntities.map((entity) => entity.id));
+    const entitiesWithoutTrimResult = document.entities.filter((entity) => !resultIds.has(entity.id));
+    const insertionIndex = clampEntityIndex(this.originalIndex, entitiesWithoutTrimResult.length);
+
+    return {
+      ...document,
+      entities: [
+        ...entitiesWithoutTrimResult.slice(0, insertionIndex),
+        this.originalEntity,
+        ...entitiesWithoutTrimResult.slice(insertionIndex)
+      ]
+    };
+  }
+}
+
 function moveEntities(
   document: CadDocument,
   entityIds: ReadonlyArray<EntityId>,
@@ -929,6 +980,14 @@ function assertPositiveScaleFactor(factor: number): void {
   if (factor <= 0 || !Number.isFinite(factor)) {
     throw new Error("Scale factor must be greater than zero.");
   }
+}
+
+function clampEntityIndex(index: number, maxIndex: number): number {
+  if (index < 0) {
+    return maxIndex;
+  }
+
+  return Math.min(index, maxIndex);
 }
 
 export function resolveDimensionStyle(document: CadDocument, entity: DimensionEntity): DimensionStyle {

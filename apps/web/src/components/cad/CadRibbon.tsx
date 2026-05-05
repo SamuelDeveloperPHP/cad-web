@@ -18,6 +18,7 @@ import {
   RotateCw,
   Ruler,
   Scaling,
+  Scissors,
   Square,
   Trash2,
   Unlock,
@@ -62,6 +63,7 @@ const modifyTools: ReadonlyArray<RibbonTool> = [
   { id: "rotate", label: "Rotate", icon: RotateCw },
   { id: "scale", label: "Scale", icon: Scaling },
   { id: "offset", label: "Offset", icon: Copy },
+  { id: "trim", label: "Trim", icon: Scissors },
   { id: "erase", label: "Erase", icon: Eraser }
 ];
 

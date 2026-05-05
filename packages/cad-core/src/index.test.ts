@@ -8,6 +8,7 @@ import {
   DeleteEntitiesCommand,
   DIMENSION_STYLE_PRESETS,
   MoveEntitiesCommand,
+  TrimLineCommand,
   createEmptyDocument,
   createDimensionStyleFromPreset,
   getDimensionStylePresetById,
@@ -94,6 +95,44 @@ describe("cad-core", () => {
     expect(history.execute(new ClearDocumentCommand()).entities).toEqual([]);
     expect(history.undo().entities).toEqual([line]);
     expect(history.redo().entities).toEqual([]);
+  });
+
+  it("executes undo and redo for TrimLineCommand with one remaining segment", () => {
+    const line = createLine("line_001");
+    const trimmedLine: LineEntity = {
+      ...line,
+      start: { x: 5, y: 0 },
+      end: { x: 10, y: 0 }
+    };
+    const history = new CommandHistory({
+      ...createEmptyDocument("doc_trim"),
+      entities: [line]
+    });
+
+    expect(history.execute(new TrimLineCommand(line, [trimmedLine])).entities).toEqual([trimmedLine]);
+    expect(history.undo().entities).toEqual([line]);
+    expect(history.redo().entities).toEqual([trimmedLine]);
+  });
+
+  it("executes undo and redo for TrimLineCommand with split remaining segments", () => {
+    const line = createLine("line_001");
+    const firstSegment: LineEntity = {
+      ...line,
+      end: { x: 3, y: 0 }
+    };
+    const secondSegment: LineEntity = {
+      ...line,
+      id: "line_001_trim_1",
+      start: { x: 7, y: 0 }
+    };
+    const history = new CommandHistory({
+      ...createEmptyDocument("doc_trim_split"),
+      entities: [line]
+    });
+
+    expect(history.execute(new TrimLineCommand(line, [firstSegment, secondSegment])).entities).toEqual([firstSegment, secondSegment]);
+    expect(history.undo().entities).toEqual([line]);
+    expect(history.redo().entities).toEqual([firstSegment, secondSegment]);
   });
 
   it("exposes immutable dimension style presets", () => {
