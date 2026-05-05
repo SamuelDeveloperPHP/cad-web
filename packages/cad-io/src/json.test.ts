@@ -74,6 +74,7 @@ describe("cad-io JSON", () => {
 
 function createDocument(): CadDocument {
   return {
+    ...createEmptyDocument("doc_001"),
     schemaVersion: "1.0.0",
     id: "doc_001",
     units: "mm",
