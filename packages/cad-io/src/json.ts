@@ -1,4 +1,4 @@
-import type { CadDocument, CadEntity } from "@cad-web/cad-core";
+import type { CadDocument, CadEntity, DimensionStyle } from "@cad-web/cad-core";
 
 export const CAD_IO_APPLICATION = "CAD-WEB";
 export const CAD_IO_SCHEMA_VERSION = "1.0.0";
@@ -23,6 +23,8 @@ export type CadJsonDocument = Readonly<{
   metadata: Readonly<Record<string, unknown>>;
   layers: ReadonlyArray<CadJsonLayer>;
   activeLayerId: string;
+  dimensionStyles?: ReadonlyArray<DimensionStyle>;
+  activeDimensionStyleId?: string;
   entities: ReadonlyArray<CadEntity>;
 }>;
 
@@ -54,6 +56,8 @@ export function toCadJsonDocument(document: CadDocument, options: CadJsonExportO
     metadata: {},
     layers: document.layers,
     activeLayerId: document.activeLayerId,
+    dimensionStyles: document.dimensionStyles,
+    activeDimensionStyleId: document.activeDimensionStyleId,
     entities: document.entities
   };
 }
@@ -81,6 +85,12 @@ export function* createCadJsonChunks(
   yield `${indent}"metadata": ${JSON.stringify(nativeDocument.metadata)}${separator}`;
   yield `${indent}"layers": ${JSON.stringify(nativeDocument.layers)}${separator}`;
   yield `${indent}"activeLayerId": ${JSON.stringify(nativeDocument.activeLayerId)}${separator}`;
+  if (nativeDocument.dimensionStyles) {
+    yield `${indent}"dimensionStyles": ${JSON.stringify(nativeDocument.dimensionStyles)}${separator}`;
+  }
+  if (nativeDocument.activeDimensionStyleId) {
+    yield `${indent}"activeDimensionStyleId": ${JSON.stringify(nativeDocument.activeDimensionStyleId)}${separator}`;
+  }
   yield `${indent}"entities": [${newline}`;
 
   for (let index = 0; index < nativeDocument.entities.length; index += 1) {
@@ -157,6 +167,8 @@ function fromNativeCadJsonDocument(source: Record<string, unknown>): CadDocument
     ...(source.displayUnit ? { displayUnit: source.displayUnit as any } : {}),
     layers: (source.layers as ReadonlyArray<CadJsonLayer>) ?? createFallbackLayers(source.entities as ReadonlyArray<CadEntity>),
     activeLayerId: (source.activeLayerId as string) ?? "layer_0",
+    dimensionStyles: (source.dimensionStyles as ReadonlyArray<DimensionStyle>) ?? [createFallbackDimensionStyle()],
+    activeDimensionStyleId: (source.activeDimensionStyleId as string) ?? "dimstyle_standard",
     entities: source.entities as ReadonlyArray<CadEntity>
   };
 
@@ -181,7 +193,21 @@ function fromLegacyCadDocument(source: Record<string, unknown>): CadDocument {
     units: source.units,
     layers: createFallbackLayers(entities),
     activeLayerId: "layer_0",
-    entities: entities.map((e) => ({ ...e, layerId: e.layerId || "layer_0" }))
+    dimensionStyles: [createFallbackDimensionStyle()],
+    activeDimensionStyleId: "dimstyle_standard",
+    entities: entities.map((e) => {
+      let migrated = { ...e, layerId: e.layerId || "layer_0" };
+      if (migrated.type === "dimension") {
+        const dim = migrated as any;
+        migrated = { 
+          ...dim, 
+          dimensionStyleId: "dimstyle_standard",
+          styleOverride: dim.style || undefined
+        };
+        delete (migrated as any).style;
+      }
+      return migrated as CadEntity;
+    })
   };
 
   validateCadDocument(document);
@@ -203,6 +229,21 @@ function createFallbackLayers(entities: ReadonlyArray<CadEntity>): ReadonlyArray
     locked: false,
     order: index
   }));
+}
+
+function createFallbackDimensionStyle(): DimensionStyle {
+  return {
+    id: "dimstyle_standard",
+    name: "Standard",
+    textHeight: 12,
+    arrowSize: 6,
+    extensionOffset: 2,
+    extensionOvershoot: 3,
+    precision: 2,
+    unitSuffix: " mm",
+    arrowType: "tick",
+    isDefault: true
+  };
 }
 
 function validateCadEntity(entity: CadEntity | undefined, path: string): void {
@@ -239,14 +280,35 @@ function validateCadEntity(entity: CadEntity | undefined, path: string): void {
   }
 
   if (entity.type === "dimension") {
-    assertString((entity as any).dimensionType, `${path}.dimensionType`);
+    const dimType = (entity as any).dimensionType;
+    assertString(dimType, `${path}.dimensionType`);
     if (!isRecord((entity as any).definition)) {
       throw new CadIoValidationError("CAD dimension definition must be an object", `${path}.definition`);
     }
     const def = (entity as any).definition;
-    validatePoint(def.firstPoint, `${path}.definition.firstPoint`);
-    validatePoint(def.secondPoint, `${path}.definition.secondPoint`);
-    validatePoint(def.dimensionLinePoint, `${path}.definition.dimensionLinePoint`);
+    if (dimType === "radius" || dimType === "diameter") {
+      validatePoint(def.center, `${path}.definition.center`);
+      assertPositiveNumber(def.radius, `${path}.definition.radius`);
+      validatePoint(def.leaderEndPoint, `${path}.definition.leaderEndPoint`);
+      if (def.targetEntityId !== undefined) {
+        assertString(def.targetEntityId, `${path}.definition.targetEntityId`);
+      }
+    } else if (dimType === "angular") {
+      validatePoint(def.vertex, `${path}.definition.vertex`);
+      validatePoint(def.firstPoint, `${path}.definition.firstPoint`);
+      validatePoint(def.secondPoint, `${path}.definition.secondPoint`);
+      validatePoint(def.arcPoint, `${path}.definition.arcPoint`);
+      if (def.firstLineId !== undefined) {
+        assertString(def.firstLineId, `${path}.definition.firstLineId`);
+      }
+      if (def.secondLineId !== undefined) {
+        assertString(def.secondLineId, `${path}.definition.secondLineId`);
+      }
+    } else {
+      validatePoint(def.firstPoint, `${path}.definition.firstPoint`);
+      validatePoint(def.secondPoint, `${path}.definition.secondPoint`);
+      validatePoint(def.dimensionLinePoint, `${path}.definition.dimensionLinePoint`);
+    }
     return;
   }
 

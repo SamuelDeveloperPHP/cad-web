@@ -1,16 +1,19 @@
+import { CreateLayerCommand, ToggleLayerLockCommand, ToggleLayerVisibilityCommand } from "@cad-web/cad-core";
+import { ChangeDisplayUnitCommand } from "@cad-web/cad-tools";
 import { useEffect, useRef } from "react";
-import { CadCanvas } from "./CadCanvas";
-import { CadCommandLine } from "./CadCommandLine";
-import { CadStatusBar } from "./CadStatusBar";
-import { CadToolbar } from "./CadToolbar";
-import { CadDiagnosticPanel } from "./CadDiagnosticPanel";
-import { CadRightPanel } from "./CadRightPanel";
-import { CadTopMenu } from "./CadTopMenu";
-import { CadRibbon } from "./CadRibbon";
 import { useCadStore } from "../../state/useCadStore";
 import { downloadCadDocument, downloadSvgDocument, readCadDocumentFile, readSvgDocumentFile } from "../../services/cadJsonExport";
 import { createToolKeyboardEvent } from "../../tools/toolEvents";
-import { ChangeDisplayUnitCommand } from "@cad-web/cad-tools";
+import { CadCanvas } from "./CadCanvas";
+import { CadCommandLine } from "./CadCommandLine";
+import { CadDiagnosticPanel } from "./CadDiagnosticPanel";
+import { CadRibbon } from "./CadRibbon";
+import { CadRightPanel } from "./CadRightPanel";
+import { CadStatusBar } from "./CadStatusBar";
+import { CadToolbar } from "./CadToolbar";
+import { CadTopMenu } from "./CadTopMenu";
+
+type DisplayUnitInput = ConstructorParameters<typeof ChangeDisplayUnitCommand>[0];
 
 export function CadEditor() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -31,6 +34,11 @@ export function CadEditor() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [cad]);
 
+  const activeLayer = cad.document.layers.find((layer) => layer.id === cad.document.activeLayerId);
+  const activeLayerName = activeLayer?.name ?? cad.document.activeLayerId;
+  const activeDimStyleId = cad.document.activeDimensionStyleId || "dimstyle_standard";
+  const activeDimStyleName = cad.document.dimensionStyles?.find((style) => style.id === activeDimStyleId)?.name || "Standard";
+
   const handleImportClick = () => {
     fileInputRef.current?.click();
   };
@@ -39,12 +47,32 @@ export function CadEditor() {
     svgFileInputRef.current?.click();
   };
 
-  const activeLayerName = cad.document.layers.find(l => l.id === cad.document.activeLayerId)?.name ?? cad.document.activeLayerId;
+  const handleCreateLayer = () => {
+    const name = window.prompt("Nome da nova layer", `Layer ${cad.document.layers.length + 1}`)?.trim();
+
+    if (!name) {
+      return;
+    }
+
+    cad.executeCommand(new CreateLayerCommand({
+      id: `layer_${Date.now()}`,
+      name,
+      color: "#ffffff",
+      visible: true,
+      locked: false,
+      order: cad.document.layers.length
+    }));
+  };
+
+  const confirmLargeExport = () => (
+    cad.document.entities.length <= 50000 ||
+    window.confirm("Atencao: exportar mais de 50.000 entidades pode causar travamento temporario no navegador. Deseja prosseguir?")
+  );
 
   return (
     <section className="app-shell">
       <CadTopMenu />
-      
+
       <CadRibbon
         activeTool={cad.activeTool}
         onToolChange={cad.setActiveTool}
@@ -52,46 +80,46 @@ export function CadEditor() {
         onSnapSettingsChange={cad.setSnapSettings}
         onClear={cad.clearDocument}
         onExport={() => {
-          if (cad.document.entities.length > 50000) {
-            if (!window.confirm("Atenção: Exportar um arquivo com mais de 50.000 entidades pode causar travamento temporário no navegador. Deseja prosseguir?")) {
-              return;
-            }
+          if (confirmLargeExport()) {
+            downloadCadDocument(cad.document);
           }
-          downloadCadDocument(cad.document);
         }}
         onExportSvg={() => {
-          if (cad.document.entities.length > 50000) {
-            if (!window.confirm("Atenção: Exportar um arquivo com mais de 50.000 entidades pode causar travamento temporário no navegador. Deseja prosseguir?")) {
-              return;
-            }
+          if (confirmLargeExport()) {
+            downloadSvgDocument(cad.document);
           }
-          downloadSvgDocument(cad.document);
         }}
         onImport={handleImportClick}
         onImportSvg={handleImportSvgClick}
         activeLayerName={activeLayerName}
+        activeLayerVisible={activeLayer?.visible ?? true}
+        activeLayerLocked={activeLayer?.locked ?? false}
+        onCreateLayer={handleCreateLayer}
+        onToggleActiveLayerVisibility={() => {
+          if (activeLayer) {
+            cad.executeCommand(new ToggleLayerVisibilityCommand(activeLayer.id, !activeLayer.visible));
+          }
+        }}
+        onToggleActiveLayerLock={() => {
+          if (activeLayer) {
+            cad.executeCommand(new ToggleLayerLockCommand(activeLayer.id, !activeLayer.locked));
+          }
+        }}
       />
 
       <div className="cad-editor">
-        <CadToolbar
-          activeTool={cad.activeTool}
-          onToolChange={cad.setActiveTool}
-        />
-        
+        <CadToolbar activeTool={cad.activeTool} onToolChange={cad.setActiveTool} />
+
         <div className="cad-workspace">
-          {(import.meta.env.DEV || import.meta.env.VITE_ENABLE_CAD_DIAGNOSTICS === "true") && <CadDiagnosticPanel />}
+          {(import.meta.env.DEV || import.meta.env.VITE_ENABLE_CAD_DIAGNOSTICS === "true") && <CadDiagnosticPanel cad={cad} />}
           <CadCanvas cad={cad} />
         </div>
 
         <CadRightPanel cad={cad} />
       </div>
 
-      <CadCommandLine 
-        activeTool={cad.activeTool} 
-        onSubmit={cad.runCommandLine} 
-        message={cad.message} 
-      />
-      
+      <CadCommandLine activeTool={cad.activeTool} onSubmit={cad.runCommandLine} message={cad.message} />
+
       <CadStatusBar
         activeTool={cad.activeTool}
         mouseWorld={cad.mouseWorld}
@@ -99,10 +127,11 @@ export function CadEditor() {
         entityCount={cad.document.entities.length}
         snapSettings={cad.snapSettings}
         activeLayerName={activeLayerName}
+        activeDimStyleName={activeDimStyleName}
         displayUnit={cad.document.displayUnit || cad.document.units}
         documentUnits={cad.document.units}
         onSnapSettingsChange={cad.setSnapSettings}
-        onDisplayUnitChange={(unit) => cad.executeCommand(new ChangeDisplayUnitCommand(unit as any))}
+        onDisplayUnitChange={(unit) => cad.executeCommand(new ChangeDisplayUnitCommand(unit as DisplayUnitInput))}
       />
 
       <input

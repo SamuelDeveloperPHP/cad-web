@@ -1,7 +1,5 @@
-import React from "react";
 import type { Point2D, SnapSettings } from "@cad-web/cad-geometry";
 import type { ActiveCadTool } from "../../state/useCadStore";
-import { MousePointer2, Minus, Square, Circle, Move, RotateCw, Scaling, Eraser, Hand } from "lucide-react";
 
 type CadStatusBarProps = Readonly<{
   activeTool: ActiveCadTool;
@@ -10,6 +8,7 @@ type CadStatusBarProps = Readonly<{
   entityCount: number;
   snapSettings: SnapSettings;
   activeLayerName: string;
+  activeDimStyleName: string;
   displayUnit: string;
   documentUnits: string;
   onSnapSettingsChange(settings: SnapSettings): void;
@@ -27,47 +26,47 @@ const toolLabels: Record<ActiveCadTool, string> = {
   offset: "Offset",
   erase: "Erase",
   pan: "Pan",
-  dimLinear: "Linear Dimension",
-  dimAligned: "Aligned Dimension"
+  dimLinear: "Dim Linear",
+  dimAligned: "Dim Aligned",
+  dimRadius: "Dim Radius",
+  dimDiameter: "Dim Diameter",
+  dimAngular: "Dim Angular"
 };
 
-export function CadStatusBar({ activeTool, mouseWorld, zoom, entityCount, snapSettings, activeLayerName, displayUnit, documentUnits, onSnapSettingsChange, onDisplayUnitChange }: CadStatusBarProps) {
-  const toggleSnap = () => {
-    onSnapSettingsChange({ ...snapSettings, enabled: !snapSettings.enabled });
-  };
+export function CadStatusBar({
+  activeDimStyleName,
+  activeLayerName,
+  activeTool,
+  displayUnit,
+  documentUnits,
+  entityCount,
+  mouseWorld,
+  onDisplayUnitChange,
+  onSnapSettingsChange,
+  snapSettings,
+  zoom
+}: CadStatusBarProps) {
+  const activeModes = formatActiveSnaps(snapSettings);
 
   return (
     <footer className="cad-statusbar">
       <div className="cad-statusbar-group">
-        <span className="cad-statusbar-item" style={{ minWidth: '100px' }}>
-          <strong style={{ color: 'var(--cad-text)' }}>{toolLabels[activeTool]}</strong>
-        </span>
-        <span className="cad-statusbar-item" style={{ fontFamily: 'monospace' }}>
-          X: {mouseWorld.x.toFixed(3).padStart(8, ' ')} &nbsp; Y: {mouseWorld.y.toFixed(3).padStart(8, ' ')}
-        </span>
+        <StatusItem label="Tool" value={toolLabels[activeTool]} strong />
+        <StatusItem label="X" value={mouseWorld.x.toFixed(3)} monospace />
+        <StatusItem label="Y" value={mouseWorld.y.toFixed(3)} monospace />
+        <StatusItem label="Zoom" value={`${(zoom * 100).toFixed(0)}%`} />
       </div>
-      
+
       <div className="cad-statusbar-group">
-        <span className="cad-statusbar-item" title="Zoom">
-          Zoom: {(zoom * 100).toFixed(0)}%
-        </span>
-        <span className="cad-statusbar-item" title="Active Layer">
-          Layer: {activeLayerName}
-        </span>
-        <span className="cad-statusbar-item" title="Entity Count">
-          Entities: {entityCount}
-        </span>
+        <StatusItem label="Layer" value={activeLayerName} />
+        <StatusItem label="Dim" value={activeDimStyleName} />
+        <StatusItem label="Entities" value={entityCount.toLocaleString("en-US")} />
+        <StatusItem label="Doc" value={documentUnits} />
 
-        <div style={{ width: '1px', height: '16px', background: 'var(--cad-border)', margin: '0 4px' }}></div>
-
-        <span className="cad-statusbar-item" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          Units: 
-          <select 
-            className="bg-transparent text-cad-text outline-none cursor-pointer"
-            value={displayUnit}
-            onChange={e => onDisplayUnitChange(e.target.value)}
-          >
-            <option value="um">µm</option>
+        <span className="cad-statusbar-item cad-statusbar-units">
+          <span>Units</span>
+          <select value={displayUnit} onChange={(event) => onDisplayUnitChange(event.currentTarget.value)}>
+            <option value="um">um</option>
             <option value="mm">mm</option>
             <option value="cm">cm</option>
             <option value="m">m</option>
@@ -76,35 +75,38 @@ export function CadStatusBar({ activeTool, mouseWorld, zoom, entityCount, snapSe
           </select>
         </span>
 
-        <div style={{ width: '1px', height: '16px', background: 'var(--cad-border)' }}></div>
-
-        <button 
-          className={`cad-statusbar-btn ${snapSettings.enabled ? 'active' : ''}`}
-          onClick={toggleSnap}
-          title={formatActiveSnaps(snapSettings)}
+        <button
+          className={`cad-statusbar-btn ${snapSettings.enabled ? "active" : ""}`}
+          type="button"
+          onClick={() => onSnapSettingsChange({ ...snapSettings, enabled: !snapSettings.enabled })}
+          title={activeModes}
         >
           SNAP
         </button>
-        <button 
-          className="cad-statusbar-btn"
-          title="Grid Placeholder"
-        >
+        <button className="cad-statusbar-btn" type="button" title="Grid placeholder">
           GRID
         </button>
-        <button 
-          className="cad-statusbar-btn"
-          title="Ortho Placeholder"
-        >
+        <button className="cad-statusbar-btn" type="button" title="Ortho placeholder">
           ORTHO
         </button>
+        <StatusItem label="Modes" value={activeModes} />
       </div>
     </footer>
   );
 }
 
+function StatusItem({ label, monospace = false, strong = false, value }: Readonly<{ label: string; value: string; monospace?: boolean; strong?: boolean }>) {
+  return (
+    <span className={`cad-statusbar-item ${monospace ? "monospace" : ""} ${strong ? "strong" : ""}`} title={`${label}: ${value}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </span>
+  );
+}
+
 function formatActiveSnaps(settings: SnapSettings): string {
   if (!settings.enabled) {
-    return "Snap disabled";
+    return "Snap off";
   }
 
   const activeSnaps = [
@@ -114,5 +116,5 @@ function formatActiveSnaps(settings: SnapSettings): string {
     settings.nearest ? "Nearest" : null
   ].filter((snap): snap is string => snap !== null);
 
-  return activeSnaps.length > 0 ? activeSnaps.join(", ") : "No active snaps";
+  return activeSnaps.length > 0 ? activeSnaps.join(", ") : "Snap on";
 }
