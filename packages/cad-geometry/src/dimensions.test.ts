@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { buildAlignedDimensionGeometry, buildLinearDimensionGeometry, formatDimensionValue } from "./dimensions";
+import {
+  buildAlignedDimensionGeometry,
+  buildAngularDimensionGeometry,
+  buildDiameterDimensionGeometry,
+  buildLinearDimensionGeometry,
+  buildRadiusDimensionGeometry,
+  formatDimensionValue
+} from "./dimensions";
 
 describe("Dimensions Geometry", () => {
   const defaultStyle = {
@@ -75,6 +82,45 @@ describe("Dimensions Geometry", () => {
       // Angle of (30, 40) is atan2(40, 30) = ~53 degrees
       const angle = Math.atan2(40, 30);
       expect(result.textRotation).toBeCloseTo(angle);
+    });
+  });
+
+  describe("circular and angular dimensions", () => {
+    it("builds a radius dimension with R prefix", () => {
+      const result = buildRadiusDimensionGeometry({
+        center: { x: 0, y: 0 },
+        radius: 5,
+        leaderEndPoint: { x: 10, y: 0 }
+      }, defaultStyle);
+
+      expect(result.measuredValue).toBe(5);
+      expect(result.formattedText).toBe("R 5.00 mm");
+      expect(result.dimensionLine.end).toEqual({ x: 5, y: 0 });
+    });
+
+    it("builds a diameter dimension with diameter prefix", () => {
+      const result = buildDiameterDimensionGeometry({
+        center: { x: 0, y: 0 },
+        radius: 5,
+        leaderEndPoint: { x: 10, y: 0 }
+      }, defaultStyle);
+
+      expect(result.measuredValue).toBe(10);
+      expect(result.formattedText).toBe("\u00d8 10.00 mm");
+      expect(result.dimensionLine.start).toEqual({ x: -5, y: 0 });
+      expect(result.dimensionLine.end).toEqual({ x: 5, y: 0 });
+    });
+
+    it("builds a right angular dimension in degrees", () => {
+      const result = buildAngularDimensionGeometry({
+        vertex: { x: 0, y: 0 },
+        firstPoint: { x: 10, y: 0 },
+        secondPoint: { x: 0, y: 10 },
+        arcPoint: { x: 5, y: 5 }
+      }, defaultStyle);
+
+      expect(result.measuredValue).toBeCloseTo(90);
+      expect(result.formattedText).toBe("90.00\u00b0");
     });
   });
 });
