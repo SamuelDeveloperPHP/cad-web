@@ -24,7 +24,7 @@ import {
 import { loadStoredSnapSettings, storeSnapSettings } from "../services/snapSettingsStorage";
 import { createWebToolRegistry } from "../tools/toolRegistry";
 
-export type ActiveCadTool = "select" | "line" | "rectangle" | "circle" | "move" | "rotate" | "scale" | "offset" | "trim" | "erase" | "pan" | "dimLinear" | "dimAligned" | "dimRadius" | "dimDiameter" | "dimAngular";
+export type ActiveCadTool = "select" | "line" | "rectangle" | "circle" | "move" | "rotate" | "scale" | "offset" | "trim" | "extend" | "erase" | "pan" | "dimLinear" | "dimAligned" | "dimRadius" | "dimDiameter" | "dimAngular";
 
 const ACTIVE_CAD_TOOLS: ReadonlySet<string> = new Set<ActiveCadTool>([
   "select",
@@ -36,6 +36,7 @@ const ACTIVE_CAD_TOOLS: ReadonlySet<string> = new Set<ActiveCadTool>([
   "scale",
   "offset",
   "trim",
+  "extend",
   "erase",
   "pan",
   "dimLinear",
