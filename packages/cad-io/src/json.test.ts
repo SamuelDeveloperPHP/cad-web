@@ -1,4 +1,4 @@
-import { createEmptyDocument, type CadDocument } from "@cad-web/cad-core";
+import { createDimensionStyleFromPreset, createEmptyDocument, type CadDocument } from "@cad-web/cad-core";
 import { describe, expect, it } from "vitest";
 import {
   CadIoValidationError,
@@ -51,6 +51,29 @@ describe("cad-io JSON", () => {
 
     expect(chunks.length).toBeGreaterThan(document.entities.length);
     expect(parseCadDocument(chunks.join(""))).toEqual(document);
+  });
+
+  it("preserves presetId on document dimension styles without serializing preset library", () => {
+    const presetStyle = createDimensionStyleFromPreset("abnt", {
+      existingStyles: createEmptyDocument("doc_preset_json").dimensionStyles
+    });
+    const document = {
+      ...createEmptyDocument("doc_preset_json"),
+      dimensionStyles: [
+        ...createEmptyDocument("doc_preset_json").dimensionStyles,
+        presetStyle!
+      ],
+      activeDimensionStyleId: presetStyle!.id
+    };
+    const serialized = serializeCadDocument(document);
+    const parsed = parseCadDocument(serialized);
+
+    expect(serialized).toContain('"presetId":"abnt"');
+    expect(serialized).not.toContain("DIMENSION_STYLE_PRESETS");
+    expect(parsed.dimensionStyles.find((style) => style.id === presetStyle!.id)).toMatchObject({
+      presetId: "abnt",
+      name: "ABNT"
+    });
   });
 
   it("rejects unsupported entity types with a path", () => {
