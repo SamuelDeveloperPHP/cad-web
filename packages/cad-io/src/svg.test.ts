@@ -1,4 +1,4 @@
-import type { CadDocument } from "@cad-web/cad-core";
+import { createEmptyDocument, type CadDocument } from "@cad-web/cad-core";
 import { describe, expect, it } from "vitest";
 import { CadIoValidationError, createSvgExportChunks, parseSvgDocument, serializeCadDocumentToSvg } from "./index";
 
@@ -74,6 +74,7 @@ describe("cad-io SVG", () => {
     `);
 
     expect(document).toEqual({
+      ...createEmptyDocument("imported_svg"),
       schemaVersion: "1.0.0",
       id: "imported_svg",
       units: "mm",
@@ -150,6 +151,7 @@ describe("cad-io SVG", () => {
 
 function createDocument(): CadDocument {
   return {
+    ...createEmptyDocument("doc_svg"),
     schemaVersion: "1.0.0",
     id: "doc_svg",
     units: "mm",

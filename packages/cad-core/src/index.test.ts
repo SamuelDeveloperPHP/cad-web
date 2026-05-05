@@ -21,6 +21,21 @@ describe("cad-core", () => {
         { id: "layer_0", name: "Layer 0", color: "#ffffff", visible: true, locked: false, order: 0 }
       ],
       activeLayerId: "layer_0",
+      dimensionStyles: [
+        {
+          id: "dimstyle_standard",
+          name: "Standard",
+          textHeight: 12,
+          arrowSize: 6,
+          extensionOffset: 2,
+          extensionOvershoot: 3,
+          precision: 2,
+          unitSuffix: " mm",
+          arrowType: "tick",
+          isDefault: true
+        }
+      ],
+      activeDimensionStyleId: "dimstyle_standard",
       entities: []
     });
   });
