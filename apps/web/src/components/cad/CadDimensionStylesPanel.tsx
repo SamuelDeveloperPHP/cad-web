@@ -1,7 +1,16 @@
 import React, { useState } from "react";
 import type { CadStore } from "../../state/useCadStore";
-import { CreateDimensionStyleCommand, DeleteDimensionStyleCommand, SetActiveDimensionStyleCommand, UpdateDimensionStyleCommand, type DimensionStyle } from "@cad-web/cad-core";
-import { Plus, Trash2, Edit2, Check, X } from "lucide-react";
+import {
+  ApplyPresetToDimensionStyleCommand,
+  CreateDimensionStyleCommand,
+  CreateDimensionStyleFromPresetCommand,
+  DeleteDimensionStyleCommand,
+  DIMENSION_STYLE_PRESETS,
+  SetActiveDimensionStyleCommand,
+  UpdateDimensionStyleCommand,
+  type DimensionStyle
+} from "@cad-web/cad-core";
+import { Check, Edit2, Plus, Sparkles, Trash2, X } from "lucide-react";
 
 export function CadDimensionStylesPanel({ cad }: { cad: CadStore }) {
   const document = cad.document;
@@ -10,6 +19,13 @@ export function CadDimensionStylesPanel({ cad }: { cad: CadStore }) {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<DimensionStyle>>({});
+  const [presetId, setPresetId] = useState(DIMENSION_STYLE_PRESETS[0]?.id ?? "standard");
+  const [presetTargetStyleId, setPresetTargetStyleId] = useState(activeStyleId);
+  const [setCreatedPresetActive, setSetCreatedPresetActive] = useState(true);
+  const [presetMessage, setPresetMessage] = useState("");
+
+  const selectedPreset = DIMENSION_STYLE_PRESETS.find((preset) => preset.id === presetId) ?? DIMENSION_STYLE_PRESETS[0];
+  const presetTargetId = styles.some((style) => style.id === presetTargetStyleId) ? presetTargetStyleId : activeStyleId;
 
   const handleCreate = () => {
     const newStyle: DimensionStyle = {
@@ -32,6 +48,28 @@ export function CadDimensionStylesPanel({ cad }: { cad: CadStore }) {
 
   const handleSetActive = (id: string) => {
     cad.executeCommand(new SetActiveDimensionStyleCommand(id));
+  };
+
+  const handleCreateFromPreset = () => {
+    if (selectedPreset === undefined) {
+      setPresetMessage("Preset invalido.");
+      return;
+    }
+
+    cad.executeCommand(new CreateDimensionStyleFromPresetCommand(selectedPreset.id, {
+      setActive: setCreatedPresetActive
+    }));
+    setPresetMessage(`Preset ${selectedPreset.name} criou um novo estilo.`);
+  };
+
+  const handleApplyPreset = () => {
+    if (selectedPreset === undefined || presetTargetId.length === 0) {
+      setPresetMessage("Selecione um preset e um estilo.");
+      return;
+    }
+
+    cad.executeCommand(new ApplyPresetToDimensionStyleCommand(presetTargetId, selectedPreset.id));
+    setPresetMessage(`Preset ${selectedPreset.name} foi aplicado ao estilo selecionado.`);
   };
 
   const startEdit = (style: DimensionStyle) => {
@@ -60,6 +98,69 @@ export function CadDimensionStylesPanel({ cad }: { cad: CadStore }) {
           <Plus size={14} /> New
         </button>
       </div>
+
+      <section style={{ background: "var(--cad-surface)", border: "1px solid var(--cad-border)", borderRadius: "6px", padding: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", fontWeight: 600 }}>
+          <Sparkles size={14} />
+          <span>Presets</span>
+        </div>
+
+        <select
+          value={presetId}
+          onChange={(event) => setPresetId(event.target.value)}
+          style={{ width: "100%", background: "#111827", border: "1px solid var(--cad-border)", color: "#fff", padding: "6px 8px", borderRadius: "4px", fontSize: "12px" }}
+        >
+          {DIMENSION_STYLE_PRESETS.map((preset) => (
+            <option key={preset.id} value={preset.id}>{preset.name}</option>
+          ))}
+        </select>
+
+        {selectedPreset && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", color: "var(--cad-text-muted)", fontSize: "11px" }}>
+            <span>Arrow: {selectedPreset.arrowType}</span>
+            <span>Precision: {selectedPreset.precision}</span>
+            <span>Text: {selectedPreset.textHeight}</span>
+            <span>Suffix: {selectedPreset.unitSuffix}</span>
+          </div>
+        )}
+
+        <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: "var(--cad-text-muted)" }}>
+          <input
+            type="checkbox"
+            checked={setCreatedPresetActive}
+            onChange={(event) => setSetCreatedPresetActive(event.target.checked)}
+          />
+          Definir novo estilo como ativo
+        </label>
+
+        <button
+          onClick={handleCreateFromPreset}
+          style={{ background: "var(--cad-primary)", color: "#fff", border: "none", borderRadius: "4px", padding: "6px 8px", cursor: "pointer", fontSize: "12px" }}
+        >
+          Criar a partir de preset
+        </button>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", paddingTop: "8px", borderTop: "1px solid var(--cad-border)" }}>
+          <label style={{ fontSize: "11px", color: "var(--cad-text-muted)" }}>Aplicar ao estilo</label>
+          <select
+            value={presetTargetId}
+            onChange={(event) => setPresetTargetStyleId(event.target.value)}
+            style={{ width: "100%", background: "#111827", border: "1px solid var(--cad-border)", color: "#fff", padding: "6px 8px", borderRadius: "4px", fontSize: "12px" }}
+          >
+            {styles.map((style) => (
+              <option key={style.id} value={style.id}>{style.name}</option>
+            ))}
+          </select>
+          <button
+            onClick={handleApplyPreset}
+            style={{ background: "#1f2937", color: "#fff", border: "1px solid var(--cad-border)", borderRadius: "4px", padding: "6px 8px", cursor: "pointer", fontSize: "12px" }}
+          >
+            Aplicar preset ao estilo
+          </button>
+        </div>
+
+        {presetMessage && <span style={{ color: "var(--cad-text-muted)", fontSize: "11px" }}>{presetMessage}</span>}
+      </section>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         {styles.map((style) => (
@@ -134,6 +235,7 @@ export function CadDimensionStylesPanel({ cad }: { cad: CadStore }) {
                   <span style={{ fontSize: "14px", fontWeight: activeStyleId === style.id ? 600 : 400, color: activeStyleId === style.id ? "var(--cad-primary)" : "inherit" }}>
                     {style.name}
                   </span>
+                  {style.presetId && <span style={{ color: "var(--cad-text-muted)", fontSize: "10px" }}>Preset: {style.presetId}</span>}
                 </div>
                 <div style={{ display: "flex", gap: "4px" }}>
                   <button onClick={() => startEdit(style)} style={{ background: "transparent", border: "none", color: "var(--cad-text-muted)", cursor: "pointer", padding: "4px" }}>
