@@ -15,6 +15,7 @@ export * from "./modify/RotateTool";
 export * from "./modify/ScaleTool";
 export * from "./modify/OffsetTool";
 export * from "./modify/TrimTool";
+export * from "./modify/ExtendTool";
 export * from "./dimensions/DimensionsTool";
 export * from "./dimensions/DimRadiusTool";
 export * from "./dimensions/DimDiameterTool";

@@ -832,6 +832,32 @@ export class TrimLineCommand implements CadCommand {
   }
 }
 
+export class ExtendLineCommand implements CadCommand {
+  readonly type = "ExtendLineCommand";
+  readonly description = "Extends a line to a boundary.";
+
+  constructor(
+    readonly originalEntity: LineEntity,
+    readonly updatedEntity: LineEntity,
+    readonly endpoint: "start" | "end",
+    readonly boundaryEntityId?: string
+  ) {}
+
+  get id(): string {
+    return `cmd_extend_line_${this.originalEntity.id}_${Date.now()}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    // O comando mantém o mesmo ID para preservar seleção, snap, propriedades e serialização.
+    return replaceLineEntity(document, this.originalEntity.id, this.updatedEntity);
+  }
+
+  undo(document: CadDocument): CadDocument {
+    // O undo restaura exatamente a geometria original antes da extensão.
+    return replaceLineEntity(document, this.originalEntity.id, this.originalEntity);
+  }
+}
+
 function moveEntities(
   document: CadDocument,
   entityIds: ReadonlyArray<EntityId>,
@@ -988,6 +1014,22 @@ function clampEntityIndex(index: number, maxIndex: number): number {
   }
 
   return Math.min(index, maxIndex);
+}
+
+function replaceLineEntity(document: CadDocument, entityId: string, line: LineEntity): CadDocument {
+  const entityIndex = document.entities.findIndex((entity) => entity.id === entityId);
+
+  if (entityIndex === -1) {
+    return document;
+  }
+
+  const nextEntities = [...document.entities];
+  nextEntities[entityIndex] = line;
+
+  return {
+    ...document,
+    entities: nextEntities
+  };
 }
 
 export function resolveDimensionStyle(document: CadDocument, entity: DimensionEntity): DimensionStyle {
