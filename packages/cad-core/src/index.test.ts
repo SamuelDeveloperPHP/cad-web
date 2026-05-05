@@ -7,6 +7,7 @@ import {
   CreateDimensionStyleFromPresetCommand,
   DeleteEntitiesCommand,
   DIMENSION_STYLE_PRESETS,
+  ExtendLineCommand,
   MoveEntitiesCommand,
   TrimLineCommand,
   createEmptyDocument,
@@ -133,6 +134,22 @@ describe("cad-core", () => {
     expect(history.execute(new TrimLineCommand(line, [firstSegment, secondSegment])).entities).toEqual([firstSegment, secondSegment]);
     expect(history.undo().entities).toEqual([line]);
     expect(history.redo().entities).toEqual([firstSegment, secondSegment]);
+  });
+
+  it("executes undo and redo for ExtendLineCommand", () => {
+    const line = createLine("line_001");
+    const extendedLine: LineEntity = {
+      ...line,
+      end: { x: 20, y: 0 }
+    };
+    const history = new CommandHistory({
+      ...createEmptyDocument("doc_extend"),
+      entities: [line]
+    });
+
+    expect(history.execute(new ExtendLineCommand(line, extendedLine, "end", "boundary_001")).entities).toEqual([extendedLine]);
+    expect(history.undo().entities).toEqual([line]);
+    expect(history.redo().entities).toEqual([extendedLine]);
   });
 
   it("exposes immutable dimension style presets", () => {

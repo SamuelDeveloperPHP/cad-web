@@ -4,6 +4,7 @@ export const COMMAND_ALIASES = {
   rotate: ["ro", "rotate"],
   scale: ["sc", "scale"],
   trim: ["tr", "trim"],
+  extend: ["ex", "extend"],
   mirror: ["mi", "mirror"],
   fillet: ["f", "fillet"],
   chamfer: ["cha", "chamfer"],

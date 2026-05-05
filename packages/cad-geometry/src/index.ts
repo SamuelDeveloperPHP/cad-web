@@ -11,3 +11,4 @@ export * from "./measurements";
 export * from "./offset";
 export * from "./dimensions";
 export * from "./trim";
+export * from "./extend";

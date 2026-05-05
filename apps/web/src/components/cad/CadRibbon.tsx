@@ -14,6 +14,7 @@ import {
   Maximize,
   Minus,
   Move,
+  MoveRight,
   Plus,
   RotateCw,
   Ruler,
@@ -64,6 +65,7 @@ const modifyTools: ReadonlyArray<RibbonTool> = [
   { id: "scale", label: "Scale", icon: Scaling },
   { id: "offset", label: "Offset", icon: Copy },
   { id: "trim", label: "Trim", icon: Scissors },
+  { id: "extend", label: "Extend", icon: MoveRight },
   { id: "erase", label: "Erase", icon: Eraser }
 ];
 
