@@ -41,6 +41,27 @@ describe("spatial index", () => {
     expect(bbox).toEqual({ minX: 40, minY: 40, maxX: 60, maxY: 60 });
   });
 
+  it("calculates bounding box for dimensions away from origin", () => {
+    const dimension: CadEntity = {
+      type: "dimension",
+      id: "dim_1",
+      layerId: "0",
+      dimensionType: "radius",
+      definition: {
+        center: { x: 500, y: 500 },
+        radius: 20,
+        leaderEndPoint: { x: 550, y: 500 }
+      }
+    };
+
+    const bbox = entityBoundingBox(dimension);
+
+    expect(bbox.minX).toBeLessThanOrEqual(500);
+    expect(bbox.maxX).toBeGreaterThanOrEqual(550);
+    expect(bbox.minY).toBeLessThan(500);
+    expect(bbox.maxY).toBeGreaterThan(500);
+  });
+
   it("inserts and queries entities correctly", () => {
     const index = new GridSpatialIndex(100);
     const e1: CadEntity = { type: "line", id: "1", layerId: "0", start: { x: 10, y: 10 }, end: { x: 20, y: 20 } };

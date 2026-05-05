@@ -4,6 +4,19 @@ import { parseCadDocument, serializeCadDocument } from "@cad-web/cad-io";
 export const CAD_DOCUMENT_STORAGE_KEY = "cad-web:mvp-document";
 
 export function createInitialDocument(): CadDocument {
+  const standardStyle = {
+    id: "dimstyle_standard",
+    name: "Standard",
+    textHeight: 12,
+    arrowSize: 6,
+    extensionOffset: 2,
+    extensionOvershoot: 3,
+    precision: 2,
+    unitSuffix: " mm",
+    arrowType: "tick" as const,
+    isDefault: true
+  };
+
   return {
     schemaVersion: "1.0.0",
     id: "local-mvp-document",
@@ -19,6 +32,8 @@ export function createInitialDocument(): CadDocument {
       }
     ],
     activeLayerId: "layer_0",
+    dimensionStyles: [standardStyle],
+    activeDimensionStyleId: "dimstyle_standard",
     entities: [
       {
         id: "line_seed_001",

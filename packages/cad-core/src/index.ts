@@ -5,7 +5,7 @@ export type EntityId = string;
 export type BaseEntity = Readonly<{
   id: EntityId;
   layerId: string;
-  color?: string; // override layer color
+  color?: string; // A entidade sobrescreve a cor da camada quando este valor existe.
   lineThickness?: number;
   lineType?: "solid" | "dashed" | "dotted";
 }>;
@@ -44,16 +44,22 @@ export type PolylineEntity = BaseEntity & Readonly<{
   vertices: ReadonlyArray<Point2D>;
 }>;
 
-export type DimensionStyle = Readonly<{
+export interface DimensionStyle {
+  id: string;
+  name: string;
   textHeight: number;
   arrowSize: number;
   extensionOffset: number;
   extensionOvershoot: number;
   precision: number;
   unitSuffix: string;
+  arrowType: "tick" | "arrow";
   color?: string;
-  arrowType?: "tick" | "arrow";
-}>;
+  textColor?: string;
+  lineColor?: string;
+  scale?: number;
+  isDefault?: boolean;
+}
 
 export type LinearDimensionDef = Readonly<{
   firstPoint: Point2D;
@@ -68,11 +74,36 @@ export type AlignedDimensionDef = Readonly<{
   dimensionLinePoint: Point2D;
 }>;
 
+export type RadiusDimensionDef = Readonly<{
+  targetEntityId?: string;
+  center: Point2D;
+  radius: number;
+  leaderEndPoint: Point2D;
+}>;
+
+export type DiameterDimensionDef = Readonly<{
+  targetEntityId?: string;
+  center: Point2D;
+  radius: number;
+  leaderEndPoint: Point2D;
+}>;
+
+export type AngularDimensionDef = Readonly<{
+  firstLineId?: string;
+  secondLineId?: string;
+  vertex: Point2D;
+  firstPoint: Point2D;
+  secondPoint: Point2D;
+  arcPoint: Point2D;
+}>;
+
 export type DimensionEntity = BaseEntity & Readonly<{
   type: "dimension";
-  dimensionType: "linear" | "aligned";
-  style?: DimensionStyle;
-  definition: LinearDimensionDef | AlignedDimensionDef;
+  dimensionType: "linear" | "aligned" | "radius" | "diameter" | "angular";
+  dimensionStyleId?: string;
+  styleOverride?: Partial<DimensionStyle>;
+  style?: Partial<DimensionStyle>; // O campo legado mantém compatibilidade com documentos anteriores.
+  definition: LinearDimensionDef | AlignedDimensionDef | RadiusDimensionDef | DiameterDimensionDef | AngularDimensionDef;
   textOverride?: string;
 }>;
 
@@ -98,6 +129,8 @@ export type CadDocument = Readonly<{
   entities: ReadonlyArray<CadEntity>;
   layers: ReadonlyArray<CadLayer>;
   activeLayerId: string;
+  dimensionStyles: ReadonlyArray<DimensionStyle>;
+  activeDimensionStyleId: string;
 }>;
 
 export interface CadCommand {
@@ -110,6 +143,19 @@ export interface CadCommand {
 }
 
 export function createEmptyDocument(id: string): CadDocument {
+  const standardStyle: DimensionStyle = {
+    id: "dimstyle_standard",
+    name: "Standard",
+    textHeight: 12,
+    arrowSize: 6,
+    extensionOffset: 2,
+    extensionOvershoot: 3,
+    precision: 2,
+    unitSuffix: " mm",
+    arrowType: "tick",
+    isDefault: true
+  };
+
   return {
     schemaVersion: "1.0.0",
     id,
@@ -125,7 +171,9 @@ export function createEmptyDocument(id: string): CadDocument {
         order: 0
       }
     ],
-    activeLayerId: "layer_0"
+    activeLayerId: "layer_0",
+    dimensionStyles: [standardStyle],
+    activeDimensionStyleId: "dimstyle_standard"
   };
 }
 
@@ -426,7 +474,7 @@ export class DeleteLayerCommand implements CadCommand {
 
   execute(document: CadDocument): CadDocument {
     if (this.layerId === "layer_0") {
-      return document; // Cannot delete layer_0
+      return document; // O comando preserva a camada base layer_0.
     }
 
     this.deletedLayer = document.layers.find((l) => l.id === this.layerId);
@@ -608,8 +656,8 @@ export class AddMultipleEntitiesCommand implements CadCommand {
   }
 
   execute(document: CadDocument): CadDocument {
-    // TODO: Se o modelo atual exigir imutabilidade profunda no futuro, otimizar esta clonagem massiva
-    // (Ex: migrar para estrutura de dados persistente, B-Tree, ou permitir mutabilidade interna com flag)
+    // TODO: O modelo pode migrar esta clonagem para estrutura persistente se exigir imutabilidade profunda.
+    // A evolução futura pode usar B-Tree ou mutabilidade interna controlada por flag.
     return {
       ...document,
       entities: document.entities.concat(this.entities)
@@ -800,8 +848,7 @@ export function rotateEntity(entity: CadEntity, pivot: Point2D, angleRadians: nu
   }
 
   if (entity.type === "rectangle") {
-    // Para rotacionar um retângulo sobre um pivô, podemos apenas rotacionar seu (x,y)
-    // e adicionar o ângulo à sua rotação interna.
+    // A rotação de retângulo aplica o pivô ao ponto base e soma o ângulo interno.
     const matrix = rotationMatrix(angleRadians, pivot);
     const origin = transformPoint({ x: entity.x, y: entity.y }, matrix);
     return {
@@ -820,7 +867,7 @@ export function rotateEntity(entity: CadEntity, pivot: Point2D, angleRadians: nu
     };
   }
 
-  // Para futuras entidades como arc e polyline, faríamos a transformação aqui.
+  // Entidades futuras como arc e polyline devem receber a transformação neste ponto.
   return entity;
 }
 
@@ -879,6 +926,247 @@ export function scaleEntity(entity: CadEntity, pivot: Point2D, factor: number): 
 function assertPositiveScaleFactor(factor: number): void {
   if (factor <= 0 || !Number.isFinite(factor)) {
     throw new Error("Scale factor must be greater than zero.");
+  }
+}
+
+export function resolveDimensionStyle(document: CadDocument, entity: DimensionEntity): DimensionStyle {
+  const defaultStyle: DimensionStyle = {
+    id: "dimstyle_standard",
+    name: "Standard",
+    textHeight: 12,
+    arrowSize: 6,
+    extensionOffset: 2,
+    extensionOvershoot: 3,
+    precision: 2,
+    unitSuffix: " mm",
+    arrowType: "tick",
+    isDefault: true
+  };
+
+  const styleId = entity.dimensionStyleId || "dimstyle_standard";
+  let globalStyle = document.dimensionStyles?.find(s => s.id === styleId);
+
+  if (!globalStyle) {
+    globalStyle = document.dimensionStyles?.find(s => s.id === "dimstyle_standard") || defaultStyle;
+  }
+
+  // O resolvedor aplica a ordem global -> legado -> sobrescrita local.
+  return {
+    ...globalStyle,
+    ...(entity.style || {}),
+    ...(entity.styleOverride || {})
+  };
+}
+
+export class CreateDimensionStyleCommand implements CadCommand {
+  readonly type = "CreateDimensionStyleCommand";
+  readonly description = "Creates a dimension style.";
+
+  constructor(readonly style: DimensionStyle) {}
+
+  get id(): string {
+    return `cmd_create_dimstyle_${this.style.id}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    return {
+      ...document,
+      dimensionStyles: [...(document.dimensionStyles || []), this.style]
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    return {
+      ...document,
+      dimensionStyles: (document.dimensionStyles || []).filter(s => s.id !== this.style.id)
+    };
+  }
+}
+
+export class UpdateDimensionStyleCommand implements CadCommand {
+  readonly type = "UpdateDimensionStyleCommand";
+  readonly description = "Updates a dimension style.";
+  private oldStyle: DimensionStyle | undefined;
+
+  constructor(
+    readonly styleId: string,
+    readonly patch: Partial<DimensionStyle>
+  ) {}
+
+  get id(): string {
+    return `cmd_update_dimstyle_${this.styleId}_${Date.now()}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    const styleIndex = (document.dimensionStyles || []).findIndex(s => s.id === this.styleId);
+    if (styleIndex === -1) return document;
+
+    this.oldStyle = document.dimensionStyles[styleIndex];
+    const newStyle = { ...this.oldStyle, ...this.patch } as DimensionStyle;
+
+    const newStyles = [...document.dimensionStyles];
+    newStyles[styleIndex] = newStyle;
+
+    return {
+      ...document,
+      dimensionStyles: newStyles
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    if (!this.oldStyle) return document;
+
+    const styleIndex = (document.dimensionStyles || []).findIndex(s => s.id === this.styleId);
+    if (styleIndex === -1) return document;
+
+    const newStyles = [...document.dimensionStyles];
+    newStyles[styleIndex] = this.oldStyle;
+
+    return {
+      ...document,
+      dimensionStyles: newStyles
+    };
+  }
+}
+
+export class DeleteDimensionStyleCommand implements CadCommand {
+  readonly type = "DeleteDimensionStyleCommand";
+  readonly description = "Deletes a dimension style.";
+  private deletedStyle: DimensionStyle | undefined;
+  private previousActiveStyleId: string = "dimstyle_standard";
+  private entitiesMovedToStandard: ReadonlyArray<string> = [];
+
+  constructor(readonly styleId: string) {}
+
+  get id(): string {
+    return `cmd_delete_dimstyle_${this.styleId}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    this.deletedStyle = (document.dimensionStyles || []).find(s => s.id === this.styleId);
+    if (!this.deletedStyle || this.deletedStyle.isDefault) {
+      return document; // O comando preserva o estilo padrão.
+    }
+
+    this.previousActiveStyleId = document.activeDimensionStyleId || "dimstyle_standard";
+    const newActiveStyleId = document.activeDimensionStyleId === this.styleId ? "dimstyle_standard" : (document.activeDimensionStyleId || "dimstyle_standard");
+
+    const entitiesToMove = document.entities.filter(e => e.type === "dimension" && (e as DimensionEntity).dimensionStyleId === this.styleId);
+    this.entitiesMovedToStandard = entitiesToMove.map(e => e.id);
+    const movedIds = new Set(this.entitiesMovedToStandard);
+
+    return {
+      ...document,
+      activeDimensionStyleId: newActiveStyleId,
+      dimensionStyles: document.dimensionStyles.filter(s => s.id !== this.styleId),
+      entities: document.entities.map(e => {
+        if (movedIds.has(e.id)) {
+          return { ...e, dimensionStyleId: "dimstyle_standard" };
+        }
+        return e;
+      })
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    if (!this.deletedStyle) return document;
+
+    const movedIds = new Set(this.entitiesMovedToStandard);
+
+    return {
+      ...document,
+      activeDimensionStyleId: this.previousActiveStyleId,
+      dimensionStyles: [...(document.dimensionStyles || []), this.deletedStyle],
+      entities: document.entities.map(e => {
+        if (movedIds.has(e.id)) {
+          return { ...e, dimensionStyleId: this.styleId };
+        }
+        return e;
+      })
+    };
+  }
+}
+
+export class SetActiveDimensionStyleCommand implements CadCommand {
+  readonly type = "SetActiveDimensionStyleCommand";
+  readonly description = "Sets the active dimension style.";
+  private previousActiveStyleId: string = "dimstyle_standard";
+
+  constructor(readonly styleId: string) {}
+
+  get id(): string {
+    return `cmd_set_active_dimstyle_${this.styleId}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    if (!(document.dimensionStyles || []).find(s => s.id === this.styleId)) return document;
+    
+    this.previousActiveStyleId = document.activeDimensionStyleId || "dimstyle_standard";
+    return {
+      ...document,
+      activeDimensionStyleId: this.styleId
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    return {
+      ...document,
+      activeDimensionStyleId: this.previousActiveStyleId
+    };
+  }
+}
+
+export class AssignDimensionStyleCommand implements CadCommand {
+  readonly type = "AssignDimensionStyleCommand";
+  readonly description = "Assigns a dimension style to selected entities.";
+  private oldStyles = new Map<string, string | undefined>();
+
+  constructor(
+    readonly entityIds: ReadonlyArray<string>,
+    readonly styleId: string
+  ) {}
+
+  get id(): string {
+    return `cmd_assign_dimstyle_${Date.now()}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    const idsToUpdate = new Set(this.entityIds);
+    let changed = false;
+
+    const newEntities = document.entities.map(entity => {
+      if (idsToUpdate.has(entity.id) && entity.type === "dimension") {
+        const dimEntity = entity as DimensionEntity;
+        this.oldStyles.set(entity.id, dimEntity.dimensionStyleId);
+        changed = true;
+        return { ...entity, dimensionStyleId: this.styleId } as CadEntity;
+      }
+      return entity;
+    });
+
+    if (!changed) return document;
+
+    return {
+      ...document,
+      entities: newEntities
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    if (this.oldStyles.size === 0) return document;
+
+    const newEntities = document.entities.map(entity => {
+      if (this.oldStyles.has(entity.id)) {
+        const oldStyleId = this.oldStyles.get(entity.id);
+        return { ...entity, dimensionStyleId: oldStyleId } as CadEntity;
+      }
+      return entity;
+    });
+
+    return {
+      ...document,
+      entities: newEntities
+    };
   }
 }
 

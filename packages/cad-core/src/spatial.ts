@@ -1,5 +1,15 @@
-import { rotationMatrix, transformPoint, type BoundingBox } from "@cad-web/cad-geometry";
-import type { CadDocument, CadEntity } from "./index";
+import {
+  buildAlignedDimensionGeometry,
+  buildAngularDimensionGeometry,
+  buildDiameterDimensionGeometry,
+  buildLinearDimensionGeometry,
+  buildRadiusDimensionGeometry,
+  rotationMatrix,
+  transformPoint,
+  type BoundingBox,
+  type Point2D
+} from "@cad-web/cad-geometry";
+import type { CadDocument, CadEntity, DimensionEntity, DimensionStyle } from "./index";
 
 export function entityBoundingBox(entity: CadEntity): BoundingBox {
   if (entity.type === "line") {
@@ -47,8 +57,72 @@ export function entityBoundingBox(entity: CadEntity): BoundingBox {
     };
   }
 
-  // Fallback seguro para entidades não tratadas
+  // O fallback mantem entidades desconhecidas consultaveis sem quebrar o indice.
+  if (entity.type === "dimension") {
+    return dimensionBoundingBox(entity);
+  }
+
   return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+}
+
+function dimensionBoundingBox(entity: DimensionEntity): BoundingBox {
+  const style = createSpatialDimensionStyle(entity);
+  let visualPoints: ReadonlyArray<Point2D> = [];
+
+  if (entity.dimensionType === "linear") {
+    visualPoints = buildLinearDimensionGeometry(entity.definition as any, style).visualPoints;
+  } else if (entity.dimensionType === "aligned") {
+    visualPoints = buildAlignedDimensionGeometry(entity.definition as any, style).visualPoints;
+  } else if (entity.dimensionType === "radius") {
+    visualPoints = buildRadiusDimensionGeometry(entity.definition as any, style).visualPoints;
+  } else if (entity.dimensionType === "diameter") {
+    visualPoints = buildDiameterDimensionGeometry(entity.definition as any, style).visualPoints;
+  } else if (entity.dimensionType === "angular") {
+    visualPoints = buildAngularDimensionGeometry(entity.definition as any, style).visualPoints;
+  }
+
+  if (visualPoints.length === 0) {
+    return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+  }
+
+  return boundsFromPoints(visualPoints, Math.max(style.textHeight, style.arrowSize));
+}
+
+function createSpatialDimensionStyle(entity: DimensionEntity): DimensionStyle {
+  return {
+    id: "dimstyle_spatial",
+    name: "Spatial",
+    textHeight: 12,
+    arrowSize: 6,
+    extensionOffset: 2,
+    extensionOvershoot: 3,
+    precision: 2,
+    unitSuffix: entity.dimensionType === "angular" ? "\u00b0" : " mm",
+    arrowType: "tick",
+    ...(entity.style || {}),
+    ...(entity.styleOverride || {})
+  };
+}
+
+function boundsFromPoints(points: ReadonlyArray<Point2D>, padding: number): BoundingBox {
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  for (const point of points) {
+    minX = Math.min(minX, point.x);
+    minY = Math.min(minY, point.y);
+    maxX = Math.max(maxX, point.x);
+    maxY = Math.max(maxY, point.y);
+  }
+
+  return {
+    minX: minX - padding,
+    minY: minY - padding,
+    maxX: maxX + padding,
+    maxY: maxY + padding
+  };
 }
 
 export class GridSpatialIndex {
@@ -76,7 +150,7 @@ export class GridSpatialIndex {
       }
     }
     
-    // Hack de bypass pra TypeScript readonly mutação local (ignorando warnings pq é privado local).
+    // A construcao local usa mutacao interna privada para reduzir custo de alocacao.
     (this as any).entityCount++;
   }
 
@@ -116,8 +190,8 @@ export class GridSpatialIndex {
   }
 }
 
-// Global WeakMap para cache do documento. Ele se associa ao array `entities` que é imutável!
-// Isso impede leak de memória se o Documento for deletado/descartado pelo Garbage Collector.
+// O cache global associa cada array imutavel de entidades ao indice espacial.
+// O WeakMap permite descarte pelo coletor quando o documento deixa de existir.
 const spatialIndexCache = new WeakMap<ReadonlyArray<CadEntity>, GridSpatialIndex>();
 
 export function getDocumentSpatialIndex(document: CadDocument): GridSpatialIndex {
