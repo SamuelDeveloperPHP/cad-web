@@ -1,4 +1,4 @@
-import type { CadDocument, CadEntity, CircleEntity, LineEntity, RectangleEntity } from "@cad-web/cad-core";
+import { resolveDimensionStyle, type CadDocument, type CadEntity, type CircleEntity, type LineEntity, type RectangleEntity } from "@cad-web/cad-core";
 import type { CadJsonExportOptions } from "./json";
 import { CAD_IO_APPLICATION, CAD_IO_SCHEMA_VERSION, CadIoValidationError, validateCadDocument } from "./json";
 
@@ -53,6 +53,21 @@ export function parseSvgDocument(source: string): CadDocument {
     units: "mm",
     layers,
     activeLayerId: layers[0]?.id ?? "layer_0",
+    dimensionStyles: [
+      {
+        id: "dimstyle_standard",
+        name: "Standard",
+        textHeight: 12,
+        arrowSize: 6,
+        extensionOffset: 2,
+        extensionOvershoot: 3,
+        precision: 2,
+        unitSuffix: " mm",
+        arrowType: "tick",
+        isDefault: true
+      }
+    ],
+    activeDimensionStyleId: "dimstyle_standard",
     entities
   };
 
@@ -123,31 +138,63 @@ function serializeEntityToSvg(entity: CadEntity, precision: number, document: an
   return "";
 }
 
-import { buildAlignedDimensionGeometry, buildLinearDimensionGeometry } from "@cad-web/cad-geometry";
+import { buildAlignedDimensionGeometry, buildLinearDimensionGeometry, buildRadiusDimensionGeometry, buildDiameterDimensionGeometry, buildAngularDimensionGeometry } from "@cad-web/cad-geometry";
 
 function serializeDimensionToSvg(entity: any, precision: number, document: any): string {
+  const resolvedStyle = resolveDimensionStyle(document, entity);
+
   const defaultStyle = {
-    textHeight: entity.style?.textHeight ?? 12,
-    arrowSize: entity.style?.arrowSize ?? 6,
-    extensionOffset: entity.style?.extensionOffset ?? 2,
-    extensionOvershoot: entity.style?.extensionOvershoot ?? 3,
-    precision: entity.style?.precision ?? 2,
-    unitSuffix: entity.style?.unitSuffix ?? " mm",
-    arrowType: entity.style?.arrowType ?? "tick",
+    textHeight: resolvedStyle.textHeight ?? 12,
+    arrowSize: resolvedStyle.arrowSize ?? 6,
+    extensionOffset: resolvedStyle.extensionOffset ?? 2,
+    extensionOvershoot: resolvedStyle.extensionOvershoot ?? 3,
+    precision: resolvedStyle.precision ?? 2,
+    unitSuffix: resolvedStyle.unitSuffix ?? " mm",
+    arrowType: resolvedStyle.arrowType ?? "tick",
   };
 
-  const geom = entity.dimensionType === "linear" 
-    ? buildLinearDimensionGeometry(entity.definition, defaultStyle, document.units, document.displayUnit || document.units)
-    : buildAlignedDimensionGeometry(entity.definition, defaultStyle, document.units, document.displayUnit || document.units);
+  let geom: any;
+  if (entity.dimensionType === "linear") {
+    geom = buildLinearDimensionGeometry(entity.definition, defaultStyle, document.units, document.displayUnit || document.units);
+  } else if (entity.dimensionType === "aligned") {
+    geom = buildAlignedDimensionGeometry(entity.definition, defaultStyle, document.units, document.displayUnit || document.units);
+  } else if (entity.dimensionType === "radius") {
+    geom = buildRadiusDimensionGeometry(entity.definition, defaultStyle, document.units, document.displayUnit || document.units);
+  } else if (entity.dimensionType === "diameter") {
+    geom = buildDiameterDimensionGeometry(entity.definition, defaultStyle, document.units, document.displayUnit || document.units);
+  } else if (entity.dimensionType === "angular") {
+    geom = buildAngularDimensionGeometry(entity.definition, defaultStyle);
+  }
 
-  const lines = [
-    `<line x1="${formatNumber(geom.extensionLine1.start.x, precision)}" y1="${formatNumber(geom.extensionLine1.start.y, precision)}" x2="${formatNumber(geom.extensionLine1.end.x, precision)}" y2="${formatNumber(geom.extensionLine1.end.y, precision)}" />`,
-    `<line x1="${formatNumber(geom.extensionLine2.start.x, precision)}" y1="${formatNumber(geom.extensionLine2.start.y, precision)}" x2="${formatNumber(geom.extensionLine2.end.x, precision)}" y2="${formatNumber(geom.extensionLine2.end.y, precision)}" />`,
-    `<line x1="${formatNumber(geom.dimensionLine.start.x, precision)}" y1="${formatNumber(geom.dimensionLine.start.y, precision)}" x2="${formatNumber(geom.dimensionLine.end.x, precision)}" y2="${formatNumber(geom.dimensionLine.end.y, precision)}" />`
-  ];
+  const lines: string[] = [];
+  
+  if (geom.extensionLine1 && geom.extensionLine2) {
+    lines.push(`<line x1="${formatNumber(geom.extensionLine1.start.x, precision)}" y1="${formatNumber(geom.extensionLine1.start.y, precision)}" x2="${formatNumber(geom.extensionLine1.end.x, precision)}" y2="${formatNumber(geom.extensionLine1.end.y, precision)}" />`);
+    lines.push(`<line x1="${formatNumber(geom.extensionLine2.start.x, precision)}" y1="${formatNumber(geom.extensionLine2.start.y, precision)}" x2="${formatNumber(geom.extensionLine2.end.x, precision)}" y2="${formatNumber(geom.extensionLine2.end.y, precision)}" />`);
+  }
+
+  if (entity.dimensionType === "angular") {
+    // O exportador desenha cotas angulares como arco SVG.
+    // Os angulos ficam em radianos e o sweepFlag define o sentido.
+    // O comando A usa rx ry x-axis-rotation large-arc-flag sweep-flag x y.
+    const rx = geom.radius;
+    const ry = geom.radius;
+    // A diferenca angular define o large-arc-flag.
+    let diff = geom.endAngle - geom.startAngle;
+    if (diff < 0) diff += 2 * Math.PI;
+    const largeArcFlag = diff > Math.PI ? 1 : 0;
+    
+    // O arco usa pontos absolutos ja calculados no sistema do documento.
+    lines.push(`<path d="M ${formatNumber(geom.arcStart.x, precision)} ${formatNumber(geom.arcStart.y, precision)} A ${formatNumber(rx, precision)} ${formatNumber(ry, precision)} 0 ${largeArcFlag} ${geom.sweepFlag === 0 ? 0 : 1} ${formatNumber(geom.arcEnd.x, precision)} ${formatNumber(geom.arcEnd.y, precision)}" fill="none" />`);
+  } else {
+    lines.push(`<line x1="${formatNumber(geom.dimensionLine.start.x, precision)}" y1="${formatNumber(geom.dimensionLine.start.y, precision)}" x2="${formatNumber(geom.dimensionLine.end.x, precision)}" y2="${formatNumber(geom.dimensionLine.end.y, precision)}" />`);
+  }
+  if (geom.leaderLine) {
+    lines.push(`<line x1="${formatNumber(geom.leaderLine.start.x, precision)}" y1="${formatNumber(geom.leaderLine.start.y, precision)}" x2="${formatNumber(geom.leaderLine.end.x, precision)}" y2="${formatNumber(geom.leaderLine.end.y, precision)}" />`);
+  }
 
   if (defaultStyle.arrowType === "arrow") {
-    // Generate SVG for filled arrows
+    // O exportador gera setas SVG preenchidas.
     const drawArrow = (p1: {x:number, y:number}, p2: {x:number, y:number}) => {
       const dx = p2.x - p1.x;
       const dy = p2.y - p1.y;
@@ -161,13 +208,28 @@ function serializeDimensionToSvg(entity: any, precision: number, document: any):
       const pnt2 = { x: p1.x + nx * aLen + ny * aWid, y: p1.y + ny * aLen - nx * aWid };
       return `<polygon points="${formatNumber(p1.x, precision)},${formatNumber(p1.y, precision)} ${formatNumber(pnt1.x, precision)},${formatNumber(pnt1.y, precision)} ${formatNumber(pnt2.x, precision)},${formatNumber(pnt2.y, precision)}" />`;
     };
-    lines.push(drawArrow(geom.dimensionLine.start, geom.dimensionLine.end));
-    lines.push(drawArrow(geom.dimensionLine.end, geom.dimensionLine.start));
+    
+    if (entity.dimensionType === "radius") {
+      lines.push(drawArrow(geom.dimensionLine.end, geom.dimensionLine.start));
+    } else if (entity.dimensionType === "angular") {
+      lines.push(drawArrow(geom.arcStart, { x: geom.arcStart.x - Math.sin(geom.startAngle), y: geom.arcStart.y + Math.cos(geom.startAngle) }));
+      lines.push(drawArrow(geom.arcEnd, { x: geom.arcEnd.x + Math.sin(geom.endAngle), y: geom.arcEnd.y - Math.cos(geom.endAngle) }));
+    } else {
+      lines.push(drawArrow(geom.dimensionLine.start, geom.dimensionLine.end));
+      lines.push(drawArrow(geom.dimensionLine.end, geom.dimensionLine.start));
+    }
   } else {
-    // Draw Ticks
+    // O exportador desenha marcas arquitetonicas.
     const ts = defaultStyle.arrowSize * 0.5;
-    lines.push(`<line x1="${formatNumber(geom.dimensionLine.start.x - ts, precision)}" y1="${formatNumber(geom.dimensionLine.start.y + ts, precision)}" x2="${formatNumber(geom.dimensionLine.start.x + ts, precision)}" y2="${formatNumber(geom.dimensionLine.start.y - ts, precision)}" stroke-width="1.5" />`);
-    lines.push(`<line x1="${formatNumber(geom.dimensionLine.end.x - ts, precision)}" y1="${formatNumber(geom.dimensionLine.end.y + ts, precision)}" x2="${formatNumber(geom.dimensionLine.end.x + ts, precision)}" y2="${formatNumber(geom.dimensionLine.end.y - ts, precision)}" stroke-width="1.5" />`);
+    if (entity.dimensionType === "angular") {
+      lines.push(`<line x1="${formatNumber(geom.arcStart.x - ts, precision)}" y1="${formatNumber(geom.arcStart.y + ts, precision)}" x2="${formatNumber(geom.arcStart.x + ts, precision)}" y2="${formatNumber(geom.arcStart.y - ts, precision)}" stroke-width="1.5" />`);
+      lines.push(`<line x1="${formatNumber(geom.arcEnd.x - ts, precision)}" y1="${formatNumber(geom.arcEnd.y + ts, precision)}" x2="${formatNumber(geom.arcEnd.x + ts, precision)}" y2="${formatNumber(geom.arcEnd.y - ts, precision)}" stroke-width="1.5" />`);
+    } else {
+      if (entity.dimensionType !== "radius") {
+        lines.push(`<line x1="${formatNumber(geom.dimensionLine.start.x - ts, precision)}" y1="${formatNumber(geom.dimensionLine.start.y + ts, precision)}" x2="${formatNumber(geom.dimensionLine.start.x + ts, precision)}" y2="${formatNumber(geom.dimensionLine.start.y - ts, precision)}" stroke-width="1.5" />`);
+      }
+      lines.push(`<line x1="${formatNumber(geom.dimensionLine.end.x - ts, precision)}" y1="${formatNumber(geom.dimensionLine.end.y + ts, precision)}" x2="${formatNumber(geom.dimensionLine.end.x + ts, precision)}" y2="${formatNumber(geom.dimensionLine.end.y - ts, precision)}" stroke-width="1.5" />`);
+    }
   }
 
   const textVal = entity.textOverride || geom.formattedText;
@@ -177,9 +239,13 @@ function serializeDimensionToSvg(entity: any, precision: number, document: any):
     ? `transform="rotate(${formatNumber(rotDeg, precision)} ${formatNumber(geom.textPosition.x, precision)} ${formatNumber(geom.textPosition.y, precision)})"` 
     : "";
 
-  const text = `<text x="${formatNumber(geom.textPosition.x, precision)}" y="${formatNumber(geom.textPosition.y, precision)}" text-anchor="middle" dominant-baseline="central" font-size="${formatNumber(defaultStyle.textHeight, precision)}px" font-family="Arial, sans-serif" ${textTransform}>${escapeSvgAttribute(textVal)}</text>`;
+  const textColorOverride = resolvedStyle.textColor || resolvedStyle.color ? ` fill="${escapeSvgAttribute(resolvedStyle.textColor || resolvedStyle.color || "")}"` : ` fill="currentColor"`;
 
-  return `<g data-entity-type="dimension" data-dimension-type="${escapeSvgAttribute(entity.dimensionType)}" id="${escapeSvgAttribute(entity.id)}" data-layer-id="${escapeSvgAttribute(entity.layerId)}">
+  const text = `<text x="${formatNumber(geom.textPosition.x, precision)}" y="${formatNumber(geom.textPosition.y, precision)}" text-anchor="middle" dominant-baseline="central" font-size="${formatNumber(defaultStyle.textHeight, precision)}px" font-family="Arial, sans-serif" ${textTransform}${textColorOverride}>${escapeSvgAttribute(textVal)}</text>`;
+
+  const strokeOverride = resolvedStyle.lineColor || resolvedStyle.color ? ` stroke="${escapeSvgAttribute(resolvedStyle.lineColor || resolvedStyle.color || "")}"` : "";
+
+  return `<g data-entity-type="dimension" data-dimension-type="${escapeSvgAttribute(entity.dimensionType)}" id="${escapeSvgAttribute(entity.id)}" data-layer-id="${escapeSvgAttribute(entity.layerId)}"${strokeOverride}>
     ${lines.join("\n    ")}
     ${text}
   </g>`;
@@ -451,7 +517,7 @@ function calculateDocumentBounds(document: CadDocument): SvgBounds {
   let bounds: SvgBounds | null = null;
 
   for (const entity of document.entities) {
-    bounds = mergeBounds(bounds, calculateEntityBounds(entity));
+    bounds = mergeBounds(bounds, calculateEntityBounds(entity, document));
   }
 
   return bounds ?? {
@@ -462,7 +528,7 @@ function calculateDocumentBounds(document: CadDocument): SvgBounds {
   };
 }
 
-function calculateEntityBounds(entity: CadEntity): SvgBounds {
+function calculateEntityBounds(entity: CadEntity, document?: CadDocument): SvgBounds {
   if (entity.type === "line") {
     return {
       minX: Math.min(entity.start.x, entity.end.x),
@@ -477,19 +543,29 @@ function calculateEntityBounds(entity: CadEntity): SvgBounds {
   }
 
   if (entity.type === "dimension") {
-    // Basic approximation since we don't have text width here easily
+    const resolvedStyle = document ? resolveDimensionStyle(document, entity as any) : ((entity as any).style || {});
     const defaultStyle = {
-      textHeight: entity.style?.textHeight ?? 12,
-      arrowSize: entity.style?.arrowSize ?? 6,
-      extensionOffset: entity.style?.extensionOffset ?? 2,
-      extensionOvershoot: entity.style?.extensionOvershoot ?? 3,
-      precision: entity.style?.precision ?? 2,
-      unitSuffix: entity.style?.unitSuffix ?? " mm",
-      arrowType: entity.style?.arrowType ?? "tick",
+      textHeight: resolvedStyle.textHeight ?? 12,
+      arrowSize: resolvedStyle.arrowSize ?? 6,
+      extensionOffset: resolvedStyle.extensionOffset ?? 2,
+      extensionOvershoot: resolvedStyle.extensionOvershoot ?? 3,
+      precision: resolvedStyle.precision ?? 2,
+      unitSuffix: resolvedStyle.unitSuffix ?? " mm",
+      arrowType: resolvedStyle.arrowType ?? "tick",
     };
-    const geom = entity.dimensionType === "linear" 
-      ? buildLinearDimensionGeometry(entity.definition as any, defaultStyle)
-      : buildAlignedDimensionGeometry(entity.definition as any, defaultStyle);
+    let geom: any;
+
+    if (entity.dimensionType === "linear") {
+      geom = buildLinearDimensionGeometry(entity.definition as any, defaultStyle);
+    } else if (entity.dimensionType === "aligned") {
+      geom = buildAlignedDimensionGeometry(entity.definition as any, defaultStyle);
+    } else if (entity.dimensionType === "radius") {
+      geom = buildRadiusDimensionGeometry(entity.definition as any, defaultStyle);
+    } else if (entity.dimensionType === "diameter") {
+      geom = buildDiameterDimensionGeometry(entity.definition as any, defaultStyle);
+    } else {
+      geom = buildAngularDimensionGeometry(entity.definition as any, defaultStyle);
+    }
       
     return calculateBoundsFromPoints(geom.visualPoints as ReadonlyArray<Readonly<{ x: number; y: number }>>);
   }

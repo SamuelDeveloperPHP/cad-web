@@ -49,7 +49,7 @@ export class DimLinearTool implements CadTool {
       return TOOL_RESULT_NONE;
     }
 
-    // Third point (dimension line point)
+    // O terceiro ponto define a posicao da linha de cota.
     const layerId = context.document.activeLayerId || "layer_0";
     const layer = context.document.layers.find(l => l.id === layerId);
     if (layer?.locked) {
@@ -64,7 +64,7 @@ export class DimLinearTool implements CadTool {
       id: `dim_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       dimensionType: "linear",
       layerId,
-      style: DEFAULT_STYLE,
+      dimensionStyleId: context.document.activeDimensionStyleId || "dimstyle_standard",
       definition: {
         firstPoint: this.firstPoint,
         secondPoint: this.secondPoint,
@@ -92,7 +92,7 @@ export class DimLinearTool implements CadTool {
       id: "preview_dim",
       dimensionType: "linear",
       layerId: context.document.activeLayerId || "layer_0",
-      style: DEFAULT_STYLE,
+      dimensionStyleId: context.document.activeDimensionStyleId || "dimstyle_standard",
       definition: {
         firstPoint: this.firstPoint,
         secondPoint: this.secondPoint,
@@ -179,7 +179,7 @@ export class DimAlignedTool implements CadTool {
       id: `dim_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       dimensionType: "aligned",
       layerId,
-      style: DEFAULT_STYLE,
+      dimensionStyleId: context.document.activeDimensionStyleId || "dimstyle_standard",
       definition: {
         firstPoint: this.firstPoint,
         secondPoint: this.secondPoint,
@@ -206,7 +206,7 @@ export class DimAlignedTool implements CadTool {
       id: "preview_dim",
       dimensionType: "aligned",
       layerId: context.document.activeLayerId || "layer_0",
-      style: DEFAULT_STYLE,
+      dimensionStyleId: context.document.activeDimensionStyleId || "dimstyle_standard",
       definition: {
         firstPoint: this.firstPoint,
         secondPoint: this.secondPoint,

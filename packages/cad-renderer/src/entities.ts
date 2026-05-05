@@ -1,5 +1,5 @@
-import { getDocumentSpatialIndex, type CadDocument } from "@cad-web/cad-core";
-import { rotationMatrix, transformPoint, buildLinearDimensionGeometry, buildAlignedDimensionGeometry, type Point2D } from "@cad-web/cad-geometry";
+import { getDocumentSpatialIndex, resolveDimensionStyle, type CadDocument } from "@cad-web/cad-core";
+import { rotationMatrix, transformPoint, buildLinearDimensionGeometry, buildAlignedDimensionGeometry, buildRadiusDimensionGeometry, buildDiameterDimensionGeometry, buildAngularDimensionGeometry, type Point2D } from "@cad-web/cad-geometry";
 import { screenToWorld, worldToScreen } from "./viewport";
 import { DEFAULT_RENDER_STYLE, type RenderStyle, type Viewport } from "./types";
 
@@ -98,46 +98,92 @@ export function renderDocument2D(
       context.arc(center.x, center.y, radiusScreen, 0, Math.PI * 2);
       context.stroke();
     } else if (entity.type === "dimension") {
+      const resolvedStyle = resolveDimensionStyle(document, entity as any);
+
+      // A cota usa a cor sobrescrita quando o estilo a define.
+      if (resolvedStyle.lineColor) {
+        context.strokeStyle = resolvedStyle.lineColor;
+      } else if (resolvedStyle.color) {
+        context.strokeStyle = resolvedStyle.color;
+      }
+
       const defaultStyle = {
-        textHeight: entity.style?.textHeight ?? 12,
-        arrowSize: entity.style?.arrowSize ?? 6,
-        extensionOffset: entity.style?.extensionOffset ?? 2,
-        extensionOvershoot: entity.style?.extensionOvershoot ?? 3,
-        precision: entity.style?.precision ?? 2,
-        unitSuffix: entity.style?.unitSuffix ?? " mm",
-        arrowType: entity.style?.arrowType ?? "tick",
+        textHeight: resolvedStyle.textHeight ?? 12,
+        arrowSize: resolvedStyle.arrowSize ?? 6,
+        extensionOffset: resolvedStyle.extensionOffset ?? 2,
+        extensionOvershoot: resolvedStyle.extensionOvershoot ?? 3,
+        precision: resolvedStyle.precision ?? 2,
+        unitSuffix: resolvedStyle.unitSuffix ?? " mm",
+        arrowType: resolvedStyle.arrowType ?? "tick",
       };
 
-      const geom = entity.dimensionType === "linear" 
-        ? buildLinearDimensionGeometry(entity.definition as any, defaultStyle, document.units, document.displayUnit || document.units)
-        : buildAlignedDimensionGeometry(entity.definition as any, defaultStyle, document.units, document.displayUnit || document.units);
+      let geom: any;
+      if (entity.dimensionType === "linear") {
+        geom = buildLinearDimensionGeometry(entity.definition as any, defaultStyle, document.units, document.displayUnit || document.units);
+      } else if (entity.dimensionType === "aligned") {
+        geom = buildAlignedDimensionGeometry(entity.definition as any, defaultStyle, document.units, document.displayUnit || document.units);
+      } else if (entity.dimensionType === "radius") {
+        geom = buildRadiusDimensionGeometry(entity.definition as any, defaultStyle, document.units, document.displayUnit || document.units);
+      } else if (entity.dimensionType === "diameter") {
+        geom = buildDiameterDimensionGeometry(entity.definition as any, defaultStyle, document.units, document.displayUnit || document.units);
+      } else if (entity.dimensionType === "angular") {
+        geom = buildAngularDimensionGeometry(entity.definition as any, defaultStyle);
+      }
 
-      // Draw extension lines
-      const ext1Start = worldToScreen(geom.extensionLine1.start, viewport);
-      const ext1End = worldToScreen(geom.extensionLine1.end, viewport);
-      const ext2Start = worldToScreen(geom.extensionLine2.start, viewport);
-      const ext2End = worldToScreen(geom.extensionLine2.end, viewport);
+      // O renderizador desenha linhas de extensao quando a geometria as fornece.
+      if (geom.extensionLine1 && geom.extensionLine2) {
+        const ext1Start = worldToScreen(geom.extensionLine1.start, viewport);
+        const ext1End = worldToScreen(geom.extensionLine1.end, viewport);
+        const ext2Start = worldToScreen(geom.extensionLine2.start, viewport);
+        const ext2End = worldToScreen(geom.extensionLine2.end, viewport);
 
-      context.beginPath();
-      context.moveTo(ext1Start.x, ext1Start.y);
-      context.lineTo(ext1End.x, ext1End.y);
-      context.moveTo(ext2Start.x, ext2Start.y);
-      context.lineTo(ext2End.x, ext2End.y);
-      context.stroke();
+        context.beginPath();
+        context.moveTo(ext1Start.x, ext1Start.y);
+        context.lineTo(ext1End.x, ext1End.y);
+        context.moveTo(ext2Start.x, ext2Start.y);
+        context.lineTo(ext2End.x, ext2End.y);
+        context.stroke();
+      }
 
-      // Draw dimension line
-      const dimStart = worldToScreen(geom.dimensionLine.start, viewport);
-      const dimEnd = worldToScreen(geom.dimensionLine.end, viewport);
-      
-      context.beginPath();
-      context.moveTo(dimStart.x, dimStart.y);
-      context.lineTo(dimEnd.x, dimEnd.y);
-      context.stroke();
+      // O renderizador desenha a linha guia quando a geometria a fornece.
+      if (geom.leaderLine) {
+        const leaderStart = worldToScreen(geom.leaderLine.start, viewport);
+        const leaderEnd = worldToScreen(geom.leaderLine.end, viewport);
+        
+        context.beginPath();
+        context.moveTo(leaderStart.x, leaderStart.y);
+        context.lineTo(leaderEnd.x, leaderEnd.y);
+        context.stroke();
+      }
+
+      let dimStart: any;
+      let dimEnd: any;
+
+      // O renderizador desenha a linha de cota ou o arco angular.
+      if (entity.dimensionType === "angular") {
+        const center = worldToScreen(geom.arcCenter, viewport);
+        const radius = geom.radius * viewport.scale;
+        context.beginPath();
+        // O Canvas recebe angulos em radianos no sistema visual atual.
+        context.arc(center.x, center.y, radius, -geom.startAngle, -geom.endAngle, geom.sweepFlag === 0);
+        context.stroke();
+        
+        dimStart = worldToScreen(geom.arcStart, viewport);
+        dimEnd = worldToScreen(geom.arcEnd, viewport);
+      } else {
+        dimStart = worldToScreen(geom.dimensionLine.start, viewport);
+        dimEnd = worldToScreen(geom.dimensionLine.end, viewport);
+        
+        context.beginPath();
+        context.moveTo(dimStart.x, dimStart.y);
+        context.lineTo(dimEnd.x, dimEnd.y);
+        context.stroke();
+      }
 
       const tickSizeScreen = defaultStyle.arrowSize * viewport.scale;
 
       if (defaultStyle.arrowType === "arrow") {
-        // Draw filled arrows
+        // O renderizador desenha setas preenchidas.
         const drawArrow = (point: {x:number, y:number}, opposite: {x:number, y:number}) => {
           const dirX = opposite.x - point.x;
           const dirY = opposite.y - point.y;
@@ -158,26 +204,32 @@ export function renderDocument2D(
           context.fill();
         };
 
-        drawArrow(dimStart, dimEnd);
-        drawArrow(dimEnd, dimStart);
+        if (entity.dimensionType === "radius") {
+          drawArrow(dimEnd, dimStart);
+        } else {
+          drawArrow(dimStart, dimEnd);
+          drawArrow(dimEnd, dimStart);
+        }
       } else {
-        // Draw Architectural Ticks (45 degree lines at the ends)
+        // O renderizador desenha marcas arquitetonicas em 45 graus nas extremidades.
         const tickDx = tickSizeScreen * 0.5;
         const tickDy = tickSizeScreen * 0.5;
 
         context.beginPath();
-        context.moveTo(dimStart.x - tickDx, dimStart.y + tickDy);
-        context.lineTo(dimStart.x + tickDx, dimStart.y - tickDy);
+        if (entity.dimensionType !== "radius") {
+          context.moveTo(dimStart.x - tickDx, dimStart.y + tickDy);
+          context.lineTo(dimStart.x + tickDx, dimStart.y - tickDy);
+        }
         context.moveTo(dimEnd.x - tickDx, dimEnd.y + tickDy);
         context.lineTo(dimEnd.x + tickDx, dimEnd.y - tickDy);
-        // Ticks are usually drawn slightly thicker
+        // As marcas usam traco levemente mais espesso.
         const oldLineWidth = context.lineWidth;
         context.lineWidth = oldLineWidth * 1.5;
         context.stroke();
         context.lineWidth = oldLineWidth;
       }
 
-      // Draw Text
+      // O renderizador desenha o texto da cota.
       const textPos = worldToScreen(geom.textPosition, viewport);
       const textVal = entity.textOverride || geom.formattedText;
       const fontSizeScreen = defaultStyle.textHeight * viewport.scale;
@@ -190,15 +242,15 @@ export function renderDocument2D(
       context.textAlign = "center";
       context.textBaseline = "middle";
 
-      // Draw whiteout (background) more discreetly
+      // O fundo do texto preserva legibilidade sem ocultar demais o desenho.
       const textMetrics = context.measureText(textVal);
       const textWidth = textMetrics.width;
-      const padding = fontSizeScreen * 0.1; // Reduced padding
+      const padding = fontSizeScreen * 0.1; // O padding reduzido evita excesso de mascara.
       
-      context.fillStyle = "rgba(17, 19, 21, 0.85)"; // Reduced opacity, dark bg
+      context.fillStyle = "rgba(17, 19, 21, 0.85)"; // A opacidade reduzida mantem o fundo discreto.
       context.fillRect(-textWidth/2 - padding, -fontSizeScreen/2 - padding, textWidth + padding*2, fontSizeScreen + padding*2);
 
-      context.fillStyle = context.strokeStyle;
+      context.fillStyle = resolvedStyle.textColor || context.strokeStyle;
       context.fillText(textVal, 0, 0);
 
       context.restore();

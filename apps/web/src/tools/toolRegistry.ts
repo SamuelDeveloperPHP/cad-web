@@ -10,7 +10,10 @@ import {
   OffsetTool,
   EraseTool, 
   DimLinearTool,
-  DimAlignedTool
+  DimAlignedTool,
+  DimRadiusTool,
+  DimDiameterTool,
+  DimAngularTool
 } from "@cad-web/cad-tools";
 
 export function createWebToolRegistry(): ToolRegistry {
@@ -27,6 +30,9 @@ export function createWebToolRegistry(): ToolRegistry {
   registry.register(new EraseTool());
   registry.register(new DimLinearTool());
   registry.register(new DimAlignedTool());
+  registry.register(new DimRadiusTool());
+  registry.register(new DimDiameterTool());
+  registry.register(new DimAngularTool());
 
   return registry;
 }

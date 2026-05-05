@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { useCadStore } from "../../state/useCadStore";
-import { UpdateEntityCommand, UpdateEntitiesBatchCommand, type CadEntity } from "@cad-web/cad-core";
-import { lineLength, lineAngle, rectangleArea, rectanglePerimeter, circleArea, circleCircumference, formatMeasurement } from "@cad-web/cad-geometry";
+import { UpdateEntityCommand, UpdateEntitiesBatchCommand, resolveDimensionStyle, type CadEntity } from "@cad-web/cad-core";
+import { lineLength, lineAngle, rectangleArea, rectanglePerimeter, circleArea, circleCircumference, formatMeasurement, buildAngularDimensionGeometry } from "@cad-web/cad-geometry";
 
 function PropertyRow({ label, children }: { label: string, children: React.ReactNode }) {
   return (
@@ -86,7 +85,7 @@ export function CadPropertiesPanel({ cad }: { cad: CadStore }) {
     return num;
   };
 
-  // MULTIPLE SELECTION
+  // O painel agrupa edicoes quando ha selecao multipla.
   if (entities.length > 1) {
     const first = entities[0]!;
     const sameLayer = entities.every(e => e.layerId === first.layerId) ? first.layerId : "";
@@ -171,7 +170,7 @@ export function CadPropertiesPanel({ cad }: { cad: CadStore }) {
     );
   }
 
-  // SINGLE SELECTION
+  // O painel exibe propriedades detalhadas quando ha uma unica entidade selecionada.
   const entity = entities[0]!;
   const layer = cad.document.layers.find(l => l.id === entity.layerId);
   const isLocked = layer?.locked ?? false;
@@ -266,6 +265,16 @@ export function CadPropertiesPanel({ cad }: { cad: CadStore }) {
       {entity.type === "dimension" && (
         <>
           <PropertyRow label="Dimension Type"><PropertyInput value={(entity as any).dimensionType} readOnly /></PropertyRow>
+          <PropertyRow label="Style">
+            <select
+              value={(entity as any).dimensionStyleId || "dimstyle_standard"}
+              disabled={isLocked}
+              style={{ width: '100%', background: isLocked ? 'transparent' : 'var(--cad-bg-dark)', color: 'var(--cad-text)', border: isLocked ? 'none' : '1px solid var(--cad-border)', fontSize: '11px', padding: '2px' }}
+              onChange={e => handleUpdateSingle(entity.id, { dimensionStyleId: e.target.value } as any)}
+            >
+              {(cad.document.dimensionStyles || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </PropertyRow>
           <PropertyRow label="Text Override">
             <PropertyInput 
               value={(entity as any).textOverride || ""} 
@@ -278,45 +287,86 @@ export function CadPropertiesPanel({ cad }: { cad: CadStore }) {
               value={
                 (() => {
                   const def = (entity as any).definition;
+                  const resolvedStyle = resolveDimensionStyle(cad.document, entity as any);
                   let val = 0;
-                  if ((entity as any).dimensionType === "linear" && def.orientation === "horizontal") {
+                  if ((entity as any).dimensionType === "radius") {
+                    val = def.radius;
+                  } else if ((entity as any).dimensionType === "diameter") {
+                    val = def.radius * 2;
+                  } else if ((entity as any).dimensionType === "linear" && def.orientation === "horizontal") {
                     val = Math.abs(def.secondPoint.x - def.firstPoint.x);
                   } else if ((entity as any).dimensionType === "linear" && def.orientation === "vertical") {
                     val = Math.abs(def.secondPoint.y - def.firstPoint.y);
+                  } else if ((entity as any).dimensionType === "angular") {
+                    const geom = buildAngularDimensionGeometry(def, resolvedStyle);
+                    return geom.formattedText;
                   } else {
                     val = lineLength(def.firstPoint, def.secondPoint);
                   }
-                  return formatMeasurement(val, cad.document.units, cad.document.displayUnit || cad.document.units, (entity as any).style?.precision ?? 2);
+                  return formatMeasurement(val, cad.document.units, cad.document.displayUnit || cad.document.units, resolvedStyle.precision);
                 })()
               } 
               readOnly 
             />
           </PropertyRow>
+          <div style={{ padding: '8px', background: '#18181b', fontSize: '12px', fontWeight: 600, borderBottom: '1px solid var(--cad-border)', borderTop: '1px solid var(--cad-border)', display: 'flex', justifyContent: 'space-between' }}>
+            <span>Style Overrides</span>
+            {Object.keys((entity as any).styleOverride || {}).length > 0 && (
+              <button onClick={() => handleUpdateSingle(entity.id, { styleOverride: {} } as any)} style={{ background: 'transparent', border: 'none', color: 'var(--cad-primary)', cursor: 'pointer', fontSize: '10px' }}>Clear</button>
+            )}
+          </div>
           <PropertyRow label="Precision">
             <PropertyInput 
               type="number"
-              value={(entity as any).style?.precision ?? 2} 
+              value={(entity as any).styleOverride?.precision ?? resolveDimensionStyle(cad.document, entity as any).precision} 
               readOnly={isLocked}
-              onChange={val => handleUpdateSingle(entity.id, { style: { ...(entity as any).style, precision: parseNumber(val, 2) } } as any)} 
+              onChange={val => handleUpdateSingle(entity.id, { styleOverride: { ...(entity as any).styleOverride, precision: parseNumber(val, 2) } } as any)} 
             />
           </PropertyRow>
           <PropertyRow label="Unit Suffix">
             <PropertyInput 
-              value={(entity as any).style?.unitSuffix ?? " mm"} 
+              value={(entity as any).styleOverride?.unitSuffix ?? resolveDimensionStyle(cad.document, entity as any).unitSuffix} 
               readOnly={isLocked}
-              onChange={val => handleUpdateSingle(entity.id, { style: { ...(entity as any).style, unitSuffix: val } } as any)} 
+              onChange={val => handleUpdateSingle(entity.id, { styleOverride: { ...(entity as any).styleOverride, unitSuffix: val } } as any)} 
             />
           </PropertyRow>
           <PropertyRow label="Arrow Type">
             <select
-              value={(entity as any).style?.arrowType ?? "tick"}
+              value={(entity as any).styleOverride?.arrowType ?? resolveDimensionStyle(cad.document, entity as any).arrowType}
               disabled={isLocked}
               className="w-full bg-cad-bg dark:bg-[#1A1D20] text-cad-text text-sm rounded border border-cad-border px-2 py-1 focus:outline-none focus:border-cad-primary transition-colors"
-              onChange={e => handleUpdateSingle(entity.id, { style: { ...(entity as any).style, arrowType: e.target.value } } as any)}
+              onChange={e => handleUpdateSingle(entity.id, { styleOverride: { ...(entity as any).styleOverride, arrowType: e.target.value } } as any)}
             >
               <option value="tick">Architectural Tick</option>
               <option value="arrow">Filled Arrow</option>
             </select>
+          </PropertyRow>
+          <PropertyRow label="Color">
+            <input
+              type="color"
+              value={(entity as any).styleOverride?.color ?? resolveDimensionStyle(cad.document, entity as any).color ?? "#ffffff"}
+              disabled={isLocked}
+              onChange={e => handleUpdateSingle(entity.id, { styleOverride: { ...(entity as any).styleOverride, color: e.target.value } } as any)}
+              style={{ width: '100%', height: '20px', padding: 0, border: 'none', background: 'transparent' }}
+            />
+          </PropertyRow>
+          <PropertyRow label="Text Color">
+            <input
+              type="color"
+              value={(entity as any).styleOverride?.textColor ?? resolveDimensionStyle(cad.document, entity as any).textColor ?? resolveDimensionStyle(cad.document, entity as any).color ?? "#ffffff"}
+              disabled={isLocked}
+              onChange={e => handleUpdateSingle(entity.id, { styleOverride: { ...(entity as any).styleOverride, textColor: e.target.value } } as any)}
+              style={{ width: '100%', height: '20px', padding: 0, border: 'none', background: 'transparent' }}
+            />
+          </PropertyRow>
+          <PropertyRow label="Line Color">
+            <input
+              type="color"
+              value={(entity as any).styleOverride?.lineColor ?? resolveDimensionStyle(cad.document, entity as any).lineColor ?? resolveDimensionStyle(cad.document, entity as any).color ?? "#ffffff"}
+              disabled={isLocked}
+              onChange={e => handleUpdateSingle(entity.id, { styleOverride: { ...(entity as any).styleOverride, lineColor: e.target.value } } as any)}
+              style={{ width: '100%', height: '20px', padding: 0, border: 'none', background: 'transparent' }}
+            />
           </PropertyRow>
         </>
       )}

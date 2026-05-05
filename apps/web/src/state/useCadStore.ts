@@ -24,7 +24,25 @@ import {
 import { loadStoredSnapSettings, storeSnapSettings } from "../services/snapSettingsStorage";
 import { createWebToolRegistry } from "../tools/toolRegistry";
 
-export type ActiveCadTool = "select" | "line" | "rectangle" | "circle" | "move" | "rotate" | "scale" | "offset" | "erase" | "pan" | "dimLinear" | "dimAligned";
+export type ActiveCadTool = "select" | "line" | "rectangle" | "circle" | "move" | "rotate" | "scale" | "offset" | "erase" | "pan" | "dimLinear" | "dimAligned" | "dimRadius" | "dimDiameter" | "dimAngular";
+
+const ACTIVE_CAD_TOOLS: ReadonlySet<string> = new Set<ActiveCadTool>([
+  "select",
+  "line",
+  "rectangle",
+  "circle",
+  "move",
+  "rotate",
+  "scale",
+  "offset",
+  "erase",
+  "pan",
+  "dimLinear",
+  "dimAligned",
+  "dimRadius",
+  "dimDiameter",
+  "dimAngular"
+]);
 
 export type CadStore = Readonly<{
   document: CadDocument;
@@ -265,6 +283,11 @@ export function useCadStore(): CadStore {
         return;
       }
 
+      if (event.key.toLowerCase() === "o") {
+        setActiveTool("offset");
+        return;
+      }
+
       dispatchToActiveTool((toolId, context) => toolRegistry.resolve(toolId)?.onKeyDown(event, context) ?? { type: "none" });
     },
     [dispatchToActiveTool, redo, runEraseTool, setActiveTool, toolRegistry, undo]
@@ -328,7 +351,7 @@ export function useCadStore(): CadStore {
         return;
       }
 
-      if (resolvedTool?.id === "erase") {
+      if (resolvedTool?.id === "erase" && activeTool !== "erase") {
         runEraseTool({
           key: "Enter",
           code: "Enter",
@@ -341,11 +364,17 @@ export function useCadStore(): CadStore {
         return;
       }
 
-      if (resolvedTool?.id === "line" || resolvedTool?.id === "rectangle" || resolvedTool?.id === "circle" || resolvedTool?.id === "select" || resolvedTool?.id === "move" || resolvedTool?.id === "rotate" || resolvedTool?.id === "scale") {
-        setActiveTool(resolvedTool.id as ActiveCadTool);
+      if (resolvedTool !== null && isActiveCadTool(resolvedTool.id)) {
+        setActiveTool(resolvedTool.id);
+        return;
+      }
+
+      if (activeTool !== "pan") {
+        const context = createToolContext();
+        processToolResult(toolRegistry.resolve(activeTool)?.onCommandInput(command, context) ?? { type: "none" });
       }
     },
-    [clearDocument, redo, runEraseTool, setActiveTool, toolRegistry, undo]
+    [activeTool, clearDocument, createToolContext, document.entities.length, processToolResult, redo, runEraseTool, setActiveTool, showMessage, toolRegistry, undo]
   );
 
   return useMemo(
@@ -406,4 +435,8 @@ export function useCadStore(): CadStore {
       viewport
     ]
   );
+}
+
+function isActiveCadTool(toolId: string): toolId is ActiveCadTool {
+  return ACTIVE_CAD_TOOLS.has(toolId);
 }

@@ -90,3 +90,44 @@ export function midpoint(a: Point2D, b: Point2D): Point2D {
     y: (a.y + b.y) / 2
   };
 }
+
+export function angleBetweenVectors(a: Vector2D, b: Vector2D): number {
+  const dotProd = dot(a, b);
+  const det = cross(a, b);
+  return Math.atan2(det, dotProd);
+}
+
+export function normalizeAngle(angle: number): number {
+  let a = angle % (2 * Math.PI);
+  if (a < 0) {
+    a += 2 * Math.PI;
+  }
+  return a;
+}
+
+export function intersectInfiniteLines(
+  p1: Point2D,
+  p2: Point2D,
+  p3: Point2D,
+  p4: Point2D,
+  epsilon = CAD_EPSILON
+): Point2D | null {
+  const a1 = p2.y - p1.y;
+  const b1 = p1.x - p2.x;
+  const c1 = a1 * p1.x + b1 * p1.y;
+
+  const a2 = p4.y - p3.y;
+  const b2 = p3.x - p4.x;
+  const c2 = a2 * p3.x + b2 * p3.y;
+
+  const determinant = a1 * b2 - a2 * b1;
+
+  if (Math.abs(determinant) < epsilon) {
+    return null; // Paralelas ou colineares
+  }
+
+  const x = (b2 * c1 - b1 * c2) / determinant;
+  const y = (a1 * c2 - a2 * c1) / determinant;
+
+  return { x, y };
+}
