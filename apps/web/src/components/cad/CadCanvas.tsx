@@ -2,6 +2,7 @@ import type { Point2D } from "@cad-web/cad-geometry";
 import {
   configureCanvasForDevicePixelRatio,
   renderDocument2D,
+  renderDimensionGrips2D,
   renderGrid2D,
   renderSnapMarker2D,
   screenToWorld,
@@ -67,6 +68,7 @@ export function CadCanvas({ cad }: CadCanvasProps) {
     const stats = renderDocument2D(context, cad.document, cad.viewport);
     cadDiagnostics.reportFrame(stats);
     renderSelectedEntities(context, cad);
+    renderDimensionGrips2D(context, cad.document, cad.selectedEntityIds, cad.viewport);
     renderPreview(context, cad);
     renderActiveSnapMarker(context, cad);
   }, [cad, screenSize]);
@@ -99,6 +101,10 @@ export function CadCanvas({ cad }: CadCanvasProps) {
       event.currentTarget.setPointerCapture(event.pointerId);
       panStateRef.current = { active: true, lastScreen: screenPoint };
       return;
+    }
+
+    if (event.button === 0) {
+      event.currentTarget.setPointerCapture(event.pointerId);
     }
 
     cad.dispatchPointerDown(
@@ -169,7 +175,9 @@ export function CadCanvas({ cad }: CadCanvasProps) {
               metaKey: event.metaKey
             })
           );
-          event.currentTarget.releasePointerCapture(event.pointerId);
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          }
         }}
         onWheel={(event) => {
           event.preventDefault();

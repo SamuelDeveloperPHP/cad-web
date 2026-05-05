@@ -5,7 +5,9 @@ import {
   buildDiameterDimensionGeometry,
   buildLinearDimensionGeometry,
   buildRadiusDimensionGeometry,
-  formatDimensionValue
+  formatDimensionValue,
+  getDimensionGripPoints,
+  updateDimensionByGrip
 } from "./dimensions";
 
 describe("Dimensions Geometry", () => {
@@ -121,6 +123,80 @@ describe("Dimensions Geometry", () => {
 
       expect(result.measuredValue).toBeCloseTo(90);
       expect(result.formattedText).toBe("90.00\u00b0");
+    });
+  });
+
+  describe("dimension grips", () => {
+    it("extracts grips from linear dimensions", () => {
+      const entity = {
+        dimensionType: "linear" as const,
+        definition: {
+          firstPoint: { x: 0, y: 0 },
+          secondPoint: { x: 10, y: 0 },
+          dimensionLinePoint: { x: 5, y: 4 },
+          orientation: "horizontal" as const
+        }
+      };
+
+      expect(getDimensionGripPoints(entity).map((grip) => grip.id)).toEqual([
+        "firstPoint",
+        "secondPoint",
+        "dimensionLinePoint"
+      ]);
+    });
+
+    it("updates a linear dimension line point without mutating the source", () => {
+      const entity = {
+        dimensionType: "linear" as const,
+        definition: {
+          firstPoint: { x: 0, y: 0 },
+          secondPoint: { x: 10, y: 0 },
+          dimensionLinePoint: { x: 5, y: 4 },
+          orientation: "horizontal" as const
+        }
+      };
+
+      const updated = updateDimensionByGrip(entity, "dimensionLinePoint", { x: 5, y: 8 });
+
+      expect(updated.definition.dimensionLinePoint).toEqual({ x: 5, y: 8 });
+      expect(entity.definition.dimensionLinePoint).toEqual({ x: 5, y: 4 });
+    });
+
+    it("extracts and updates radius leader grips", () => {
+      const entity = {
+        dimensionType: "radius" as const,
+        definition: {
+          center: { x: 0, y: 0 },
+          radius: 5,
+          leaderEndPoint: { x: 8, y: 0 }
+        }
+      };
+
+      const grips = getDimensionGripPoints(entity);
+      const updated = updateDimensionByGrip(entity, "leaderEndPoint", { x: 10, y: 3 });
+
+      expect(grips.map((grip) => grip.id)).toEqual(["center", "leaderEndPoint"]);
+      expect(updated.definition.leaderEndPoint).toEqual({ x: 10, y: 3 });
+      expect(updated.definition.radius).toBe(5);
+    });
+
+    it("extracts only arcPoint grip for angular dimensions", () => {
+      const entity = {
+        dimensionType: "angular" as const,
+        definition: {
+          vertex: { x: 0, y: 0 },
+          firstPoint: { x: 10, y: 0 },
+          secondPoint: { x: 0, y: 10 },
+          arcPoint: { x: 4, y: 4 }
+        }
+      };
+
+      const grips = getDimensionGripPoints(entity);
+      const updated = updateDimensionByGrip(entity, "arcPoint", { x: 6, y: 6 });
+
+      expect(grips.map((grip) => grip.id)).toEqual(["arcPoint"]);
+      expect(updated.definition.arcPoint).toEqual({ x: 6, y: 6 });
+      expect(updated.definition.vertex).toEqual({ x: 0, y: 0 });
     });
   });
 });

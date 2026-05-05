@@ -1,4 +1,5 @@
 import { addVector, rotationMatrix, scaleMatrix, transformPoint, type Point2D } from "@cad-web/cad-geometry";
+import { createDimensionStyleFromPreset, getDimensionStylePresetById } from "./dimensionStylePresets";
 
 export type EntityId = string;
 
@@ -58,6 +59,7 @@ export interface DimensionStyle {
   textColor?: string;
   lineColor?: string;
   scale?: number;
+  presetId?: string;
   isDefault?: boolean;
 }
 
@@ -779,6 +781,57 @@ export class UpdateEntitiesBatchCommand implements CadCommand {
   }
 }
 
+export class TrimLineCommand implements CadCommand {
+  readonly type = "TrimLineCommand";
+  readonly description = "Trims a line by replacing it with remaining segments.";
+  private originalIndex = -1;
+
+  constructor(
+    readonly originalEntity: LineEntity,
+    readonly resultEntities: ReadonlyArray<LineEntity>
+  ) {}
+
+  get id(): string {
+    return `cmd_trim_line_${this.originalEntity.id}_${Date.now()}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    // O comando substitui a linha original pelos segmentos restantes em uma única troca imutável.
+    const entityIndex = document.entities.findIndex((entity) => entity.id === this.originalEntity.id);
+
+    if (entityIndex === -1) {
+      return document;
+    }
+
+    this.originalIndex = entityIndex;
+
+    return {
+      ...document,
+      entities: [
+        ...document.entities.slice(0, entityIndex),
+        ...this.resultEntities,
+        ...document.entities.slice(entityIndex + 1)
+      ]
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    // O undo remove os segmentos criados e reinsere a entidade original na posição anterior.
+    const resultIds = new Set(this.resultEntities.map((entity) => entity.id));
+    const entitiesWithoutTrimResult = document.entities.filter((entity) => !resultIds.has(entity.id));
+    const insertionIndex = clampEntityIndex(this.originalIndex, entitiesWithoutTrimResult.length);
+
+    return {
+      ...document,
+      entities: [
+        ...entitiesWithoutTrimResult.slice(0, insertionIndex),
+        this.originalEntity,
+        ...entitiesWithoutTrimResult.slice(insertionIndex)
+      ]
+    };
+  }
+}
+
 function moveEntities(
   document: CadDocument,
   entityIds: ReadonlyArray<EntityId>,
@@ -929,6 +982,14 @@ function assertPositiveScaleFactor(factor: number): void {
   }
 }
 
+function clampEntityIndex(index: number, maxIndex: number): number {
+  if (index < 0) {
+    return maxIndex;
+  }
+
+  return Math.min(index, maxIndex);
+}
+
 export function resolveDimensionStyle(document: CadDocument, entity: DimensionEntity): DimensionStyle {
   const defaultStyle: DimensionStyle = {
     id: "dimstyle_standard",
@@ -979,6 +1040,137 @@ export class CreateDimensionStyleCommand implements CadCommand {
     return {
       ...document,
       dimensionStyles: (document.dimensionStyles || []).filter(s => s.id !== this.style.id)
+    };
+  }
+}
+
+export type CreateDimensionStyleFromPresetCommandOptions = Readonly<{
+  name?: string;
+  setActive?: boolean;
+}>;
+
+export class CreateDimensionStyleFromPresetCommand implements CadCommand {
+  readonly type = "CreateDimensionStyleFromPresetCommand";
+  readonly description = "Creates a dimension style from a preset.";
+  private createdStyle: DimensionStyle | undefined;
+  private previousActiveStyleId: string | undefined;
+
+  constructor(
+    readonly presetId: string,
+    readonly options: CreateDimensionStyleFromPresetCommandOptions = {}
+  ) {}
+
+  get id(): string {
+    return `cmd_create_dimstyle_from_preset_${this.presetId}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    if (this.createdStyle === undefined) {
+      this.createdStyle = createDimensionStyleFromPreset(this.presetId, {
+        ...(this.options.name !== undefined ? { name: this.options.name } : {}),
+        existingStyles: document.dimensionStyles || []
+      });
+    }
+
+    if (this.createdStyle === undefined || document.dimensionStyles.some((style) => style.id === this.createdStyle?.id)) {
+      return document;
+    }
+
+    this.previousActiveStyleId = document.activeDimensionStyleId;
+
+    return {
+      ...document,
+      dimensionStyles: [...(document.dimensionStyles || []), this.createdStyle],
+      activeDimensionStyleId: this.options.setActive === true ? this.createdStyle.id : document.activeDimensionStyleId
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    if (this.createdStyle === undefined) {
+      return document;
+    }
+
+    return {
+      ...document,
+      dimensionStyles: (document.dimensionStyles || []).filter((style) => style.id !== this.createdStyle?.id),
+      activeDimensionStyleId: this.previousActiveStyleId || document.activeDimensionStyleId
+    };
+  }
+}
+
+export type ApplyPresetToDimensionStyleCommandOptions = Readonly<{
+  name?: string;
+}>;
+
+export class ApplyPresetToDimensionStyleCommand implements CadCommand {
+  readonly type = "ApplyPresetToDimensionStyleCommand";
+  readonly description = "Applies a preset to an existing dimension style.";
+  private oldStyle: DimensionStyle | undefined;
+
+  constructor(
+    readonly styleId: string,
+    readonly presetId: string,
+    readonly options: ApplyPresetToDimensionStyleCommandOptions = {}
+  ) {}
+
+  get id(): string {
+    return `cmd_apply_dimstyle_preset_${this.styleId}_${this.presetId}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    const preset = getDimensionStylePresetById(this.presetId);
+    const styleIndex = (document.dimensionStyles || []).findIndex((style) => style.id === this.styleId);
+
+    if (preset === undefined || styleIndex === -1) {
+      return document;
+    }
+
+    const oldStyle = document.dimensionStyles[styleIndex];
+
+    if (oldStyle === undefined) {
+      return document;
+    }
+
+    this.oldStyle = oldStyle;
+
+    const updatedStyle = createDimensionStyleFromPreset(preset.id, {
+      id: oldStyle.id,
+      name: this.options.name ?? oldStyle.name
+    });
+
+    if (updatedStyle === undefined) {
+      return document;
+    }
+
+    const nextStyles = [...document.dimensionStyles];
+    nextStyles[styleIndex] = {
+      ...updatedStyle,
+      ...(oldStyle.isDefault !== undefined ? { isDefault: oldStyle.isDefault } : {})
+    };
+
+    return {
+      ...document,
+      dimensionStyles: nextStyles
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    if (this.oldStyle === undefined) {
+      return document;
+    }
+
+    const styleIndex = (document.dimensionStyles || []).findIndex((style) => style.id === this.styleId);
+
+    if (styleIndex === -1) {
+      return document;
+    }
+
+    const nextStyles = [...document.dimensionStyles];
+    nextStyles[styleIndex] = this.oldStyle;
+
+    return {
+      ...document,
+      dimensionStyles: nextStyles
     };
   }
 }
@@ -1170,4 +1362,5 @@ export class AssignDimensionStyleCommand implements CadCommand {
   }
 }
 
+export * from "./dimensionStylePresets";
 export * from "./spatial";

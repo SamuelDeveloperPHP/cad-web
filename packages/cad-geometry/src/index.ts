@@ -10,3 +10,4 @@ export * from "./vector";
 export * from "./measurements";
 export * from "./offset";
 export * from "./dimensions";
+export * from "./trim";

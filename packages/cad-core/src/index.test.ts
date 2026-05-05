@@ -2,10 +2,16 @@ import { describe, expect, it } from "vitest";
 import {
   ClearDocumentCommand,
   CommandHistory,
+  ApplyPresetToDimensionStyleCommand,
   CreateEntityCommand,
+  CreateDimensionStyleFromPresetCommand,
   DeleteEntitiesCommand,
+  DIMENSION_STYLE_PRESETS,
   MoveEntitiesCommand,
+  TrimLineCommand,
   createEmptyDocument,
+  createDimensionStyleFromPreset,
+  getDimensionStylePresetById,
   type LineEntity
 } from "./index";
 
@@ -89,6 +95,130 @@ describe("cad-core", () => {
     expect(history.execute(new ClearDocumentCommand()).entities).toEqual([]);
     expect(history.undo().entities).toEqual([line]);
     expect(history.redo().entities).toEqual([]);
+  });
+
+  it("executes undo and redo for TrimLineCommand with one remaining segment", () => {
+    const line = createLine("line_001");
+    const trimmedLine: LineEntity = {
+      ...line,
+      start: { x: 5, y: 0 },
+      end: { x: 10, y: 0 }
+    };
+    const history = new CommandHistory({
+      ...createEmptyDocument("doc_trim"),
+      entities: [line]
+    });
+
+    expect(history.execute(new TrimLineCommand(line, [trimmedLine])).entities).toEqual([trimmedLine]);
+    expect(history.undo().entities).toEqual([line]);
+    expect(history.redo().entities).toEqual([trimmedLine]);
+  });
+
+  it("executes undo and redo for TrimLineCommand with split remaining segments", () => {
+    const line = createLine("line_001");
+    const firstSegment: LineEntity = {
+      ...line,
+      end: { x: 3, y: 0 }
+    };
+    const secondSegment: LineEntity = {
+      ...line,
+      id: "line_001_trim_1",
+      start: { x: 7, y: 0 }
+    };
+    const history = new CommandHistory({
+      ...createEmptyDocument("doc_trim_split"),
+      entities: [line]
+    });
+
+    expect(history.execute(new TrimLineCommand(line, [firstSegment, secondSegment])).entities).toEqual([firstSegment, secondSegment]);
+    expect(history.undo().entities).toEqual([line]);
+    expect(history.redo().entities).toEqual([firstSegment, secondSegment]);
+  });
+
+  it("exposes immutable dimension style presets", () => {
+    expect(DIMENSION_STYLE_PRESETS.map((preset) => preset.id)).toEqual([
+      "standard",
+      "architectural",
+      "mechanical",
+      "civil",
+      "electrical",
+      "iso",
+      "abnt"
+    ]);
+    expect(getDimensionStylePresetById("abnt")).toMatchObject({
+      name: "ABNT",
+      arrowType: "tick"
+    });
+  });
+
+  it("creates dimension styles from presets with unique document ids and names", () => {
+    const existing = [
+      {
+        id: "dimstyle_abnt",
+        name: "ABNT"
+      }
+    ];
+
+    expect(createDimensionStyleFromPreset("abnt", { existingStyles: existing })).toMatchObject({
+      id: "dimstyle_abnt_2",
+      name: "ABNT 2",
+      presetId: "abnt",
+      unitSuffix: " mm"
+    });
+  });
+
+  it("executes undo and redo for CreateDimensionStyleFromPresetCommand", () => {
+    const history = new CommandHistory(createEmptyDocument("doc_presets"));
+    const created = history.execute(new CreateDimensionStyleFromPresetCommand("mechanical", { setActive: true }));
+
+    expect(created.dimensionStyles.at(-1)).toMatchObject({
+      id: "dimstyle_mechanical",
+      name: "Mecanico",
+      presetId: "mechanical",
+      arrowType: "arrow",
+      precision: 3
+    });
+    expect(created.activeDimensionStyleId).toBe("dimstyle_mechanical");
+    expect(history.undo().dimensionStyles).toHaveLength(1);
+    expect(history.redo().dimensionStyles.at(-1)).toMatchObject({ id: "dimstyle_mechanical" });
+  });
+
+  it("executes undo and redo for ApplyPresetToDimensionStyleCommand", () => {
+    const document = {
+      ...createEmptyDocument("doc_apply_preset"),
+      dimensionStyles: [
+        {
+          ...createEmptyDocument("doc_apply_preset").dimensionStyles[0],
+          id: "dimstyle_custom",
+          name: "Custom",
+          arrowType: "tick" as const,
+          precision: 0
+        }
+      ],
+      activeDimensionStyleId: "dimstyle_custom"
+    };
+    const history = new CommandHistory(document);
+
+    const updated = history.execute(new ApplyPresetToDimensionStyleCommand("dimstyle_custom", "iso"));
+
+    expect(updated.dimensionStyles[0]).toMatchObject({
+      id: "dimstyle_custom",
+      name: "Custom",
+      presetId: "iso",
+      arrowType: "arrow",
+      precision: 2,
+      arrowSize: 4
+    });
+    expect(history.undo().dimensionStyles[0]).toMatchObject({
+      id: "dimstyle_custom",
+      name: "Custom",
+      arrowType: "tick",
+      precision: 0
+    });
+    expect(history.redo().dimensionStyles[0]).toMatchObject({
+      presetId: "iso",
+      arrowType: "arrow"
+    });
   });
 });
 

@@ -8,6 +8,7 @@ import {
   RotateTool, 
   ScaleTool,
   OffsetTool,
+  TrimTool,
   EraseTool, 
   DimLinearTool,
   DimAlignedTool,
@@ -27,6 +28,7 @@ export function createWebToolRegistry(): ToolRegistry {
   registry.register(new RotateTool());
   registry.register(new ScaleTool());
   registry.register(new OffsetTool());
+  registry.register(new TrimTool());
   registry.register(new EraseTool());
   registry.register(new DimLinearTool());
   registry.register(new DimAlignedTool());
