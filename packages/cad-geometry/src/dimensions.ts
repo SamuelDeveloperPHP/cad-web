@@ -49,6 +49,38 @@ export type DiameterDimensionDefGeom = Readonly<{
   leaderEndPoint: Point2D;
 }>;
 
+export type AngularDimensionDefGeom = Readonly<{
+  vertex: Point2D;
+  firstPoint: Point2D;
+  secondPoint: Point2D;
+  arcPoint: Point2D;
+}>;
+
+export type DimensionGripId =
+  | "firstPoint"
+  | "secondPoint"
+  | "dimensionLinePoint"
+  | "center"
+  | "leaderEndPoint"
+  | "arcPoint";
+
+export type DimensionGripKind = DimensionGripId;
+
+export type DimensionGrip = Readonly<{
+  id: DimensionGripId;
+  kind: DimensionGripKind;
+  point: Point2D;
+  cursor?: string;
+  label?: string;
+}>;
+
+export type DimensionGripEntityGeom =
+  | Readonly<{ dimensionType: "linear"; definition: LinearDimensionDefGeom }>
+  | Readonly<{ dimensionType: "aligned"; definition: AlignedDimensionDefGeom }>
+  | Readonly<{ dimensionType: "radius"; definition: RadiusDimensionDefGeom }>
+  | Readonly<{ dimensionType: "diameter"; definition: DiameterDimensionDefGeom }>
+  | Readonly<{ dimensionType: "angular"; definition: AngularDimensionDefGeom }>;
+
 import { formatMeasurement } from "./measurements";
 
 export function distanceBetweenPoints(a: Point2D, b: Point2D): number {
@@ -85,6 +117,78 @@ export function formatRadiusDimensionValue(radius: number, style: DimensionStyle
 
 export function formatDiameterDimensionValue(radius: number, style: DimensionStyleGeom, docUnit: string = "mm", displayUnit: string = "mm"): string {
   return `\u00d8 ${formatDimensionValue(radius * 2, style.precision, style.unitSuffix, docUnit, displayUnit)}`;
+}
+
+export function getDimensionGripPoints(
+  entity: DimensionGripEntityGeom,
+  _resolvedStyle?: Partial<DimensionStyleGeom>
+): ReadonlyArray<DimensionGrip> {
+  if (entity.dimensionType === "linear" || entity.dimensionType === "aligned") {
+    return [
+      createDimensionGrip("firstPoint", entity.definition.firstPoint, "nwse-resize", "First point"),
+      createDimensionGrip("secondPoint", entity.definition.secondPoint, "nesw-resize", "Second point"),
+      createDimensionGrip("dimensionLinePoint", entity.definition.dimensionLinePoint, "move", "Dimension line")
+    ];
+  }
+
+  if (entity.dimensionType === "radius" || entity.dimensionType === "diameter") {
+    return [
+      createDimensionGrip("center", entity.definition.center, "move", "Center"),
+      createDimensionGrip("leaderEndPoint", entity.definition.leaderEndPoint, "move", "Leader")
+    ];
+  }
+
+  return [
+    createDimensionGrip("arcPoint", entity.definition.arcPoint, "move", "Arc")
+  ];
+}
+
+export function updateDimensionByGrip<T extends DimensionGripEntityGeom>(
+  entity: T,
+  gripId: DimensionGripId | string,
+  newPoint: Point2D
+): T {
+  if (entity.dimensionType === "linear" || entity.dimensionType === "aligned") {
+    if (gripId === "firstPoint" || gripId === "secondPoint" || gripId === "dimensionLinePoint") {
+      return replaceDimensionDefinition(entity, { [gripId]: clonePoint(newPoint) });
+    }
+  }
+
+  if (entity.dimensionType === "radius" || entity.dimensionType === "diameter") {
+    if (gripId === "center" || gripId === "leaderEndPoint") {
+      return replaceDimensionDefinition(entity, { [gripId]: clonePoint(newPoint) });
+    }
+  }
+
+  if (entity.dimensionType === "angular" && gripId === "arcPoint") {
+    return replaceDimensionDefinition(entity, { arcPoint: clonePoint(newPoint) });
+  }
+
+  return entity;
+}
+
+function createDimensionGrip(id: DimensionGripId, point: Point2D, cursor: string, label: string): DimensionGrip {
+  return {
+    id,
+    kind: id,
+    point: clonePoint(point),
+    cursor,
+    label
+  };
+}
+
+function replaceDimensionDefinition<T extends DimensionGripEntityGeom>(entity: T, patch: Record<string, Point2D>): T {
+  return {
+    ...entity,
+    definition: {
+      ...entity.definition,
+      ...patch
+    }
+  } as T;
+}
+
+function clonePoint(point: Point2D): Point2D {
+  return { x: point.x, y: point.y };
 }
 
 export function buildLinearDimensionGeometry(def: LinearDimensionDefGeom, style: DimensionStyleGeom, docUnit: string = "mm", displayUnit: string = "mm"): DimensionGeometryResult {
@@ -281,13 +385,6 @@ export function buildDiameterDimensionGeometry(def: DiameterDimensionDefGeom, st
     visualPoints
   };
 }
-
-export type AngularDimensionDefGeom = Readonly<{
-  vertex: Point2D;
-  firstPoint: Point2D;
-  secondPoint: Point2D;
-  arcPoint: Point2D;
-}>;
 
 export type AngularDimensionGeometryResult = Readonly<{
   arcCenter: Point2D;

@@ -24,7 +24,7 @@ import {
 import { loadStoredSnapSettings, storeSnapSettings } from "../services/snapSettingsStorage";
 import { createWebToolRegistry } from "../tools/toolRegistry";
 
-export type ActiveCadTool = "select" | "line" | "rectangle" | "circle" | "move" | "rotate" | "scale" | "offset" | "erase" | "pan" | "dimLinear" | "dimAligned" | "dimRadius" | "dimDiameter" | "dimAngular";
+export type ActiveCadTool = "select" | "line" | "rectangle" | "circle" | "move" | "rotate" | "scale" | "offset" | "trim" | "erase" | "pan" | "dimLinear" | "dimAligned" | "dimRadius" | "dimDiameter" | "dimAngular";
 
 const ACTIVE_CAD_TOOLS: ReadonlySet<string> = new Set<ActiveCadTool>([
   "select",
@@ -35,6 +35,7 @@ const ACTIVE_CAD_TOOLS: ReadonlySet<string> = new Set<ActiveCadTool>([
   "rotate",
   "scale",
   "offset",
+  "trim",
   "erase",
   "pan",
   "dimLinear",
@@ -285,6 +286,11 @@ export function useCadStore(): CadStore {
 
       if (event.key.toLowerCase() === "o") {
         setActiveTool("offset");
+        return;
+      }
+
+      if (event.key.toLowerCase() === "t") {
+        setActiveTool("trim");
         return;
       }
 

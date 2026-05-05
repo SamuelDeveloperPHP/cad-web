@@ -1,4 +1,7 @@
-import type { Point2D, SnapType } from "@cad-web/cad-geometry";
+import { getDimensionGripPoints, type Point2D, type SnapType } from "@cad-web/cad-geometry";
+import { resolveDimensionStyle, type CadDocument, type DimensionEntity, type EntityId } from "@cad-web/cad-core";
+import type { Viewport } from "./types";
+import { worldToScreen } from "./viewport";
 import type { ScreenSize } from "./types";
 
 export function renderCrosshair2D(
@@ -63,6 +66,55 @@ export function renderSnapMarker2D(
 
   context.font = "11px Inter, ui-sans-serif, system-ui, sans-serif";
   context.fillText(getSnapLabel(snapType), point.x + radius + 6, point.y - radius - 4);
+  context.restore();
+}
+
+export type DimensionGripOverlayOptions = Readonly<{
+  sizePx?: number;
+  hoveredGripId?: string | null;
+}>;
+
+export function renderDimensionGrips2D(
+  context: CanvasRenderingContext2D,
+  document: CadDocument,
+  selectedEntityIds: ReadonlyArray<EntityId>,
+  viewport: Viewport,
+  options: DimensionGripOverlayOptions = {}
+): void {
+  if (selectedEntityIds.length !== 1) {
+    return;
+  }
+
+  const entity = document.entities.find((candidate) => candidate.id === selectedEntityIds[0]);
+
+  if (entity?.type !== "dimension") {
+    return;
+  }
+
+  const layer = document.layers.find((candidate) => candidate.id === entity.layerId);
+
+  if (layer?.visible === false || layer?.locked === true) {
+    return;
+  }
+
+  const size = options.sizePx ?? 8;
+  const half = size / 2;
+  const grips = getDimensionGripPoints(entity as any, resolveDimensionStyle(document, entity as DimensionEntity));
+
+  context.save();
+  context.setLineDash([]);
+  context.lineWidth = 1.25;
+
+  for (const grip of grips) {
+    const screenPoint = worldToScreen(grip.point, viewport);
+    const isHovered = grip.id === options.hoveredGripId;
+
+    context.fillStyle = isHovered ? "#38bdf8" : "#0f172a";
+    context.strokeStyle = isHovered ? "#e0f2fe" : "#60a5fa";
+    context.fillRect(screenPoint.x - half, screenPoint.y - half, size, size);
+    context.strokeRect(screenPoint.x - half, screenPoint.y - half, size, size);
+  }
+
   context.restore();
 }
 
