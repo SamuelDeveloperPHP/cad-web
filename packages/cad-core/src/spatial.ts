@@ -1,6 +1,7 @@
 import {
   buildAlignedDimensionGeometry,
   buildAngularDimensionGeometry,
+  arcBoundingBox,
   buildDiameterDimensionGeometry,
   buildLinearDimensionGeometry,
   buildRadiusDimensionGeometry,
@@ -55,6 +56,10 @@ export function entityBoundingBox(entity: CadEntity): BoundingBox {
       maxX: entity.center.x + entity.radius,
       maxY: entity.center.y + entity.radius
     };
+  }
+
+  if (entity.type === "arc") {
+    return arcBoundingBox(entity);
   }
 
   // O fallback mantem entidades desconhecidas consultaveis sem quebrar o indice.

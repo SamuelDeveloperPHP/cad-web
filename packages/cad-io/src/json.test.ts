@@ -76,16 +76,35 @@ describe("cad-io JSON", () => {
     });
   });
 
+  it("serializes and parses arc entities", () => {
+    const document = {
+      ...createEmptyDocument("doc_arc_json"),
+      entities: [
+        {
+          id: "arc_001",
+          layerId: "layer_0",
+          type: "arc" as const,
+          center: { x: 5, y: 5 },
+          radius: 4,
+          startAngle: 0,
+          endAngle: Math.PI / 2,
+          clockwise: true
+        }
+      ]
+    };
+
+    expect(parseCadDocument(serializeCadDocument(document))).toEqual(document);
+  });
+
   it("rejects unsupported entity types with a path", () => {
     const invalidDocument = {
       ...createEmptyDocument("doc_invalid"),
       entities: [
         {
-          id: "arc_001",
+          id: "spline_001",
           layerId: "layer_0",
-          type: "arc",
-          center: { x: 0, y: 0 },
-          radius: 10
+          type: "spline",
+          points: []
         }
       ]
     };

@@ -3,6 +3,7 @@ import { projectPointOnSegment } from "./distance";
 import { rotationMatrix, transformPoint } from "./matrix";
 import type { Point2D } from "./types";
 import { distance, midpoint, normalize, subtractPoints } from "./vector";
+import { arcEndPoint, arcPointAtAngle, arcStartPoint, arcSweepAngle, nearestPointOnArc } from "./arc";
 
 export type SnapType = "endpoint" | "midpoint" | "center" | "nearest";
 
@@ -59,7 +60,17 @@ export type SnapCircleEntity = Readonly<{
   radius: number;
 }>;
 
-export type SnapEntity = SnapLineEntity | SnapRectangleEntity | SnapCircleEntity;
+export type SnapArcEntity = Readonly<{
+  id: string;
+  type: "arc";
+  center: Point2D;
+  radius: number;
+  startAngle: number;
+  endAngle: number;
+  clockwise: boolean;
+}>;
+
+export type SnapEntity = SnapLineEntity | SnapRectangleEntity | SnapCircleEntity | SnapArcEntity;
 
 export const DEFAULT_SNAP_SETTINGS: SnapSettings = {
   enabled: true,
@@ -95,6 +106,13 @@ export function getEndpointSnapCandidates(
     );
   }
 
+  if (entity.type === "arc") {
+    return [
+      createSnapCandidate("endpoint", arcStartPoint(entity), entity.id, screenPoint, viewport),
+      createSnapCandidate("endpoint", arcEndPoint(entity), entity.id, screenPoint, viewport)
+    ];
+  }
+
   return [];
 }
 
@@ -113,6 +131,15 @@ export function getMidpointSnapCandidates(
     );
   }
 
+  if (entity.type === "arc") {
+    const sweep = arcSweepAngle(entity.startAngle, entity.endAngle, entity.clockwise);
+    const midpointAngle = entity.clockwise
+      ? entity.startAngle + sweep / 2
+      : entity.startAngle - sweep / 2;
+
+    return [createSnapCandidate("midpoint", arcPointAtAngle(entity.center, entity.radius, midpointAngle), entity.id, screenPoint, viewport)];
+  }
+
   return [];
 }
 
@@ -128,6 +155,10 @@ export function getCenterSnapCandidates(
   if (entity.type === "rectangle") {
     const corners = getRectangleCorners(entity);
     return [createSnapCandidate("center", midpoint(corners[0], corners[2]), entity.id, screenPoint, viewport)];
+  }
+
+  if (entity.type === "arc") {
+    return [createSnapCandidate("center", entity.center, entity.id, screenPoint, viewport)];
   }
 
   return [];
@@ -163,6 +194,10 @@ export function getNearestSnapCandidate(
     };
 
     return createSnapCandidate("nearest", point, entity.id, screenPoint, viewport);
+  }
+
+  if (entity.type === "arc") {
+    return createSnapCandidate("nearest", nearestPointOnArc(rawPoint, entity), entity.id, screenPoint, viewport);
   }
 
   return null;
