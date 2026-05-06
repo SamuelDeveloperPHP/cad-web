@@ -10,6 +10,7 @@ import {
   OffsetTool,
   TrimTool,
   ExtendTool,
+  FilletTool,
   EraseTool, 
   DimLinearTool,
   DimAlignedTool,
@@ -31,6 +32,7 @@ export function createWebToolRegistry(): ToolRegistry {
   registry.register(new OffsetTool());
   registry.register(new TrimTool());
   registry.register(new ExtendTool());
+  registry.register(new FilletTool());
   registry.register(new EraseTool());
   registry.register(new DimLinearTool());
   registry.register(new DimAlignedTool());

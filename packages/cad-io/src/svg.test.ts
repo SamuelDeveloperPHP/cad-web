@@ -20,6 +20,31 @@ describe("cad-io SVG", () => {
     expect(svg).toContain('r="3"');
   });
 
+  it("exports arc entities as SVG path arcs", () => {
+    const svg = serializeCadDocumentToSvg(
+      {
+        ...createEmptyDocument("doc_arc_svg"),
+        entities: [
+          {
+            id: "arc_001",
+            layerId: "layer_0",
+            type: "arc",
+            center: { x: 0, y: 0 },
+            radius: 10,
+            startAngle: 0,
+            endAngle: Math.PI / 2,
+            clockwise: true
+          }
+        ]
+      },
+      { precision: 2, padding: 0 }
+    );
+
+    expect(svg).toContain('<path id="arc_001"');
+    expect(svg).toContain('data-entity-type="arc"');
+    expect(svg).toContain('A 10 10 0 0 1 0 10');
+  });
+
   it("escapes SVG attributes", () => {
     const svg = serializeCadDocumentToSvg({
       ...createDocument(),

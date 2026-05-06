@@ -6,6 +6,7 @@ import {
   buildLinearDimensionGeometry,
   buildRadiusDimensionGeometry,
   distance,
+  distancePointToArc,
   distancePointToSegment,
   rotationMatrix,
   transformPoint,
@@ -67,6 +68,8 @@ export function findNearestEntityId(document: CadDocument, options: HitTestOptio
     } else if (entity.type === "circle") {
       const distToCenter = distance(options.worldPoint, entity.center);
       candidateDistance = Math.abs(distToCenter - entity.radius);
+    } else if (entity.type === "arc") {
+      candidateDistance = distancePointToArc(options.worldPoint, entity);
     } else if (entity.type === "dimension") {
       candidateDistance = distancePointToDimension(options.worldPoint, entity, document);
     } else {

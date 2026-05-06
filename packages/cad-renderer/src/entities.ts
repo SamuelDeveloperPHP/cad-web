@@ -97,6 +97,13 @@ export function renderDocument2D(
       context.beginPath();
       context.arc(center.x, center.y, radiusScreen, 0, Math.PI * 2);
       context.stroke();
+    } else if (entity.type === "arc") {
+      const center = worldToScreen(entity.center, viewport);
+      const radiusScreen = entity.radius * viewport.scale;
+
+      context.beginPath();
+      context.arc(center.x, center.y, radiusScreen, entity.startAngle, entity.endAngle, !entity.clockwise);
+      context.stroke();
     } else if (entity.type === "dimension") {
       const resolvedStyle = resolveDimensionStyle(document, entity as any);
 
