@@ -279,6 +279,19 @@ function validateCadEntity(entity: CadEntity | undefined, path: string): void {
     return;
   }
 
+  if (entity.type === "arc") {
+    validatePoint(entity.center, `${path}.center`);
+    assertPositiveNumber(entity.radius, `${path}.radius`);
+    assertFiniteNumber(entity.startAngle, `${path}.startAngle`);
+    assertFiniteNumber(entity.endAngle, `${path}.endAngle`);
+
+    if (typeof entity.clockwise !== "boolean") {
+      throw new CadIoValidationError("Arc clockwise must be a boolean", `${path}.clockwise`);
+    }
+
+    return;
+  }
+
   if (entity.type === "dimension") {
     const dimType = (entity as any).dimensionType;
     assertString(dimType, `${path}.dimensionType`);

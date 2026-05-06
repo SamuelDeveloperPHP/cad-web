@@ -2,6 +2,7 @@ import type { SnapSettings } from "@cad-web/cad-geometry";
 import {
   ChevronDown,
   Circle,
+  CornerDownRight,
   Copy,
   Download,
   Eraser,
@@ -66,6 +67,7 @@ const modifyTools: ReadonlyArray<RibbonTool> = [
   { id: "offset", label: "Offset", icon: Copy },
   { id: "trim", label: "Trim", icon: Scissors },
   { id: "extend", label: "Extend", icon: MoveRight },
+  { id: "fillet", label: "Fillet", icon: CornerDownRight },
   { id: "erase", label: "Erase", icon: Eraser }
 ];
 

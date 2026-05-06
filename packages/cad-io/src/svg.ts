@@ -1,4 +1,4 @@
-import { resolveDimensionStyle, type CadDocument, type CadEntity, type CircleEntity, type LineEntity, type RectangleEntity } from "@cad-web/cad-core";
+import { resolveDimensionStyle, type ArcEntity, type CadDocument, type CadEntity, type CircleEntity, type LineEntity, type RectangleEntity } from "@cad-web/cad-core";
 import type { CadJsonExportOptions } from "./json";
 import { CAD_IO_APPLICATION, CAD_IO_SCHEMA_VERSION, CadIoValidationError, validateCadDocument } from "./json";
 
@@ -131,6 +131,10 @@ function serializeEntityToSvg(entity: CadEntity, precision: number, document: an
     return serializeCircleToSvg(entity, precision);
   }
 
+  if (entity.type === "arc") {
+    return serializeArcToSvg(entity, precision);
+  }
+
   if (entity.type === "dimension") {
     return serializeDimensionToSvg(entity as any, precision, document);
   }
@@ -138,7 +142,7 @@ function serializeEntityToSvg(entity: CadEntity, precision: number, document: an
   return "";
 }
 
-import { buildAlignedDimensionGeometry, buildLinearDimensionGeometry, buildRadiusDimensionGeometry, buildDiameterDimensionGeometry, buildAngularDimensionGeometry } from "@cad-web/cad-geometry";
+import { arcBoundingBox, arcEndPoint, arcStartPoint, arcSweepAngle, buildAlignedDimensionGeometry, buildLinearDimensionGeometry, buildRadiusDimensionGeometry, buildDiameterDimensionGeometry, buildAngularDimensionGeometry } from "@cad-web/cad-geometry";
 
 function serializeDimensionToSvg(entity: any, precision: number, document: any): string {
   const resolvedStyle = resolveDimensionStyle(document, entity);
@@ -290,6 +294,20 @@ function serializeCircleToSvg(entity: CircleEntity, precision: number): string {
     `cx="${formatNumber(entity.center.x, precision)}"`,
     `cy="${formatNumber(entity.center.y, precision)}"`,
     `r="${formatNumber(entity.radius, precision)}" />`
+  ].join(" ");
+}
+
+function serializeArcToSvg(entity: ArcEntity, precision: number): string {
+  const start = arcStartPoint(entity);
+  const end = arcEndPoint(entity);
+  const largeArcFlag = arcSweepAngle(entity.startAngle, entity.endAngle, entity.clockwise) > Math.PI ? 1 : 0;
+  const sweepFlag = entity.clockwise ? 1 : 0;
+
+  return [
+    `<path id="${escapeSvgAttribute(entity.id)}"`,
+    `data-layer-id="${escapeSvgAttribute(entity.layerId)}"`,
+    `data-entity-type="arc"`,
+    `d="M ${formatNumber(start.x, precision)} ${formatNumber(start.y, precision)} A ${formatNumber(entity.radius, precision)} ${formatNumber(entity.radius, precision)} 0 ${largeArcFlag} ${sweepFlag} ${formatNumber(end.x, precision)} ${formatNumber(end.y, precision)}" />`
   ].join(" ");
 }
 
@@ -568,6 +586,10 @@ function calculateEntityBounds(entity: CadEntity, document?: CadDocument): SvgBo
     }
       
     return calculateBoundsFromPoints(geom.visualPoints as ReadonlyArray<Readonly<{ x: number; y: number }>>);
+  }
+
+  if (entity.type === "arc") {
+    return arcBoundingBox(entity);
   }
 
   return {

@@ -8,11 +8,13 @@ import {
   DeleteEntitiesCommand,
   DIMENSION_STYLE_PRESETS,
   ExtendLineCommand,
+  FilletLineLineCommand,
   MoveEntitiesCommand,
   TrimLineCommand,
   createEmptyDocument,
   createDimensionStyleFromPreset,
   getDimensionStylePresetById,
+  type ArcEntity,
   type LineEntity
 } from "./index";
 
@@ -150,6 +152,47 @@ describe("cad-core", () => {
     expect(history.execute(new ExtendLineCommand(line, extendedLine, "end", "boundary_001")).entities).toEqual([extendedLine]);
     expect(history.undo().entities).toEqual([line]);
     expect(history.redo().entities).toEqual([extendedLine]);
+  });
+
+  it("executes undo and redo for FilletLineLineCommand", () => {
+    const line1 = createLine("line_001");
+    const line2: LineEntity = {
+      id: "line_002",
+      layerId: "default",
+      type: "line",
+      start: { x: 10, y: 0 },
+      end: { x: 10, y: 10 }
+    };
+    const updatedLine1: LineEntity = {
+      ...line1,
+      end: { x: 8, y: 0 }
+    };
+    const updatedLine2: LineEntity = {
+      ...line2,
+      start: { x: 10, y: 2 }
+    };
+    const arc: ArcEntity = {
+      id: "arc_001",
+      layerId: "default",
+      type: "arc",
+      center: { x: 8, y: 2 },
+      radius: 2,
+      startAngle: -Math.PI / 2,
+      endAngle: 0,
+      clockwise: true
+    };
+    const history = new CommandHistory({
+      ...createEmptyDocument("doc_fillet"),
+      entities: [line1, line2]
+    });
+
+    expect(history.execute(new FilletLineLineCommand(line1, line2, updatedLine1, updatedLine2, arc)).entities).toEqual([
+      updatedLine1,
+      updatedLine2,
+      arc
+    ]);
+    expect(history.undo().entities).toEqual([line1, line2]);
+    expect(history.redo().entities).toEqual([updatedLine1, updatedLine2, arc]);
   });
 
   it("exposes immutable dimension style presets", () => {
