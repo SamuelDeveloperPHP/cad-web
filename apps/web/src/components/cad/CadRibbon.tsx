@@ -7,6 +7,7 @@ import {
   Copy,
   Download,
   Grid3X3,
+  RotateCcw,
   Eraser,
   Eye,
   EyeOff,
@@ -72,6 +73,7 @@ const modifyTools: ReadonlyArray<RibbonTool> = [
   { id: "fillet", label: "Fillet", icon: CornerDownRight },
   { id: "chamfer", label: "Chamfer", icon: CornerRightDown },
   { id: "array", label: "Array", icon: Grid3X3 },
+  { id: "arrayPolar", label: "Polar", icon: RotateCcw },
   { id: "erase", label: "Erase", icon: Eraser }
 ];
 
