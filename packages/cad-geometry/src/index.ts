@@ -13,3 +13,4 @@ export * from "./dimensions";
 export * from "./trim";
 export * from "./extend";
 export * from "./arc";
+export * from "./chamfer";

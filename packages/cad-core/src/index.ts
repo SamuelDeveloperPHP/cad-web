@@ -919,6 +919,66 @@ export class FilletLineLineCommand implements CadCommand {
   }
 }
 
+export class ChamferLineLineCommand implements CadCommand {
+  readonly type = "ChamferLineLineCommand";
+  readonly description = "Creates a chamfer line between two lines.";
+
+  constructor(
+    readonly originalLine1: LineEntity,
+    readonly originalLine2: LineEntity,
+    readonly updatedLine1: LineEntity,
+    readonly updatedLine2: LineEntity,
+    readonly chamferLine: LineEntity
+  ) {}
+
+  get id(): string {
+    return `cmd_chamfer_line_line_${this.originalLine1.id}_${this.originalLine2.id}_${Date.now()}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    // O comando ajusta as duas linhas selecionadas e insere a linha de chanfro em uma unica transacao.
+    const hasChamfer = document.entities.some((entity) => entity.id === this.chamferLine.id);
+
+    return {
+      ...document,
+      entities: [
+        ...document.entities.map((entity) => {
+          if (entity.id === this.originalLine1.id) {
+            return this.updatedLine1;
+          }
+
+          if (entity.id === this.originalLine2.id) {
+            return this.updatedLine2;
+          }
+
+          return entity;
+        }),
+        ...(hasChamfer ? [] : [this.chamferLine])
+      ]
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    // O undo restaura exatamente as linhas originais e remove a linha de chanfro criada.
+    return {
+      ...document,
+      entities: document.entities
+        .filter((entity) => entity.id !== this.chamferLine.id)
+        .map((entity) => {
+          if (entity.id === this.originalLine1.id) {
+            return this.originalLine1;
+          }
+
+          if (entity.id === this.originalLine2.id) {
+            return this.originalLine2;
+          }
+
+          return entity;
+        })
+    };
+  }
+}
+
 function moveEntities(
   document: CadDocument,
   entityIds: ReadonlyArray<EntityId>,

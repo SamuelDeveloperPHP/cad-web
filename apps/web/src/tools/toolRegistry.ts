@@ -1,17 +1,18 @@
-import { 
-  ToolRegistry, 
-  SelectTool, 
-  LineTool, 
-  RectangleTool, 
-  CircleTool, 
-  MoveTool, 
-  RotateTool, 
+import {
+  ToolRegistry,
+  SelectTool,
+  LineTool,
+  RectangleTool,
+  CircleTool,
+  MoveTool,
+  RotateTool,
   ScaleTool,
   OffsetTool,
   TrimTool,
   ExtendTool,
   FilletTool,
-  EraseTool, 
+  ChamferTool,
+  EraseTool,
   DimLinearTool,
   DimAlignedTool,
   DimRadiusTool,
@@ -33,6 +34,7 @@ export function createWebToolRegistry(): ToolRegistry {
   registry.register(new TrimTool());
   registry.register(new ExtendTool());
   registry.register(new FilletTool());
+  registry.register(new ChamferTool());
   registry.register(new EraseTool());
   registry.register(new DimLinearTool());
   registry.register(new DimAlignedTool());
