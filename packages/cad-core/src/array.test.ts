@@ -1,15 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
   ArrayEntitiesCommand,
+  arrayCadEntitiesPolar,
   arrayCadEntitiesRectangular,
   cloneCadEntityWithOffset,
   createEmptyDocument,
   estimateArrayEntityCount,
+  estimatePolarArrayEntityCount,
+  rotateCadEntityAroundCenter,
+  type ArcEntity,
   type CadDocument,
   type CadEntity,
   type CircleEntity,
   type DimensionEntity,
-  type LineEntity
+  type LineEntity,
+  type RectangleEntity
 } from "./index";
 
 describe("cloneCadEntityWithOffset", () => {
@@ -322,5 +327,196 @@ describe("ArrayEntitiesCommand", () => {
     const twiceExecuted = command.execute(onceExecuted);
 
     expect(twiceExecuted.entities.length).toBe(2);
+  });
+});
+
+describe("rotateCadEntityAroundCenter", () => {
+  it("rotates a line by 90 degrees around the origin", () => {
+    const line: LineEntity = {
+      id: "line_a",
+      layerId: "layer_0",
+      type: "line",
+      start: { x: 1, y: 0 },
+      end: { x: 5, y: 0 }
+    };
+
+    const rotated = rotateCadEntityAroundCenter(line, { x: 0, y: 0 }, Math.PI / 2, "line_a_rot") as LineEntity;
+
+    expect(rotated.id).toBe("line_a_rot");
+    expect(rotated.start.x).toBeCloseTo(0);
+    expect(rotated.start.y).toBeCloseTo(1);
+    expect(rotated.end.x).toBeCloseTo(0);
+    expect(rotated.end.y).toBeCloseTo(5);
+  });
+
+  it("rotates an arc preserving its sweep but offsetting start/end angles", () => {
+    const arc: ArcEntity = {
+      id: "arc_a",
+      layerId: "layer_0",
+      type: "arc",
+      center: { x: 5, y: 0 },
+      radius: 2,
+      startAngle: 0,
+      endAngle: Math.PI / 2,
+      clockwise: false
+    };
+
+    const rotated = rotateCadEntityAroundCenter(arc, { x: 0, y: 0 }, Math.PI, "arc_a_rot") as ArcEntity;
+
+    expect(rotated.center.x).toBeCloseTo(-5);
+    expect(rotated.center.y).toBeCloseTo(0);
+    expect(rotated.startAngle).toBeCloseTo(Math.PI);
+    expect(rotated.endAngle).toBeCloseTo(Math.PI + Math.PI / 2);
+  });
+
+  it("rotates a rectangle accumulating the rotation angle", () => {
+    const rectangle: RectangleEntity = {
+      id: "rect_a",
+      layerId: "layer_0",
+      type: "rectangle",
+      x: 5,
+      y: 0,
+      width: 4,
+      height: 2,
+      rotation: 0.1
+    };
+
+    const rotated = rotateCadEntityAroundCenter(rectangle, { x: 0, y: 0 }, Math.PI / 2, "rect_a_rot") as RectangleEntity;
+
+    expect(rotated.x).toBeCloseTo(0);
+    expect(rotated.y).toBeCloseTo(5);
+    expect(rotated.rotation).toBeCloseTo(0.1 + Math.PI / 2);
+  });
+
+  it("rotates a linear dimension shifting all definition points", () => {
+    const dimension: DimensionEntity = {
+      id: "dim_a",
+      layerId: "layer_0",
+      type: "dimension",
+      dimensionType: "linear",
+      definition: {
+        firstPoint: { x: 1, y: 0 },
+        secondPoint: { x: 4, y: 0 },
+        dimensionLinePoint: { x: 2.5, y: 1 },
+        orientation: "horizontal"
+      }
+    };
+
+    const rotated = rotateCadEntityAroundCenter(dimension, { x: 0, y: 0 }, Math.PI / 2, "dim_a_rot") as DimensionEntity;
+    const definition = rotated.definition as { firstPoint: { x: number; y: number } };
+
+    expect(rotated.id).toBe("dim_a_rot");
+    expect(definition.firstPoint.x).toBeCloseTo(0);
+    expect(definition.firstPoint.y).toBeCloseTo(1);
+  });
+});
+
+describe("arrayCadEntitiesPolar", () => {
+  it("creates count - 1 rotated copies for a full circle", () => {
+    const line: LineEntity = {
+      id: "line_a",
+      layerId: "layer_0",
+      type: "line",
+      start: { x: 5, y: 0 },
+      end: { x: 7, y: 0 }
+    };
+
+    const result = arrayCadEntitiesPolar([line], {
+      center: { x: 0, y: 0 },
+      params: { count: 4, fillAngleRadians: Math.PI * 2 }
+    });
+
+    expect(result.totalNewEntities).toBe(3);
+    expect(result.copiesCount).toBe(3);
+
+    const firstCopy = result.createdEntities[0] as LineEntity;
+    expect(firstCopy.start.x).toBeCloseTo(0);
+    expect(firstCopy.start.y).toBeCloseTo(5);
+    expect(firstCopy.end.x).toBeCloseTo(0);
+    expect(firstCopy.end.y).toBeCloseTo(7);
+  });
+
+  it("does not duplicate the origin entity id", () => {
+    const line: LineEntity = {
+      id: "line_origin",
+      layerId: "layer_0",
+      type: "line",
+      start: { x: 5, y: 0 },
+      end: { x: 7, y: 0 }
+    };
+
+    const result = arrayCadEntitiesPolar([line], {
+      center: { x: 0, y: 0 },
+      params: { count: 4, fillAngleRadians: Math.PI * 2 }
+    });
+
+    const ids = result.createdEntities.map((entity) => entity.id);
+    expect(ids).not.toContain("line_origin");
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("preserves the original orientation when rotateItems is false", () => {
+    const line: LineEntity = {
+      id: "line_a",
+      layerId: "layer_0",
+      type: "line",
+      start: { x: 5, y: 0 },
+      end: { x: 7, y: 0 }
+    };
+
+    const result = arrayCadEntitiesPolar(
+      [line],
+      {
+        center: { x: 0, y: 0 },
+        params: { count: 4, fillAngleRadians: Math.PI * 2 },
+        rotateItems: false
+      }
+    );
+
+    const firstCopy = result.createdEntities[0] as LineEntity;
+
+    // O modo translacional preserva a forma horizontal mas posiciona em torno do centro.
+    expect(firstCopy.end.x - firstCopy.start.x).toBeCloseTo(2);
+    expect(firstCopy.end.y - firstCopy.start.y).toBeCloseTo(0);
+  });
+
+  it("respects a partial fill angle with count - 1 intervals", () => {
+    const circle: CircleEntity = {
+      id: "circle_a",
+      layerId: "layer_0",
+      type: "circle",
+      center: { x: 5, y: 0 },
+      radius: 1
+    };
+
+    const result = arrayCadEntitiesPolar([circle], {
+      center: { x: 0, y: 0 },
+      params: { count: 3, fillAngleRadians: Math.PI }
+    });
+
+    expect(result.copiesCount).toBe(2);
+
+    const last = result.createdEntities[1] as CircleEntity;
+    expect(last.center.x).toBeCloseTo(-5);
+    expect(last.center.y).toBeCloseTo(0);
+  });
+
+  it("rejects invalid params", () => {
+    expect(() =>
+      arrayCadEntitiesPolar([], {
+        center: { x: 0, y: 0 },
+        params: { count: 1, fillAngleRadians: Math.PI }
+      })
+    ).toThrow();
+  });
+});
+
+describe("estimatePolarArrayEntityCount", () => {
+  it("multiplies selected count by count - 1", () => {
+    expect(estimatePolarArrayEntityCount(2, { count: 6, fillAngleRadians: Math.PI * 2 })).toBe(10);
+  });
+
+  it("returns zero when no entities are selected", () => {
+    expect(estimatePolarArrayEntityCount(0, { count: 6, fillAngleRadians: Math.PI * 2 })).toBe(0);
   });
 });
