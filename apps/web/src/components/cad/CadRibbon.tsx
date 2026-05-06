@@ -3,6 +3,7 @@ import {
   ChevronDown,
   Circle,
   CornerDownRight,
+  CornerRightDown,
   Copy,
   Download,
   Eraser,
@@ -68,6 +69,7 @@ const modifyTools: ReadonlyArray<RibbonTool> = [
   { id: "trim", label: "Trim", icon: Scissors },
   { id: "extend", label: "Extend", icon: MoveRight },
   { id: "fillet", label: "Fillet", icon: CornerDownRight },
+  { id: "chamfer", label: "Chamfer", icon: CornerRightDown },
   { id: "erase", label: "Erase", icon: Eraser }
 ];
 
