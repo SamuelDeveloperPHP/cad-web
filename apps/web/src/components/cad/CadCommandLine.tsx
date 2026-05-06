@@ -20,6 +20,7 @@ const toolPrompts: Record<ActiveCadTool, string> = {
   trim: "[Trim] Select cutting edges or press Enter for all",
   extend: "[Extend] Select boundary edges or press Enter for all",
   fillet: "[Fillet] Specify radius",
+  chamfer: "[Chamfer] Specify first distance",
   erase: "[Erase] Select objects or press Delete",
   pan: "[Pan] Drag to pan view",
   dimLinear: "[DimLinear] Specify first extension origin",
