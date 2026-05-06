@@ -919,6 +919,58 @@ export class FilletLineLineCommand implements CadCommand {
   }
 }
 
+// O ArrayEntitiesCommand registra a criacao em lote de copias produzidas pela ferramenta Array Retangular.
+// O comando insere as entidades pre-calculadas no execute e as remove no undo, sem alterar as entidades originais.
+export class ArrayEntitiesCommand implements CadCommand {
+  readonly type = "ArrayEntitiesCommand";
+  readonly description = "Creates entities in a rectangular array.";
+  private readonly createdEntityIds: ReadonlySet<string>;
+
+  constructor(
+    readonly sourceEntityIds: ReadonlyArray<EntityId>,
+    readonly createdEntities: ReadonlyArray<CadEntity>
+  ) {
+    // O conjunto de ids facilita o filtro O(n) durante o undo, evitando varreduras lineares para cada entidade.
+    this.createdEntityIds = new Set(createdEntities.map((entity) => entity.id));
+  }
+
+  get id(): string {
+    // O identificador combina a quantidade de entidades originais com timestamp para diferenciar execucoes em sequencia.
+    return `cmd_array_entities_${this.sourceEntityIds.length}_${this.createdEntities.length}_${Date.now()}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    // O execute insere todas as entidades clonadas em uma unica troca imutavel, evitando varios commands.
+    if (this.createdEntities.length === 0) {
+      return document;
+    }
+
+    const existingIds = new Set(document.entities.map((entity) => entity.id));
+    const entitiesToInsert = this.createdEntities.filter((entity) => !existingIds.has(entity.id));
+
+    if (entitiesToInsert.length === 0) {
+      return document;
+    }
+
+    return {
+      ...document,
+      entities: document.entities.concat(entitiesToInsert)
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    // O undo remove apenas as entidades criadas pelo array preservando o restante do documento.
+    if (this.createdEntityIds.size === 0) {
+      return document;
+    }
+
+    return {
+      ...document,
+      entities: document.entities.filter((entity) => !this.createdEntityIds.has(entity.id))
+    };
+  }
+}
+
 // O ChamferLineLineCommand registra a operacao de chanfro entre duas linhas e oferece Undo/Redo coerente.
 // O comando guarda o estado original e o estado atualizado das duas linhas, alem da linha de chanfro criada.
 export class ChamferLineLineCommand implements CadCommand {
@@ -1556,3 +1608,4 @@ export class AssignDimensionStyleCommand implements CadCommand {
 
 export * from "./dimensionStylePresets";
 export * from "./spatial";
+export * from "./array";

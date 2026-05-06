@@ -28,6 +28,7 @@ const toolLabels: Record<ActiveCadTool, string> = {
   extend: "Extend",
   fillet: "Fillet",
   chamfer: "Chamfer",
+  array: "Array",
   erase: "Erase",
   pan: "Pan",
   dimLinear: "Dim Linear",

@@ -9,7 +9,7 @@ export const COMMAND_ALIASES = {
   fillet: ["f", "fillet"],
   chamfer: ["cha", "chamfer"],
   offset: ["o", "offset"],
-  array: ["ar", "array"],
+  array: ["ar", "array", "matriz"],
   explode: ["x", "explode"],
   erase: ["e", "erase"],
   dimLinear: ["dli", "dimlinear"],
