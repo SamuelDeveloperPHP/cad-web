@@ -15,3 +15,4 @@ export * from "./extend";
 export * from "./arc";
 export * from "./chamfer";
 export * from "./array";
+export * from "./arrayPolar";

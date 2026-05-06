@@ -1,8 +1,14 @@
 import {
+  buildPolarArrayAngles,
   buildRectangularArrayOffsets,
+  countPolarArrayCopies,
   countRectangularArrayPositions,
   offsetPoint,
+  rotatePointAroundCenter,
+  validatePolarArrayParams,
   validateRectangularArrayParams,
+  type PolarArrayParams,
+  type Point2D,
   type RectangularArrayParams,
   type Vector2D
 } from "@cad-web/cad-geometry";
@@ -212,4 +218,280 @@ function defaultArrayIdFactory(sourceEntity: CadEntity, _offset: Vector2D, seque
   }
 
   return `${sourceEntity.type}_array_${sourceEntity.id}_${sequence}_${Date.now()}_${Math.floor(Math.random() * 1_000_000)}`;
+}
+
+// O bloco abaixo cobre o caso polar: a copia de cada entidade e rotacionada em torno de um centro escolhido.
+
+export type PolarArrayIdFactory = (sourceEntity: CadEntity, angleRadians: number, sequence: number) => EntityId;
+
+export type RotatedCadEntitiesResult = Readonly<{
+  createdEntities: ReadonlyArray<CadEntity>;
+  totalNewEntities: number;
+  copiesCount: number;
+}>;
+
+export function rotateCadEntityAroundCenter(
+  entity: CadEntity,
+  center: Point2D,
+  angleRadians: number,
+  newId: EntityId
+): CadEntity {
+  // O metodo aplica rotacao para todos os tipos suportados, incluindo dimensions ausentes do rotateEntity classico.
+  if (entity.type === "line") {
+    return {
+      ...entity,
+      id: newId,
+      start: rotatePointAroundCenter(entity.start, center, angleRadians),
+      end: rotatePointAroundCenter(entity.end, center, angleRadians)
+    };
+  }
+
+  if (entity.type === "rectangle") {
+    const rotatedOrigin = rotatePointAroundCenter({ x: entity.x, y: entity.y }, center, angleRadians);
+    return {
+      ...entity,
+      id: newId,
+      x: rotatedOrigin.x,
+      y: rotatedOrigin.y,
+      rotation: (entity.rotation || 0) + angleRadians
+    };
+  }
+
+  if (entity.type === "circle") {
+    return {
+      ...entity,
+      id: newId,
+      center: rotatePointAroundCenter(entity.center, center, angleRadians)
+    };
+  }
+
+  if (entity.type === "arc") {
+    return {
+      ...entity,
+      id: newId,
+      center: rotatePointAroundCenter(entity.center, center, angleRadians),
+      startAngle: entity.startAngle + angleRadians,
+      endAngle: entity.endAngle + angleRadians
+    };
+  }
+
+  if (entity.type === "dimension") {
+    return rotateDimensionAroundCenter(entity, center, angleRadians, newId);
+  }
+
+  return entity;
+}
+
+function rotateDimensionAroundCenter(
+  entity: DimensionEntity,
+  center: Point2D,
+  angleRadians: number,
+  newId: EntityId
+): DimensionEntity {
+  // O metodo rotaciona todos os pontos relevantes da dimension, preservando textOverride e style.
+  const rotate = (point: Point2D): Point2D => rotatePointAroundCenter(point, center, angleRadians);
+
+  if (entity.dimensionType === "linear") {
+    const definition = entity.definition as LinearDimensionDef;
+
+    return {
+      ...entity,
+      id: newId,
+      definition: {
+        firstPoint: rotate(definition.firstPoint),
+        secondPoint: rotate(definition.secondPoint),
+        dimensionLinePoint: rotate(definition.dimensionLinePoint),
+        // O orientation textual perde sentido sob rotacao arbitraria; o "auto" preserva a leitura visual.
+        orientation: "auto"
+      }
+    };
+  }
+
+  if (entity.dimensionType === "aligned") {
+    const definition = entity.definition as AlignedDimensionDef;
+
+    return {
+      ...entity,
+      id: newId,
+      definition: {
+        firstPoint: rotate(definition.firstPoint),
+        secondPoint: rotate(definition.secondPoint),
+        dimensionLinePoint: rotate(definition.dimensionLinePoint)
+      }
+    };
+  }
+
+  if (entity.dimensionType === "radius") {
+    const definition = entity.definition as RadiusDimensionDef;
+
+    return {
+      ...entity,
+      id: newId,
+      definition: {
+        ...(definition.targetEntityId !== undefined ? { targetEntityId: definition.targetEntityId } : {}),
+        center: rotate(definition.center),
+        radius: definition.radius,
+        leaderEndPoint: rotate(definition.leaderEndPoint)
+      }
+    };
+  }
+
+  if (entity.dimensionType === "diameter") {
+    const definition = entity.definition as DiameterDimensionDef;
+
+    return {
+      ...entity,
+      id: newId,
+      definition: {
+        ...(definition.targetEntityId !== undefined ? { targetEntityId: definition.targetEntityId } : {}),
+        center: rotate(definition.center),
+        radius: definition.radius,
+        leaderEndPoint: rotate(definition.leaderEndPoint)
+      }
+    };
+  }
+
+  if (entity.dimensionType === "angular") {
+    const definition = entity.definition as AngularDimensionDef;
+
+    return {
+      ...entity,
+      id: newId,
+      definition: {
+        ...(definition.firstLineId !== undefined ? { firstLineId: definition.firstLineId } : {}),
+        ...(definition.secondLineId !== undefined ? { secondLineId: definition.secondLineId } : {}),
+        vertex: rotate(definition.vertex),
+        firstPoint: rotate(definition.firstPoint),
+        secondPoint: rotate(definition.secondPoint),
+        arcPoint: rotate(definition.arcPoint)
+      }
+    };
+  }
+
+  return entity;
+}
+
+export type PolarArrayInput = Readonly<{
+  center: Point2D;
+  params: PolarArrayParams;
+  rotateItems?: boolean;
+}>;
+
+export function arrayCadEntitiesPolar(
+  entities: ReadonlyArray<CadEntity>,
+  input: PolarArrayInput,
+  idFactory?: PolarArrayIdFactory
+): RotatedCadEntitiesResult {
+  // O metodo gera todas as copias para a matriz polar sem incluir a posicao original.
+  const validation = validatePolarArrayParams(input.params);
+
+  if (!validation.ok) {
+    throw new Error(`Invalid polar array params: ${validation.reason}`);
+  }
+
+  const angles = buildPolarArrayAngles(input.params);
+  const factory = idFactory ?? defaultPolarArrayIdFactory;
+  const rotateItems = input.rotateItems !== false;
+  const createdEntities: CadEntity[] = [];
+  let sequence = 0;
+
+  for (const angle of angles) {
+    for (const entity of entities) {
+      const newId = factory(entity, angle, sequence);
+
+      if (rotateItems) {
+        // O modo padrao rotaciona cada copia em sintonia com o angulo da posicao.
+        createdEntities.push(rotateCadEntityAroundCenter(entity, input.center, angle, newId));
+      } else {
+        // O modo translacional copia mantendo a orientacao original, usando apenas o deslocamento polar.
+        createdEntities.push(translateCadEntityWithoutRotation(entity, input.center, angle, newId));
+      }
+
+      sequence += 1;
+    }
+  }
+
+  return {
+    createdEntities,
+    totalNewEntities: createdEntities.length,
+    copiesCount: angles.length
+  };
+}
+
+export function translateCadEntityWithoutRotation(
+  entity: CadEntity,
+  center: Point2D,
+  angleRadians: number,
+  newId: EntityId
+): CadEntity {
+  // O metodo calcula o deslocamento equivalente a rotacionar o ponto de referencia do entity em torno do centro.
+  const reference = referencePointForEntity(entity);
+  const rotatedReference = rotatePointAroundCenter(reference, center, angleRadians);
+  const offset: Vector2D = {
+    x: rotatedReference.x - reference.x,
+    y: rotatedReference.y - reference.y
+  };
+
+  return cloneCadEntityWithOffset(entity, offset, newId);
+}
+
+function referencePointForEntity(entity: CadEntity): Point2D {
+  // O metodo escolhe o ponto que define a posicao da entidade no plano para calculos de translate-only.
+  if (entity.type === "line") {
+    return entity.start;
+  }
+
+  if (entity.type === "rectangle") {
+    return { x: entity.x, y: entity.y };
+  }
+
+  if (entity.type === "circle" || entity.type === "arc") {
+    return entity.center;
+  }
+
+  if (entity.type === "dimension") {
+    return referencePointForDimension(entity);
+  }
+
+  return { x: 0, y: 0 };
+}
+
+function referencePointForDimension(entity: DimensionEntity): Point2D {
+  if (entity.dimensionType === "linear" || entity.dimensionType === "aligned") {
+    const definition = entity.definition as LinearDimensionDef | AlignedDimensionDef;
+    return definition.firstPoint;
+  }
+
+  if (entity.dimensionType === "radius" || entity.dimensionType === "diameter") {
+    const definition = entity.definition as RadiusDimensionDef | DiameterDimensionDef;
+    return definition.center;
+  }
+
+  if (entity.dimensionType === "angular") {
+    const definition = entity.definition as AngularDimensionDef;
+    return definition.vertex;
+  }
+
+  return { x: 0, y: 0 };
+}
+
+export function estimatePolarArrayEntityCount(
+  selectedCount: number,
+  params: PolarArrayParams
+): number {
+  // O calculo prevê o tamanho do array polar antes de criar entidades, util para avisos de performance.
+  if (selectedCount <= 0) {
+    return 0;
+  }
+
+  return selectedCount * countPolarArrayCopies(params);
+}
+
+function defaultPolarArrayIdFactory(sourceEntity: CadEntity, _angleRadians: number, sequence: number): EntityId {
+  // O gerador padrao adiciona o sufixo polar para diferenciar de outros arrays.
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `${sourceEntity.type}_arraypolar_${sourceEntity.id}_${sequence}_${crypto.randomUUID()}`;
+  }
+
+  return `${sourceEntity.type}_arraypolar_${sourceEntity.id}_${sequence}_${Date.now()}_${Math.floor(Math.random() * 1_000_000)}`;
 }
