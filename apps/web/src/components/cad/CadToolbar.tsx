@@ -1,6 +1,6 @@
 import React from "react";
 import type { ActiveCadTool } from "../../state/useCadStore";
-import { MousePointer2, Minus, Square, Circle, Move, RotateCw, Scaling, Copy, Scissors, MoveRight, Eraser, Hand } from "lucide-react";
+import { MousePointer2, Minus, Square, Circle, Move, RotateCw, Scaling, Copy, Scissors, MoveRight, CornerDownRight, Eraser, Hand } from "lucide-react";
 
 type CadToolbarProps = Readonly<{
   activeTool: ActiveCadTool;
@@ -18,6 +18,7 @@ const tools = [
   { id: "offset", icon: Copy, label: "Offset" },
   { id: "trim", icon: Scissors, label: "Trim" },
   { id: "extend", icon: MoveRight, label: "Extend" },
+  { id: "fillet", icon: CornerDownRight, label: "Fillet" },
   { id: "erase", icon: Eraser, label: "Erase" },
   { id: "pan", icon: Hand, label: "Pan" }
 ] as const;

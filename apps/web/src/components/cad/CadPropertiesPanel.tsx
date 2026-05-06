@@ -262,6 +262,17 @@ export function CadPropertiesPanel({ cad }: { cad: CadStore }) {
         </>
       )}
 
+      {entity.type === "arc" && (
+        <>
+          <PropertyRow label="Center X"><PropertyInput value={(entity as any).center.x.toFixed(3)} readOnly /></PropertyRow>
+          <PropertyRow label="Center Y"><PropertyInput value={(entity as any).center.y.toFixed(3)} readOnly /></PropertyRow>
+          <PropertyRow label="Radius"><PropertyInput value={(entity as any).radius.toFixed(3)} readOnly /></PropertyRow>
+          <PropertyRow label="Start Angle"><PropertyInput value={(((entity as any).startAngle * 180) / Math.PI).toFixed(2) + "Â°"} readOnly /></PropertyRow>
+          <PropertyRow label="End Angle"><PropertyInput value={(((entity as any).endAngle * 180) / Math.PI).toFixed(2) + "Â°"} readOnly /></PropertyRow>
+          <PropertyRow label="Clockwise"><PropertyInput value={(entity as any).clockwise ? "Yes" : "No"} readOnly /></PropertyRow>
+        </>
+      )}
+
       {entity.type === "dimension" && (
         <>
           <PropertyRow label="Dimension Type"><PropertyInput value={(entity as any).dimensionType} readOnly /></PropertyRow>

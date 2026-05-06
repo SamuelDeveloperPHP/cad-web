@@ -60,6 +60,39 @@ describe("cad-geometry object snap", () => {
     expect(result.candidate?.type).toBe("center");
   });
 
+  it("finds endpoint and nearest snaps on an arc", () => {
+    const arc: SnapEntity = {
+      id: "arc_001",
+      type: "arc",
+      center: { x: 0, y: 0 },
+      radius: 10,
+      startAngle: 0,
+      endAngle: Math.PI / 2,
+      clockwise: true
+    };
+    const endpointResult = findBestSnap(
+      { x: 10.3, y: 0.2 },
+      { x: 103, y: 2 },
+      [arc],
+      defaultSettings,
+      viewport
+    );
+    const nearestResult = findBestSnap(
+      { x: 7, y: 8 },
+      { x: 70, y: 80 },
+      [arc],
+      { ...defaultSettings, endpoint: false, midpoint: false, center: false },
+      viewport
+    );
+
+    expect(endpointResult.snapped).toBe(true);
+    expect(endpointResult.candidate?.type).toBe("endpoint");
+    expect(endpointResult.point).toEqual({ x: 10, y: 0 });
+    expect(nearestResult.snapped).toBe(true);
+    expect(nearestResult.candidate?.type).toBe("nearest");
+    expect(Math.hypot(nearestResult.point.x, nearestResult.point.y)).toBeCloseTo(10);
+  });
+
   it("finds center snap on a rectangle", () => {
     const result = findBestSnap(
       { x: 5.4, y: 2.6 },

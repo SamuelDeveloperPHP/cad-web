@@ -38,6 +38,7 @@ export type ArcEntity = BaseEntity & Readonly<{
   radius: number;
   startAngle: number;
   endAngle: number;
+  clockwise: boolean;
 }>;
 
 export type PolylineEntity = BaseEntity & Readonly<{
@@ -109,7 +110,7 @@ export type DimensionEntity = BaseEntity & Readonly<{
   textOverride?: string;
 }>;
 
-export type CadEntity = LineEntity | RectangleEntity | CircleEntity | DimensionEntity;
+export type CadEntity = LineEntity | RectangleEntity | CircleEntity | ArcEntity | DimensionEntity;
 
 export type CadLayer = Readonly<{
   id: string;
@@ -858,6 +859,66 @@ export class ExtendLineCommand implements CadCommand {
   }
 }
 
+export class FilletLineLineCommand implements CadCommand {
+  readonly type = "FilletLineLineCommand";
+  readonly description = "Creates a tangent arc between two lines.";
+
+  constructor(
+    readonly originalLine1: LineEntity,
+    readonly originalLine2: LineEntity,
+    readonly updatedLine1: LineEntity,
+    readonly updatedLine2: LineEntity,
+    readonly arcEntity: ArcEntity
+  ) {}
+
+  get id(): string {
+    return `cmd_fillet_line_line_${this.originalLine1.id}_${this.originalLine2.id}_${Date.now()}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    // O comando atualiza as duas linhas e insere o arco real em uma unica transacao.
+    const hasArc = document.entities.some((entity) => entity.id === this.arcEntity.id);
+
+    return {
+      ...document,
+      entities: [
+        ...document.entities.map((entity) => {
+          if (entity.id === this.originalLine1.id) {
+            return this.updatedLine1;
+          }
+
+          if (entity.id === this.originalLine2.id) {
+            return this.updatedLine2;
+          }
+
+          return entity;
+        }),
+        ...(hasArc ? [] : [this.arcEntity])
+      ]
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    // O undo restaura exatamente as linhas originais e remove o arco criado.
+    return {
+      ...document,
+      entities: document.entities
+        .filter((entity) => entity.id !== this.arcEntity.id)
+        .map((entity) => {
+          if (entity.id === this.originalLine1.id) {
+            return this.originalLine1;
+          }
+
+          if (entity.id === this.originalLine2.id) {
+            return this.originalLine2;
+          }
+
+          return entity;
+        })
+    };
+  }
+}
+
 function moveEntities(
   document: CadDocument,
   entityIds: ReadonlyArray<EntityId>,
@@ -891,6 +952,13 @@ function moveEntity(entity: CadEntity, displacement: Point2D): CadEntity {
   }
 
   if (entity.type === "circle") {
+    return {
+      ...entity,
+      center: addVector(entity.center, displacement)
+    };
+  }
+
+  if (entity.type === "arc") {
     return {
       ...entity,
       center: addVector(entity.center, displacement)
@@ -947,6 +1015,16 @@ export function rotateEntity(entity: CadEntity, pivot: Point2D, angleRadians: nu
   }
 
   // Entidades futuras como arc e polyline devem receber a transformação neste ponto.
+  if (entity.type === "arc") {
+    const matrix = rotationMatrix(angleRadians, pivot);
+    return {
+      ...entity,
+      center: transformPoint(entity.center, matrix),
+      startAngle: entity.startAngle + angleRadians,
+      endAngle: entity.endAngle + angleRadians
+    };
+  }
+
   return entity;
 }
 
@@ -992,6 +1070,14 @@ export function scaleEntity(entity: CadEntity, pivot: Point2D, factor: number): 
   }
 
   if (entity.type === "circle") {
+    return {
+      ...entity,
+      center: transformPoint(entity.center, matrix),
+      radius: entity.radius * factor
+    };
+  }
+
+  if (entity.type === "arc") {
     return {
       ...entity,
       center: transformPoint(entity.center, matrix),

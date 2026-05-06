@@ -12,3 +12,4 @@ export * from "./offset";
 export * from "./dimensions";
 export * from "./trim";
 export * from "./extend";
+export * from "./arc";
