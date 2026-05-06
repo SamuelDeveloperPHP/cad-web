@@ -114,8 +114,10 @@ export function intersectInfiniteLineGeometriesForChamfer(
 }
 
 export function computeLineLineChamfer(input: ComputeLineLineChamferInput): ComputeLineLineChamferResult {
+  // O kernel orquestra validacoes de entrada, escolha de ramos e geracao das linhas finais do chanfro.
   const tolerance = input.tolerance ?? CAD_EPSILON;
 
+  // O calculo rejeita distancias nao positivas, NaN ou Infinity antes de qualquer operacao geometrica.
   if (!Number.isFinite(input.distance1) || input.distance1 <= tolerance) {
     return { ok: false, reason: "Distance must be greater than zero." };
   }
@@ -124,12 +126,14 @@ export function computeLineLineChamfer(input: ComputeLineLineChamferInput): Comp
     return { ok: false, reason: "Distance must be greater than zero." };
   }
 
+  // O algoritmo localiza o vertice das linhas infinitas, que serve como ancora dos pontos de corte.
   const vertex = intersectInfiniteLineGeometriesForChamfer(input.line1, input.line2, tolerance);
 
   if (vertex === null) {
     return { ok: false, reason: "Lines are parallel or invalid." };
   }
 
+  // O algoritmo determina, para cada linha, qual ramo o usuario quer preservar a partir do pickPoint.
   const branch1 = chooseLineBranchFromPickPoint(input.line1, vertex, input.pickPoint1, tolerance);
   const branch2 = chooseLineBranchFromPickPoint(input.line2, vertex, input.pickPoint2, tolerance);
 
@@ -142,12 +146,15 @@ export function computeLineLineChamfer(input: ComputeLineLineChamferInput): Comp
     return { ok: false, reason: "Lines are parallel or invalid." };
   }
 
+  // O algoritmo posiciona cada ponto de corte ao longo do ramo preservado, distante do vertice
+  // pela distancia configurada para a linha correspondente.
   const cutPoint1 = pointAtDistanceFromVertex(vertex, branch1.direction, input.distance1);
   const cutPoint2 = pointAtDistanceFromVertex(vertex, branch2.direction, input.distance2);
 
   // O resultado substitui o endpoint oposto ao escolhido pelo ponto de corte calculado.
   const line1Result = updateLineEndpoint(input.line1, branch1.updateEndpoint, cutPoint1);
   const line2Result = updateLineEndpoint(input.line2, branch2.updateEndpoint, cutPoint2);
+  // O segmento de chanfro liga os dois pontos de corte e nasce como uma LineGeometry pura.
   const chamferLine: ChamferLineGeometry = {
     type: "line",
     start: cutPoint1,
@@ -166,6 +173,7 @@ export function computeLineLineChamfer(input: ComputeLineLineChamferInput): Comp
 }
 
 function updateLineEndpoint(line: ChamferLineEntity, endpoint: "start" | "end", point: Point2D): ChamferLineGeometry {
+  // O metodo gera uma nova LineGeometry imutavel com apenas um dos endpoints atualizado.
   return endpoint === "start"
     ? {
         ...line,

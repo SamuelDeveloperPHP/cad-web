@@ -10,12 +10,19 @@ import type { ToolContext } from "../contracts/ToolContext";
 import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent";
 import { TOOL_RESULT_NONE, type ToolResult } from "../contracts/ToolResult";
 
+// O modulo descreve a ferramenta interativa Chamfer responsavel por criar linhas de chanfro entre dois segmentos.
+// O fluxo segue o padrao das demais ferramentas: maquina de estados, preview ghost e geracao de comando apenas na confirmacao.
+
 const DEFAULT_SCREEN_TOLERANCE_PIXELS = 8;
 
 type ChamferPhase =
+  // O usuario informa a primeira distancia, podendo digitar uma unica medida ou um par.
   | "specify_distance1"
+  // O usuario informa a segunda distancia em um fluxo opcional explicito.
   | "specify_distance2"
+  // O usuario seleciona a primeira linha proxima ao ramo desejado do canto.
   | "select_first_line"
+  // O usuario seleciona a segunda linha e confirma a operacao.
   | "select_second_line";
 
 type LineHit = Readonly<{
@@ -69,11 +76,13 @@ export class ChamferTool implements CadTool {
   }
 
   onPointerDown(event: ToolPointerEvent, context: ToolContext): ToolResult {
+    // O handler ignora cliques secundarios e direciona o evento para a fase ativa da maquina de estados.
     if (event.button !== "primary") {
       return TOOL_RESULT_NONE;
     }
 
     if (this.phase === "specify_distance1" || this.phase === "specify_distance2") {
+      // O ponteiro nao avanca a ferramenta enquanto faltarem distancias; o usuario precisa usar a linha de comando.
       context.showMessage(this.currentDistancePrompt());
       return TOOL_RESULT_NONE;
     }
@@ -86,6 +95,7 @@ export class ChamferTool implements CadTool {
   }
 
   onPointerMove(event: ToolPointerEvent, context: ToolContext): ToolResult {
+    // O metodo gera apenas preview e nao mutaciona o documento, conforme a regra do command pattern.
     if (this.phase !== "select_second_line" || this.firstSelection === null) {
       return TOOL_RESULT_NONE;
     }
@@ -93,6 +103,7 @@ export class ChamferTool implements CadTool {
     const hit = findNearestLine(context, event.worldPoint, this.getToleranceWorld(context), this.firstSelection.entity.id);
 
     if (hit === null || hit.locked) {
+      // O preview some quando o ponteiro nao esta sobre uma linha valida ou esta em layer bloqueada.
       context.clearPreview();
       return TOOL_RESULT_NONE;
     }
@@ -100,6 +111,7 @@ export class ChamferTool implements CadTool {
     const previewEntities = this.buildChamferEntities(this.firstSelection, hit.entity, event.worldPoint, context, true);
 
     if (previewEntities === null) {
+      // O calculo geometrico recusou a configuracao atual e a ferramenta limpa o preview anterior.
       context.clearPreview();
       return TOOL_RESULT_NONE;
     }
@@ -115,10 +127,12 @@ export class ChamferTool implements CadTool {
   }
 
   onPointerUp(_event: ToolPointerEvent, _context: ToolContext): ToolResult {
+    // O metodo nao reage ao soltar do botao porque a confirmacao acontece no pointerDown.
     return TOOL_RESULT_NONE;
   }
 
   onKeyDown(event: ToolKeyboardEvent, context: ToolContext): ToolResult {
+    // O handler trata apenas Esc; demais teclas seguem o fluxo padrao da aplicacao.
     if (event.key !== "Escape") {
       return TOOL_RESULT_NONE;
     }
@@ -133,6 +147,7 @@ export class ChamferTool implements CadTool {
       return { type: "cancel" };
     }
 
+    // O Esc cancela toda a operacao e respeita as distancias configuradas para a proxima ativacao.
     this.firstSelection = null;
     this.phase = this.distance1 === null || this.distance2 === null ? "specify_distance1" : "select_first_line";
     context.clearPreview();
@@ -143,6 +158,7 @@ export class ChamferTool implements CadTool {
   }
 
   onCommandInput(input: string, context: ToolContext): ToolResult {
+    // O metodo despacha a entrada de texto para o handler correto conforme a fase atual.
     const parsed = parseChamferDistanceInput(input);
 
     if (this.phase === "specify_distance1") {
@@ -231,12 +247,14 @@ export class ChamferTool implements CadTool {
   }
 
   private currentDistancePrompt(): string {
+    // O metodo retorna a mensagem adequada para a fase de distancias em curso.
     return this.phase === "specify_distance1"
       ? "[Chamfer] Specify first distance"
       : "[Chamfer] Specify second distance or press Enter to use same";
   }
 
   private selectFirstLine(point: Point2D, context: ToolContext): ToolResult {
+    // O metodo localiza a linha mais proxima do clique e armazena o pickPoint para definir o ramo preservado.
     const hit = findNearestLine(context, point, this.getToleranceWorld(context));
 
     if (hit === null) {
@@ -245,6 +263,7 @@ export class ChamferTool implements CadTool {
     }
 
     if (hit.locked) {
+      // O respeito a layers bloqueadas evita modificacoes acidentais em entidades protegidas.
       context.showMessage("[Chamfer] Layer is locked");
       return TOOL_RESULT_NONE;
     }
@@ -261,7 +280,9 @@ export class ChamferTool implements CadTool {
   }
 
   private selectSecondLine(point: Point2D, context: ToolContext): ToolResult {
+    // O metodo confirma a operacao chamando o command pattern, sem mutar entidades diretamente.
     if (this.distance1 === null || this.distance2 === null || this.firstSelection === null) {
+      // O estado degradado retorna o usuario para a fase inicial em vez de produzir um chanfro invalido.
       context.showMessage("[Chamfer] Specify first distance");
       this.phase = "specify_distance1";
       return TOOL_RESULT_NONE;
@@ -282,13 +303,16 @@ export class ChamferTool implements CadTool {
     const chamferEntities = this.buildChamferEntities(this.firstSelection, hit.entity, point, context, false);
 
     if (chamferEntities === null) {
+      // O calculo geometrico ja informou o motivo da rejeicao via showMessage e a ferramenta apenas aguarda nova tentativa.
       return TOOL_RESULT_NONE;
     }
 
+    // O comando captura o estado original e o estado atualizado para garantir Undo/Redo determinístico.
     const [updatedLine1, updatedLine2, chamferLine] = chamferEntities;
     const command = new ChamferLineLineCommand(this.firstSelection.entity, hit.entity, updatedLine1, updatedLine2, chamferLine);
 
     context.executeCommand(command);
+    // O fluxo retorna a fase de selecao para que o usuario possa encadear novos chanfros, estilo AutoCAD.
     this.firstSelection = null;
     this.phase = "select_first_line";
     context.clearPreview();
@@ -305,6 +329,7 @@ export class ChamferTool implements CadTool {
     context: ToolContext,
     preview: boolean
   ): [LineEntity, LineEntity, LineEntity] | null {
+    // O metodo unifica a logica usada pelo preview ghost e pela confirmacao, evitando divergencias.
     if (this.distance1 === null || this.distance2 === null) {
       return null;
     }
@@ -316,6 +341,7 @@ export class ChamferTool implements CadTool {
       distance2: this.distance2,
       pickPoint1: firstSelection.pickPoint,
       pickPoint2: secondPickPoint,
+      // O kernel recebe uma tolerancia derivada do zoom para suportar desenhos em escalas distintas.
       tolerance: this.getToleranceWorld(context) * 0.001
     });
 
@@ -324,6 +350,7 @@ export class ChamferTool implements CadTool {
       return null;
     }
 
+    // O metodo preserva o id e os atributos da entidade original ao atualizar apenas os endpoints.
     const updatedLine1: LineEntity = {
       ...firstSelection.entity,
       start: result.line1Result.start,
@@ -347,6 +374,7 @@ export class ChamferTool implements CadTool {
   }
 
   private getToleranceWorld(context: ToolContext): number {
+    // O calculo converte a tolerancia em pixels da tela para unidades de mundo segundo o zoom atual.
     return DEFAULT_SCREEN_TOLERANCE_PIXELS / context.viewport.scale;
   }
 }
