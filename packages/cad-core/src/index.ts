@@ -919,6 +919,8 @@ export class FilletLineLineCommand implements CadCommand {
   }
 }
 
+// O ChamferLineLineCommand registra a operacao de chanfro entre duas linhas e oferece Undo/Redo coerente.
+// O comando guarda o estado original e o estado atualizado das duas linhas, alem da linha de chanfro criada.
 export class ChamferLineLineCommand implements CadCommand {
   readonly type = "ChamferLineLineCommand";
   readonly description = "Creates a chamfer line between two lines.";
@@ -932,11 +934,13 @@ export class ChamferLineLineCommand implements CadCommand {
   ) {}
 
   get id(): string {
+    // O identificador combina os ids das linhas e o timestamp para diferenciar execucoes em sequencia.
     return `cmd_chamfer_line_line_${this.originalLine1.id}_${this.originalLine2.id}_${Date.now()}`;
   }
 
   execute(document: CadDocument): CadDocument {
     // O comando ajusta as duas linhas selecionadas e insere a linha de chanfro em uma unica transacao.
+    // O Redo reaplica esta mesma logica e a checagem de duplicidade evita inserir o chanfro duas vezes.
     const hasChamfer = document.entities.some((entity) => entity.id === this.chamferLine.id);
 
     return {
