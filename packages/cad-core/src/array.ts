@@ -3,16 +3,18 @@ import {
   buildRectangularArrayOffsets,
   countPolarArrayCopies,
   countRectangularArrayPositions,
+  ensurePathSource,
   getPolylineTransformAtSample,
   offsetPoint,
   rotatePointAroundCenter,
-  samplePolylineByCount,
+  samplePathByCount,
   validatePathArrayParams,
   validatePolarArrayParams,
   validateRectangularArrayParams,
   type PathArrayParams,
   type PathArrayTransform,
   type PathSample,
+  type PathSource,
   type PolarArrayParams,
   type PolylinePath,
   type Point2D,
@@ -553,7 +555,8 @@ export function transformEntityForPathArray(
 }
 
 export type BuildPathArrayInput = Readonly<{
-  polyline: PolylinePath;
+  // O campo path aceita qualquer PathSource (polyline, line, circle, arc).
+  path: PathSource | PolylinePath;
   params: PathArrayParams;
 }>;
 
@@ -570,13 +573,14 @@ export function buildPathArrayEntities(
   idFactory?: PathArrayIdFactory
 ): PathArrayBuildResult {
   // O metodo orquestra a amostragem do caminho e a transformacao de cada entidade source.
-  const validation = validatePathArrayParams(input.params, input.polyline);
+  const pathSource = ensurePathSource(input.path);
+  const validation = validatePathArrayParams(input.params, pathSource);
 
   if (!validation.ok) {
     throw new Error(`Invalid path array params: ${validation.reason}`);
   }
 
-  const samples = samplePolylineByCount(input.polyline, input.params.count);
+  const samples = samplePathByCount(pathSource, input.params.count);
   const factory = idFactory ?? defaultPathArrayIdFactory;
   const createdEntities: CadEntity[] = [];
   let sequence = 0;
@@ -598,6 +602,7 @@ export function buildPathArrayEntities(
     samples
   };
 }
+
 
 export function estimatePathArrayEntityCount(selectedCount: number, params: PathArrayParams): number {
   // O calculo prevê o tamanho do array antes da amostragem, util para avisos de performance.

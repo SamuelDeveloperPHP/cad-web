@@ -17,4 +17,5 @@ export * from "./chamfer";
 export * from "./array";
 export * from "./arrayPolar";
 export * from "./polyline";
+export * from "./pathSource";
 export * from "./pathArray";

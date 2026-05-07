@@ -598,7 +598,7 @@ describe("buildPathArrayEntities", () => {
     };
 
     const result = buildPathArrayEntities([circle], {
-      polyline,
+      path: polyline,
       params: { count: 5, basePoint: { x: 0, y: 0 }, alignToTangent: false }
     });
 
@@ -635,7 +635,7 @@ describe("buildPathArrayEntities", () => {
     };
 
     const result = buildPathArrayEntities([rectangle], {
-      polyline,
+      path: polyline,
       params: { count: 2, basePoint: { x: 0, y: 0 }, alignToTangent: true }
     });
 
@@ -666,7 +666,7 @@ describe("buildPathArrayEntities", () => {
     };
 
     const result = buildPathArrayEntities([circle], {
-      polyline,
+      path: polyline,
       params: { count: 4, basePoint: { x: 0, y: 0 }, alignToTangent: false }
     });
 
@@ -697,7 +697,7 @@ describe("buildPathArrayEntities", () => {
     };
 
     const result = buildPathArrayEntities([line], {
-      polyline,
+      path: polyline,
       params: { count: 3, basePoint: { x: 0, y: 0 }, alignToTangent: false }
     });
 
@@ -720,7 +720,7 @@ describe("buildPathArrayEntities", () => {
 
     expect(() =>
       buildPathArrayEntities([], {
-        polyline,
+        path: polyline,
         params: { count: 3, basePoint: { x: 0, y: 0 }, alignToTangent: true }
       })
     ).toThrow();
