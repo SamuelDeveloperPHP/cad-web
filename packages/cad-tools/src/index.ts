@@ -21,6 +21,7 @@ export * from "./modify/FilletTool";
 export * from "./modify/ChamferTool";
 export * from "./modify/ArrayTool";
 export * from "./modify/ArrayPolarTool";
+export * from "./modify/PathArrayTool";
 export * from "./dimensions/DimensionsTool";
 export * from "./dimensions/DimRadiusTool";
 export * from "./dimensions/DimDiameterTool";

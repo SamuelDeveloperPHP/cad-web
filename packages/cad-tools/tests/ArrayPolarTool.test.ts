@@ -173,7 +173,7 @@ describe("ArrayPolarTool", () => {
   });
 
   it("exposes command aliases", () => {
-    expect(new ArrayPolarTool().aliases).toEqual(["ap", "arraypolar", "matrizpolar", "polar"]);
+    expect(new ArrayPolarTool().aliases).toEqual(["arraypolar", "matrizpolar", "polar"]);
   });
 });
 
