@@ -11,6 +11,7 @@ type CadCommandLineProps = Readonly<{
 const toolPrompts: Record<ActiveCadTool, string> = {
   select: "[Select] Select objects",
   line: "[Line] Specify first point",
+  polyline: "[Polyline] Specify first point",
   rectangle: "[Rectangle] Specify first corner",
   circle: "[Circle] Specify center point",
   move: "[Move] Select objects or specify base point",

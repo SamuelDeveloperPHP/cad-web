@@ -20,6 +20,65 @@ describe("cad-io SVG", () => {
     expect(svg).toContain('r="3"');
   });
 
+  it("exports open polylines as <polyline> and closed polylines as <polygon>", () => {
+    const svg = serializeCadDocumentToSvg(
+      {
+        ...createEmptyDocument("doc_polyline_svg"),
+        entities: [
+          {
+            id: "pl_open",
+            layerId: "layer_0",
+            type: "polyline",
+            points: [
+              { x: 0, y: 0 },
+              { x: 5, y: 0 },
+              { x: 5, y: 5 }
+            ],
+            closed: false
+          },
+          {
+            id: "pl_closed",
+            layerId: "layer_0",
+            type: "polyline",
+            points: [
+              { x: 10, y: 0 },
+              { x: 15, y: 0 },
+              { x: 15, y: 5 }
+            ],
+            closed: true
+          }
+        ]
+      },
+      { precision: 2, padding: 0 }
+    );
+
+    expect(svg).toContain('<polyline id="pl_open"');
+    expect(svg).toContain('points="0,0 5,0 5,5"');
+    expect(svg).toContain('<polygon id="pl_closed"');
+  });
+
+  it("imports SVG <polyline> as open polyline and <polygon> as closed polyline", () => {
+    const source = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+      <polyline id="pl_a" data-layer-id="layer_0" points="0,0 5,0 5,5" />
+      <polygon id="pl_b" data-layer-id="layer_0" points="10,0 15,0 15,5" />
+    </svg>`;
+
+    const document = parseSvgDocument(source);
+    const polylines = document.entities.filter((entity) => entity.type === "polyline");
+
+    expect(polylines).toHaveLength(2);
+
+    const open = polylines.find((entity) => entity.id === "pl_a") as any;
+    const closed = polylines.find((entity) => entity.id === "pl_b") as any;
+
+    expect(open.closed).toBe(false);
+    expect(open.points).toHaveLength(3);
+    expect(open.points[0]).toEqual({ x: 0, y: 0 });
+
+    expect(closed.closed).toBe(true);
+    expect(closed.points).toHaveLength(3);
+  });
+
   it("exports arc entities as SVG path arcs", () => {
     const svg = serializeCadDocumentToSvg(
       {

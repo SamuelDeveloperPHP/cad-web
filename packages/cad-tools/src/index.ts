@@ -8,6 +8,7 @@ export * from "./contracts/ToolEvent";
 export * from "./contracts/ToolResult";
 export * from "./draw/CircleTool";
 export * from "./draw/LineTool";
+export * from "./draw/PolylineTool";
 export * from "./draw/RectangleTool";
 export * from "./modify/EraseTool";
 export * from "./modify/MoveTool";
