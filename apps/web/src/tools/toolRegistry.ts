@@ -15,6 +15,7 @@ import {
   ChamferTool,
   ArrayTool,
   ArrayPolarTool,
+  PathArrayTool,
   EraseTool,
   DimLinearTool,
   DimAlignedTool,
@@ -41,6 +42,7 @@ export function createWebToolRegistry(): ToolRegistry {
   registry.register(new ChamferTool());
   registry.register(new ArrayTool());
   registry.register(new ArrayPolarTool());
+  registry.register(new PathArrayTool());
   registry.register(new EraseTool());
   registry.register(new DimLinearTool());
   registry.register(new DimAlignedTool());
