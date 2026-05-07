@@ -104,6 +104,31 @@ export function renderDocument2D(
       context.beginPath();
       context.arc(center.x, center.y, radiusScreen, entity.startAngle, entity.endAngle, !entity.clockwise);
       context.stroke();
+    } else if (entity.type === "polyline") {
+      // O renderer percorre os vertices em ordem; quando closed o path fecha do ultimo ao primeiro.
+      if (entity.points.length >= 2) {
+        const firstPoint = entity.points[0];
+        if (firstPoint !== undefined) {
+          context.beginPath();
+          const start = worldToScreen(firstPoint, viewport);
+          context.moveTo(start.x, start.y);
+
+          for (let index = 1; index < entity.points.length; index += 1) {
+            const vertex = entity.points[index];
+            if (vertex === undefined) {
+              continue;
+            }
+            const screenPoint = worldToScreen(vertex, viewport);
+            context.lineTo(screenPoint.x, screenPoint.y);
+          }
+
+          if (entity.closed) {
+            context.closePath();
+          }
+
+          context.stroke();
+        }
+      }
     } else if (entity.type === "dimension") {
       const resolvedStyle = resolveDimensionStyle(document, entity as any);
 

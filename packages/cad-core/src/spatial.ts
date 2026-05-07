@@ -62,12 +62,37 @@ export function entityBoundingBox(entity: CadEntity): BoundingBox {
     return arcBoundingBox(entity);
   }
 
+  if (entity.type === "polyline") {
+    return polylineBoundingBox(entity.points);
+  }
+
   // O fallback mantem entidades desconhecidas consultaveis sem quebrar o indice.
   if (entity.type === "dimension") {
     return dimensionBoundingBox(entity);
   }
 
   return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+}
+
+function polylineBoundingBox(points: ReadonlyArray<Point2D>): BoundingBox {
+  // O calculo cobre todos os vertices da polyline; segmentos retos nunca extrapolam o envoltorio dos vertices.
+  if (points.length === 0) {
+    return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+  }
+
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  for (const point of points) {
+    if (point.x < minX) minX = point.x;
+    if (point.y < minY) minY = point.y;
+    if (point.x > maxX) maxX = point.x;
+    if (point.y > maxY) maxY = point.y;
+  }
+
+  return { minX, minY, maxX, maxY };
 }
 
 function dimensionBoundingBox(entity: DimensionEntity): BoundingBox {

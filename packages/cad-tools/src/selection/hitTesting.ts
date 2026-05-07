@@ -70,6 +70,8 @@ export function findNearestEntityId(document: CadDocument, options: HitTestOptio
       candidateDistance = Math.abs(distToCenter - entity.radius);
     } else if (entity.type === "arc") {
       candidateDistance = distancePointToArc(options.worldPoint, entity);
+    } else if (entity.type === "polyline") {
+      candidateDistance = distancePointToPolyline(options.worldPoint, entity.points, entity.closed);
     } else if (entity.type === "dimension") {
       candidateDistance = distancePointToDimension(options.worldPoint, entity, document);
     } else {
@@ -83,6 +85,35 @@ export function findNearestEntityId(document: CadDocument, options: HitTestOptio
   }
 
   return nearestId;
+}
+
+function distancePointToPolyline(point: Point2D, points: ReadonlyArray<Point2D>, closed: boolean): number {
+  // O calculo retorna a menor distancia entre o ponto e qualquer segmento da polyline.
+  if (points.length < 2) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+
+    if (start && end) {
+      nearestDistance = Math.min(nearestDistance, distancePointToSegment(point, start, end));
+    }
+  }
+
+  if (closed && points.length >= 3) {
+    const last = points[points.length - 1];
+    const first = points[0];
+
+    if (last && first) {
+      nearestDistance = Math.min(nearestDistance, distancePointToSegment(point, last, first));
+    }
+  }
+
+  return nearestDistance;
 }
 
 function distancePointToDimension(point: Point2D, entity: DimensionEntity, document: CadDocument): number {

@@ -43,7 +43,9 @@ export type ArcEntity = BaseEntity & Readonly<{
 
 export type PolylineEntity = BaseEntity & Readonly<{
   type: "polyline";
-  vertices: ReadonlyArray<Point2D>;
+  // O campo points contem todos os vertices da polyline em ordem; closed determina se fecha do ultimo ao primeiro.
+  points: ReadonlyArray<Point2D>;
+  closed: boolean;
 }>;
 
 export interface DimensionStyle {
@@ -110,7 +112,7 @@ export type DimensionEntity = BaseEntity & Readonly<{
   textOverride?: string;
 }>;
 
-export type CadEntity = LineEntity | RectangleEntity | CircleEntity | ArcEntity | DimensionEntity;
+export type CadEntity = LineEntity | RectangleEntity | CircleEntity | ArcEntity | PolylineEntity | DimensionEntity;
 
 export type CadLayer = Readonly<{
   id: string;
@@ -1058,7 +1060,7 @@ function moveEntity(entity: CadEntity, displacement: Point2D): CadEntity {
       end: addVector(entity.end, displacement)
     };
   }
-  
+
   if (entity.type === "rectangle") {
     return {
       ...entity,
@@ -1078,6 +1080,14 @@ function moveEntity(entity: CadEntity, displacement: Point2D): CadEntity {
     return {
       ...entity,
       center: addVector(entity.center, displacement)
+    };
+  }
+
+  if (entity.type === "polyline") {
+    // O move desloca todos os vertices preservando closed e demais atributos da polyline.
+    return {
+      ...entity,
+      points: entity.points.map((point) => addVector(point, displacement))
     };
   }
 
@@ -1130,7 +1140,6 @@ export function rotateEntity(entity: CadEntity, pivot: Point2D, angleRadians: nu
     };
   }
 
-  // Entidades futuras como arc e polyline devem receber a transformação neste ponto.
   if (entity.type === "arc") {
     const matrix = rotationMatrix(angleRadians, pivot);
     return {
@@ -1138,6 +1147,15 @@ export function rotateEntity(entity: CadEntity, pivot: Point2D, angleRadians: nu
       center: transformPoint(entity.center, matrix),
       startAngle: entity.startAngle + angleRadians,
       endAngle: entity.endAngle + angleRadians
+    };
+  }
+
+  if (entity.type === "polyline") {
+    // O rotate aplica a matriz a cada vertice, preservando o atributo closed.
+    const matrix = rotationMatrix(angleRadians, pivot);
+    return {
+      ...entity,
+      points: entity.points.map((point) => transformPoint(point, matrix))
     };
   }
 
@@ -1198,6 +1216,14 @@ export function scaleEntity(entity: CadEntity, pivot: Point2D, factor: number): 
       ...entity,
       center: transformPoint(entity.center, matrix),
       radius: entity.radius * factor
+    };
+  }
+
+  if (entity.type === "polyline") {
+    // O scale aplica a matriz uniforme a cada vertice mantendo o atributo closed.
+    return {
+      ...entity,
+      points: entity.points.map((point) => transformPoint(point, matrix))
     };
   }
 

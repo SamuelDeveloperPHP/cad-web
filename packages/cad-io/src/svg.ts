@@ -1,4 +1,4 @@
-import { resolveDimensionStyle, type ArcEntity, type CadDocument, type CadEntity, type CircleEntity, type LineEntity, type RectangleEntity } from "@cad-web/cad-core";
+import { resolveDimensionStyle, type ArcEntity, type CadDocument, type CadEntity, type CircleEntity, type LineEntity, type PolylineEntity, type RectangleEntity } from "@cad-web/cad-core";
 import type { CadJsonExportOptions } from "./json";
 import { CAD_IO_APPLICATION, CAD_IO_SCHEMA_VERSION, CadIoValidationError, validateCadDocument } from "./json";
 
@@ -17,7 +17,7 @@ type SvgBounds = Readonly<{
 }>;
 
 type ParsedSvgElement = Readonly<{
-  tagName: "line" | "rect" | "circle";
+  tagName: "line" | "rect" | "circle" | "polyline" | "polygon";
   attributes: ReadonlyMap<string, string>;
   sourceIndex: number;
 }>;
@@ -135,11 +135,32 @@ function serializeEntityToSvg(entity: CadEntity, precision: number, document: an
     return serializeArcToSvg(entity, precision);
   }
 
+  if (entity.type === "polyline") {
+    return serializePolylineToSvg(entity, precision);
+  }
+
   if (entity.type === "dimension") {
     return serializeDimensionToSvg(entity as any, precision, document);
   }
 
   return "";
+}
+
+function serializePolylineToSvg(entity: PolylineEntity, precision: number): string {
+  // O exportador escolhe <polygon> para closed=true e <polyline> para abertas, conforme convencao SVG.
+  const pointsAttribute = entity.points
+    .map((point) => `${formatNumber(point.x, precision)},${formatNumber(point.y, precision)}`)
+    .join(" ");
+
+  const tag = entity.closed ? "polygon" : "polyline";
+
+  return [
+    `<${tag} id="${escapeSvgAttribute(entity.id)}"`,
+    `data-layer-id="${escapeSvgAttribute(entity.layerId)}"`,
+    `data-entity-type="polyline"`,
+    `data-closed="${entity.closed ? "true" : "false"}"`,
+    `points="${pointsAttribute}" />`
+  ].join(" ");
 }
 
 import { arcBoundingBox, arcEndPoint, arcStartPoint, arcSweepAngle, buildAlignedDimensionGeometry, buildLinearDimensionGeometry, buildRadiusDimensionGeometry, buildDiameterDimensionGeometry, buildAngularDimensionGeometry } from "@cad-web/cad-geometry";
@@ -319,11 +340,11 @@ function removeUnsafeSvgBlocks(source: string): string {
 }
 
 function* iterateSupportedSvgElements(source: string): Iterable<ParsedSvgElement> {
-  const elementPattern = /<(line|rect|circle)\b([^>]*)\/?>/gi;
+  const elementPattern = /<(line|rect|circle|polyline|polygon)\b([^>]*)\/?>/gi;
   let match: RegExpExecArray | null;
 
   while ((match = elementPattern.exec(source)) !== null) {
-    const tagName = match[1];
+    const tagName = match[1]?.toLowerCase();
     const attributeSource = match[2];
 
     if (!isSupportedSvgTagName(tagName) || attributeSource === undefined) {
@@ -372,7 +393,69 @@ function mapSvgElementToEntity(element: ParsedSvgElement): CadEntity | null {
     return mapSvgRectToEntity(element);
   }
 
+  if (element.tagName === "polyline") {
+    return mapSvgPolylineToEntity(element, false);
+  }
+
+  if (element.tagName === "polygon") {
+    return mapSvgPolylineToEntity(element, true);
+  }
+
   return mapSvgCircleToEntity(element);
+}
+
+function mapSvgPolylineToEntity(element: ParsedSvgElement, closed: boolean): PolylineEntity | null {
+  // O parser le o atributo points e gera uma PolylineEntity; closed reflete o tag (polyline vs polygon).
+  const rawPoints = element.attributes.get("points");
+
+  if (rawPoints === undefined) {
+    return null;
+  }
+
+  const points = parseSvgPointsAttribute(rawPoints);
+  const minVertices = closed ? 3 : 2;
+
+  if (points.length < minVertices) {
+    return null;
+  }
+
+  return {
+    id: readSvgEntityId(element, closed ? "polygon" : "polyline"),
+    layerId: readSvgLayerId(element),
+    type: "polyline",
+    points,
+    closed
+  };
+}
+
+function parseSvgPointsAttribute(raw: string): ReadonlyArray<{ x: number; y: number }> {
+  // O parser aceita pontos separados por espacos, virgulas ou ambos, conforme spec SVG.
+  const tokens = raw
+    .split(/[\s,]+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+
+  const points: Array<{ x: number; y: number }> = [];
+
+  for (let index = 0; index < tokens.length - 1; index += 2) {
+    const xRaw = tokens[index];
+    const yRaw = tokens[index + 1];
+
+    if (xRaw === undefined || yRaw === undefined) {
+      continue;
+    }
+
+    const x = parseSvgNumber(xRaw);
+    const y = parseSvgNumber(yRaw);
+
+    if (x === null || y === null) {
+      continue;
+    }
+
+    points.push({ x, y });
+  }
+
+  return points;
 }
 
 function mapSvgLineToEntity(element: ParsedSvgElement): LineEntity | null {
@@ -519,7 +602,13 @@ function getSvgDocumentId(source: string): string {
 }
 
 function isSupportedSvgTagName(tagName: string | undefined): tagName is ParsedSvgElement["tagName"] {
-  return tagName === "line" || tagName === "rect" || tagName === "circle";
+  return (
+    tagName === "line" ||
+    tagName === "rect" ||
+    tagName === "circle" ||
+    tagName === "polyline" ||
+    tagName === "polygon"
+  );
 }
 
 function decodeSvgAttribute(value: string): string {
@@ -590,6 +679,10 @@ function calculateEntityBounds(entity: CadEntity, document?: CadDocument): SvgBo
 
   if (entity.type === "arc") {
     return arcBoundingBox(entity);
+  }
+
+  if (entity.type === "polyline") {
+    return calculateBoundsFromPoints(entity.points);
   }
 
   return {

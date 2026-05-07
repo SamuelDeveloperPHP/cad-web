@@ -2,6 +2,7 @@ import {
   ToolRegistry,
   SelectTool,
   LineTool,
+  PolylineTool,
   RectangleTool,
   CircleTool,
   MoveTool,
@@ -27,6 +28,7 @@ export function createWebToolRegistry(): ToolRegistry {
 
   registry.register(new SelectTool());
   registry.register(new LineTool());
+  registry.register(new PolylineTool());
   registry.register(new RectangleTool());
   registry.register(new CircleTool());
   registry.register(new MoveTool());
