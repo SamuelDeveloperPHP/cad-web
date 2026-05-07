@@ -7,12 +7,13 @@ import {
   type EntityId
 } from "@cad-web/cad-core";
 import {
+  ensurePathSource,
   getPolylineTransformAtSample,
-  samplePolylineByCount,
+  samplePathByCount,
   validatePathArrayParams,
   type PathArrayParams,
   type PathSample,
-  type PolylinePath,
+  type PathSource,
   type Point2D
 } from "@cad-web/cad-geometry";
 import type { CadTool } from "../contracts/CadTool";
@@ -234,7 +235,7 @@ export class PathArrayTool implements CadTool {
     if (this.phase === "specify_count") {
       this.params = { ...this.params, pathEntityId: null };
       this.phase = "select_path";
-      context.showMessage("[PathArray] Select polyline path");
+      context.showMessage("[PathArray] Select path entity");
       return { type: "cancel" };
     }
 
@@ -290,19 +291,19 @@ export class PathArrayTool implements CadTool {
   }
 
   private handlePathClick(point: Point2D, context: ToolContext): ToolResult {
-    // O metodo aceita apenas PolylineEntity como path; outros tipos sao rejeitados com mensagem clara.
+    // O metodo aceita polyline, line, circle ou arc como path; demais tipos sao rejeitados com mensagem clara.
     const toleranceWorld = DEFAULT_SCREEN_TOLERANCE_PIXELS / context.viewport.scale;
     const entityId = findNearestEntityId(context.document, { worldPoint: point, toleranceWorld });
 
     if (entityId === null) {
-      context.showMessage("[PathArray] Select a polyline path");
+      context.showMessage("[PathArray] Select path entity");
       return TOOL_RESULT_NONE;
     }
 
     const entity = context.document.entities.find((candidate) => candidate.id === entityId);
 
-    if (entity === undefined || entity.type !== "polyline") {
-      context.showMessage("[PathArray] Select a polyline path");
+    if (entity === undefined || !isSupportedPathEntity(entity)) {
+      context.showMessage("[PathArray] Select path entity");
       return TOOL_RESULT_NONE;
     }
 
@@ -362,16 +363,16 @@ export class PathArrayTool implements CadTool {
   }
 
   private commitArray(context: ToolContext): ToolResult {
-    const polylinePath = this.resolvePolylinePath(context);
+    const pathSource = this.resolvePathSource(context);
     const params = this.requirePathArrayParams();
 
-    if (polylinePath === null || params === null) {
+    if (pathSource === null || params === null) {
       context.showMessage("[PathArray] Invalid count");
       this.phase = this.params.pathEntityId === null ? "select_path" : "specify_count";
       return { type: "error", message: "[PathArray] Invalid count" };
     }
 
-    const validation = validatePathArrayParams(params, polylinePath);
+    const validation = validatePathArrayParams(params, pathSource);
 
     if (!validation.ok) {
       context.showMessage("[PathArray] Invalid count");
@@ -398,7 +399,7 @@ export class PathArrayTool implements CadTool {
       return TOOL_RESULT_NONE;
     }
 
-    const result = buildPathArrayEntities(sourceEntities, { polyline: polylinePath, params });
+    const result = buildPathArrayEntities(sourceEntities, { path: pathSource, params });
 
     if (result.totalNewEntities === 0) {
       context.showMessage("[PathArray] Invalid count");
@@ -427,7 +428,7 @@ export class PathArrayTool implements CadTool {
 
     if (this.params.pathEntityId === null) {
       this.phase = "select_path";
-      context.showMessage("[PathArray] Select polyline path");
+      context.showMessage("[PathArray] Select path entity");
       return;
     }
 
@@ -448,15 +449,15 @@ export class PathArrayTool implements CadTool {
   }
 
   private refreshPreview(context: ToolContext): void {
-    const polylinePath = this.resolvePolylinePath(context);
+    const pathSource = this.resolvePathSource(context);
     const params = this.requirePathArrayParams();
 
-    if (polylinePath === null || params === null) {
+    if (pathSource === null || params === null) {
       context.clearPreview();
       return;
     }
 
-    const validation = validatePathArrayParams(params, polylinePath);
+    const validation = validatePathArrayParams(params, pathSource);
 
     if (!validation.ok) {
       context.clearPreview();
@@ -478,7 +479,7 @@ export class PathArrayTool implements CadTool {
 
     const limitedEntities = buildLimitedPathArrayPreview(
       sourceEntities,
-      polylinePath,
+      pathSource,
       params,
       PREVIEW_ENTITY_BUDGET
     );
@@ -494,18 +495,19 @@ export class PathArrayTool implements CadTool {
     return context.document.entities.filter((entity) => ids.has(entity.id));
   }
 
-  private resolvePolylinePath(context: ToolContext): PolylinePath | null {
+  private resolvePathSource(context: ToolContext): PathSource | null {
+    // O metodo converte a entidade do path em PathSource para reuso com line/circle/arc/polyline.
     if (this.params.pathEntityId === null) {
       return null;
     }
 
     const entity = context.document.entities.find((candidate) => candidate.id === this.params.pathEntityId);
 
-    if (entity === undefined || entity.type !== "polyline") {
+    if (entity === undefined) {
       return null;
     }
 
-    return { points: entity.points, closed: entity.closed };
+    return entityToPathSource(entity);
   }
 
   private requirePathArrayParams(): PathArrayParams | null {
@@ -527,7 +529,7 @@ export class PathArrayTool implements CadTool {
       case "specify_base_point":
         return "[PathArray] Specify base point";
       case "select_path":
-        return "[PathArray] Select polyline path";
+        return "[PathArray] Select path entity";
       case "specify_count":
         return "[PathArray] Specify item count";
       case "confirm_align":
@@ -612,7 +614,7 @@ function isLayerLocked(context: ToolContext, entity: CadEntity): boolean {
 
 function buildLimitedPathArrayPreview(
   sourceEntities: ReadonlyArray<CadEntity>,
-  polyline: PolylinePath,
+  source: PathSource,
   params: PathArrayParams,
   budget: number
 ): ReadonlyArray<CadEntity> {
@@ -621,7 +623,7 @@ function buildLimitedPathArrayPreview(
     return [];
   }
 
-  const samples = samplePolylineByCount(polyline, params.count);
+  const samples = samplePathByCount(ensurePathSource(source), params.count);
   const limit = Math.min(samples.length * sourceEntities.length, budget);
   const previewEntities: CadEntity[] = [];
   let sequence = 0;
@@ -648,4 +650,37 @@ function buildLimitedPathArrayPreview(
 
 function previewIdFactory(sourceEntity: CadEntity, _sample: PathSample, sequence: number): EntityId {
   return `arraypath_preview_${sourceEntity.id}_${sequence}`;
+}
+
+function isSupportedPathEntity(entity: CadEntity): boolean {
+  // O metodo lista os tipos aceitos como path: polyline, line, circle e arc.
+  return entity.type === "polyline" || entity.type === "line" || entity.type === "circle" || entity.type === "arc";
+}
+
+function entityToPathSource(entity: CadEntity): PathSource | null {
+  // O metodo converte a entidade selecionada em PathSource compatible com pathArray e pathSource.
+  if (entity.type === "polyline") {
+    return { type: "polyline", points: entity.points, closed: entity.closed };
+  }
+
+  if (entity.type === "line") {
+    return { type: "line", start: entity.start, end: entity.end };
+  }
+
+  if (entity.type === "circle") {
+    return { type: "circle", center: entity.center, radius: entity.radius };
+  }
+
+  if (entity.type === "arc") {
+    return {
+      type: "arc",
+      center: entity.center,
+      radius: entity.radius,
+      startAngle: entity.startAngle,
+      endAngle: entity.endAngle,
+      clockwise: entity.clockwise
+    };
+  }
+
+  return null;
 }
