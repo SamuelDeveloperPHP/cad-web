@@ -70,7 +70,19 @@ export type SnapArcEntity = Readonly<{
   clockwise: boolean;
 }>;
 
-export type SnapEntity = SnapLineEntity | SnapRectangleEntity | SnapCircleEntity | SnapArcEntity;
+export type SnapPolylineEntity = Readonly<{
+  id: string;
+  type: "polyline";
+  points: ReadonlyArray<Point2D>;
+  closed: boolean;
+}>;
+
+export type SnapEntity =
+  | SnapLineEntity
+  | SnapRectangleEntity
+  | SnapCircleEntity
+  | SnapArcEntity
+  | SnapPolylineEntity;
 
 export const DEFAULT_SNAP_SETTINGS: SnapSettings = {
   enabled: true,
@@ -113,6 +125,13 @@ export function getEndpointSnapCandidates(
     ];
   }
 
+  if (entity.type === "polyline") {
+    // O snap endpoint expoe todos os vertices da polyline, independentemente de closed.
+    return entity.points.map((point) =>
+      createSnapCandidate("endpoint", point, entity.id, screenPoint, viewport)
+    );
+  }
+
   return [];
 }
 
@@ -138,6 +157,13 @@ export function getMidpointSnapCandidates(
       : entity.startAngle - sweep / 2;
 
     return [createSnapCandidate("midpoint", arcPointAtAngle(entity.center, entity.radius, midpointAngle), entity.id, screenPoint, viewport)];
+  }
+
+  if (entity.type === "polyline") {
+    // O snap midpoint expoe o ponto medio de cada segmento, incluindo o fechamento quando closed.
+    return polylineEntitySegments(entity).map(([start, end]) =>
+      createSnapCandidate("midpoint", midpoint(start, end), entity.id, screenPoint, viewport)
+    );
   }
 
   return [];
@@ -200,7 +226,47 @@ export function getNearestSnapCandidate(
     return createSnapCandidate("nearest", nearestPointOnArc(rawPoint, entity), entity.id, screenPoint, viewport);
   }
 
+  if (entity.type === "polyline") {
+    // O snap nearest projeta o ponto em cada segmento e mantem o melhor candidato.
+    const segments = polylineEntitySegments(entity);
+    if (segments.length === 0) {
+      return null;
+    }
+
+    return chooseClosestCandidate(
+      segments.map(([start, end]) => {
+        const projection = projectPointOnSegment(rawPoint, start, end);
+        return createSnapCandidate("nearest", projection.point, entity.id, screenPoint, viewport);
+      })
+    );
+  }
+
   return null;
+}
+
+function polylineEntitySegments(entity: SnapPolylineEntity): Array<[Point2D, Point2D]> {
+  // O metodo monta os pares start/end dos segmentos, incluindo o fechamento quando closed.
+  const segments: Array<[Point2D, Point2D]> = [];
+
+  for (let index = 0; index < entity.points.length - 1; index += 1) {
+    const start = entity.points[index];
+    const end = entity.points[index + 1];
+
+    if (start && end) {
+      segments.push([start, end]);
+    }
+  }
+
+  if (entity.closed && entity.points.length >= 3) {
+    const last = entity.points[entity.points.length - 1];
+    const first = entity.points[0];
+
+    if (last && first) {
+      segments.push([last, first]);
+    }
+  }
+
+  return segments;
 }
 
 export function findBestSnap(

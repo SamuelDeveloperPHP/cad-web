@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { UpdateEntityCommand, UpdateEntitiesBatchCommand, resolveDimensionStyle, type CadEntity } from "@cad-web/cad-core";
-import { lineLength, lineAngle, rectangleArea, rectanglePerimeter, circleArea, circleCircumference, formatMeasurement, buildAngularDimensionGeometry } from "@cad-web/cad-geometry";
+import { lineLength, lineAngle, rectangleArea, rectanglePerimeter, circleArea, circleCircumference, formatMeasurement, buildAngularDimensionGeometry, getPolylineLength } from "@cad-web/cad-geometry";
 
 function PropertyRow({ label, children }: { label: string, children: React.ReactNode }) {
   return (
@@ -259,6 +259,32 @@ export function CadPropertiesPanel({ cad }: { cad: CadStore }) {
           <PropertyRow label="Diameter"><PropertyInput value={((entity as any).radius * 2).toFixed(3)} readOnly /></PropertyRow>
           <PropertyRow label="Area"><PropertyInput value={circleArea((entity as any).radius).toFixed(3)} readOnly /></PropertyRow>
           <PropertyRow label="Circumference"><PropertyInput value={circleCircumference((entity as any).radius).toFixed(3)} readOnly /></PropertyRow>
+        </>
+      )}
+
+      {entity.type === "polyline" && (
+        <>
+          <PropertyRow label="Closed">
+            <select
+              value={(entity as any).closed ? "true" : "false"}
+              disabled={isLocked}
+              style={{ width: '100%', background: isLocked ? 'transparent' : 'var(--cad-bg-dark)', color: 'var(--cad-text)', border: isLocked ? 'none' : '1px solid var(--cad-border)', fontSize: '11px', padding: '2px' }}
+              onChange={e => handleUpdateSingle(entity.id, { closed: e.target.value === "true" } as any)}
+            >
+              <option value="false">Open</option>
+              <option value="true">Closed</option>
+            </select>
+          </PropertyRow>
+          <PropertyRow label="Vertex Count"><PropertyInput value={String((entity as any).points.length)} readOnly /></PropertyRow>
+          <PropertyRow label="Length">
+            <PropertyInput
+              value={getPolylineLength({
+                points: (entity as any).points,
+                closed: (entity as any).closed
+              }).toFixed(3)}
+              readOnly
+            />
+          </PropertyRow>
         </>
       )}
 

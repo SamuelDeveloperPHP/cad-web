@@ -18,6 +18,7 @@ type CadStatusBarProps = Readonly<{
 const toolLabels: Record<ActiveCadTool, string> = {
   select: "Select",
   line: "Line",
+  polyline: "Polyline",
   rectangle: "Rectangle",
   circle: "Circle",
   move: "Move",

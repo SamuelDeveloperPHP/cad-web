@@ -74,6 +74,14 @@ export function cloneCadEntityWithOffset(
     };
   }
 
+  if (entity.type === "polyline") {
+    return {
+      ...entity,
+      id: newId,
+      points: entity.points.map((point) => offsetPoint(point, offset))
+    };
+  }
+
   if (entity.type === "dimension") {
     return cloneDimensionWithOffset(entity, offset, newId);
   }
@@ -275,6 +283,14 @@ export function rotateCadEntityAroundCenter(
     };
   }
 
+  if (entity.type === "polyline") {
+    return {
+      ...entity,
+      id: newId,
+      points: entity.points.map((point) => rotatePointAroundCenter(point, center, angleRadians))
+    };
+  }
+
   if (entity.type === "dimension") {
     return rotateDimensionAroundCenter(entity, center, angleRadians, newId);
   }
@@ -447,6 +463,11 @@ function referencePointForEntity(entity: CadEntity): Point2D {
 
   if (entity.type === "circle" || entity.type === "arc") {
     return entity.center;
+  }
+
+  if (entity.type === "polyline") {
+    // O primeiro vertice serve como ancora para o calculo de deslocamento polar sem rotacao.
+    return entity.points[0] ?? { x: 0, y: 0 };
   }
 
   if (entity.type === "dimension") {

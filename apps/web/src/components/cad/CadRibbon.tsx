@@ -18,6 +18,7 @@ import {
   Maximize,
   Minus,
   Move,
+  Spline,
   MoveRight,
   Plus,
   RotateCw,
@@ -59,6 +60,7 @@ type RibbonTool = Readonly<{
 
 const drawTools: ReadonlyArray<RibbonTool> = [
   { id: "line", label: "Line", icon: Minus },
+  { id: "polyline", label: "PLine", icon: Spline },
   { id: "rectangle", label: "Rect", icon: Square },
   { id: "circle", label: "Circle", icon: Circle }
 ];

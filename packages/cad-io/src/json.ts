@@ -292,6 +292,34 @@ function validateCadEntity(entity: CadEntity | undefined, path: string): void {
     return;
   }
 
+  if (entity.type === "polyline") {
+    // O JSON valida o array de points e o flag closed; vertices precisam ser pontos finitos.
+    if (!Array.isArray((entity as any).points)) {
+      throw new CadIoValidationError("Polyline points must be an array", `${path}.points`);
+    }
+
+    const polylinePoints = (entity as any).points as ReadonlyArray<unknown>;
+
+    if (typeof (entity as any).closed !== "boolean") {
+      throw new CadIoValidationError("Polyline closed must be a boolean", `${path}.closed`);
+    }
+
+    const minVertices = (entity as any).closed ? 3 : 2;
+
+    if (polylinePoints.length < minVertices) {
+      throw new CadIoValidationError(
+        `Polyline must have at least ${minVertices} points`,
+        `${path}.points`
+      );
+    }
+
+    polylinePoints.forEach((point, index) => {
+      validatePoint(point, `${path}.points[${index}]`);
+    });
+
+    return;
+  }
+
   if (entity.type === "dimension") {
     const dimType = (entity as any).dimensionType;
     assertString(dimType, `${path}.dimensionType`);
