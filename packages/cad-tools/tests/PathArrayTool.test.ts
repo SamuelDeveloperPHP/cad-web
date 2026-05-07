@@ -32,11 +32,11 @@ describe("PathArrayTool", () => {
     expect(circles.find((entity) => entity.id === "circle_a")).toBeDefined();
   });
 
-  it("rejects non-polyline entities as path with a clear message", () => {
+  it("creates copies along a line path", () => {
     const tool = new PathArrayTool();
     const document = createDocumentWithEntities([
       { id: "circle_a", layerId: "source", type: "circle", center: { x: 0, y: 0 }, radius: 1 },
-      { id: "line_b", layerId: "source", type: "line", start: { x: 0, y: 0 }, end: { x: 10, y: 0 } }
+      { id: "line_path", layerId: "path_layer", type: "line", start: { x: 5, y: 0 }, end: { x: 25, y: 0 } }
     ]);
     const context = createMockToolContext({
       document,
@@ -45,10 +45,55 @@ describe("PathArrayTool", () => {
 
     tool.activate(context);
     tool.onPointerDown(createPointerEvent({ x: 0, y: 0 }), context);
-    // O clique sobre a line nao deve ser aceito como path.
-    tool.onPointerDown(createPointerEvent({ x: 5, y: 0 }), context);
+    tool.onPointerDown(createPointerEvent({ x: 15, y: 0 }), context);
+    tool.onCommandInput("3", context);
+    tool.onCommandInput("yes", context);
+    tool.onCommandInput("", context);
 
-    expect(context.messages).toContain("[PathArray] Select a polyline path");
+    const nextDocument = context.commands[0].execute(document);
+    const circles = nextDocument.entities.filter((entity) => entity.type === "circle");
+    expect(circles).toHaveLength(4);
+  });
+
+  it("creates copies along a circle path without duplicating start/end", () => {
+    const tool = new PathArrayTool();
+    const document = createDocumentWithEntities([
+      { id: "circle_src", layerId: "source", type: "circle", center: { x: 0, y: 0 }, radius: 1 },
+      { id: "circle_path", layerId: "path_layer", type: "circle", center: { x: 20, y: 0 }, radius: 5 }
+    ]);
+    const context = createMockToolContext({
+      document,
+      selection: { entityIds: ["circle_src"] }
+    });
+
+    tool.activate(context);
+    tool.onPointerDown(createPointerEvent({ x: 0, y: 0 }), context);
+    tool.onPointerDown(createPointerEvent({ x: 25, y: 0 }), context);
+    tool.onCommandInput("4", context);
+    tool.onCommandInput("no", context);
+    tool.onCommandInput("", context);
+
+    const nextDocument = context.commands[0].execute(document);
+    const created = nextDocument.entities.filter((entity) => entity.type === "circle" && entity.id !== "circle_src" && entity.id !== "circle_path");
+    expect(created).toHaveLength(4);
+  });
+
+  it("rejects unsupported path entities like dimensions", () => {
+    const tool = new PathArrayTool();
+    const document = createDocumentWithEntities([
+      { id: "circle_a", layerId: "source", type: "circle", center: { x: 0, y: 0 }, radius: 1 }
+    ]);
+    const context = createMockToolContext({
+      document,
+      selection: { entityIds: ["circle_a"] }
+    });
+
+    tool.activate(context);
+    tool.onPointerDown(createPointerEvent({ x: 0, y: 0 }), context);
+    // O clique no vazio deve produzir a mensagem de path.
+    tool.onPointerDown(createPointerEvent({ x: 100, y: 100 }), context);
+
+    expect(context.messages).toContain("[PathArray] Select path entity");
   });
 
   it("aligns rectangles to the tangent when alignToTangent is yes", () => {
