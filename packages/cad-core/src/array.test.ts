@@ -3,17 +3,21 @@ import {
   ArrayEntitiesCommand,
   arrayCadEntitiesPolar,
   arrayCadEntitiesRectangular,
+  buildPathArrayEntities,
   cloneCadEntityWithOffset,
   createEmptyDocument,
   estimateArrayEntityCount,
+  estimatePathArrayEntityCount,
   estimatePolarArrayEntityCount,
   rotateCadEntityAroundCenter,
+  transformEntityForPathArray,
   type ArcEntity,
   type CadDocument,
   type CadEntity,
   type CircleEntity,
   type DimensionEntity,
   type LineEntity,
+  type PolylineEntity,
   type RectangleEntity
 } from "./index";
 
@@ -518,5 +522,221 @@ describe("estimatePolarArrayEntityCount", () => {
 
   it("returns zero when no entities are selected", () => {
     expect(estimatePolarArrayEntityCount(0, { count: 6, fillAngleRadians: Math.PI * 2 })).toBe(0);
+  });
+});
+
+describe("transformEntityForPathArray", () => {
+  it("translates without rotating when alignToTangent is false", () => {
+    const line: LineEntity = {
+      id: "line_a",
+      layerId: "layer_0",
+      type: "line",
+      start: { x: 0, y: 0 },
+      end: { x: 5, y: 0 }
+    };
+
+    const result = transformEntityForPathArray(
+      line,
+      {
+        basePoint: { x: 0, y: 0 },
+        samplePoint: { x: 10, y: 5 },
+        rotationRadians: 0
+      },
+      "line_a_path_0"
+    ) as LineEntity;
+
+    expect(result.id).toBe("line_a_path_0");
+    expect(result.start).toEqual({ x: 10, y: 5 });
+    expect(result.end).toEqual({ x: 15, y: 5 });
+  });
+
+  it("rotates around the basePoint and then translates to samplePoint", () => {
+    const line: LineEntity = {
+      id: "line_a",
+      layerId: "layer_0",
+      type: "line",
+      start: { x: 0, y: 0 },
+      end: { x: 5, y: 0 }
+    };
+
+    const result = transformEntityForPathArray(
+      line,
+      {
+        basePoint: { x: 0, y: 0 },
+        samplePoint: { x: 0, y: 10 },
+        rotationRadians: Math.PI / 2
+      },
+      "line_a_path_1"
+    ) as LineEntity;
+
+    expect(result.start.x).toBeCloseTo(0);
+    expect(result.start.y).toBeCloseTo(10);
+    expect(result.end.x).toBeCloseTo(0);
+    expect(result.end.y).toBeCloseTo(15);
+  });
+});
+
+describe("buildPathArrayEntities", () => {
+  it("creates count copies along an open polyline keeping the original entity intact", () => {
+    const circle: CircleEntity = {
+      id: "circle_origin",
+      layerId: "layer_0",
+      type: "circle",
+      center: { x: 0, y: 0 },
+      radius: 1
+    };
+
+    const polyline: PolylineEntity = {
+      id: "path_a",
+      layerId: "layer_0",
+      type: "polyline",
+      points: [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 }
+      ],
+      closed: false
+    };
+
+    const result = buildPathArrayEntities([circle], {
+      polyline,
+      params: { count: 5, basePoint: { x: 0, y: 0 }, alignToTangent: false }
+    });
+
+    expect(result.totalNewEntities).toBe(5);
+    expect(result.samplesCount).toBe(5);
+    expect(result.createdEntities.map((entity) => entity.id)).not.toContain("circle_origin");
+
+    const lastCircle = result.createdEntities[4] as CircleEntity;
+    expect(lastCircle.center.x).toBeCloseTo(10);
+    expect(lastCircle.center.y).toBeCloseTo(0);
+  });
+
+  it("aligns rectangles to the tangent when alignToTangent is true", () => {
+    const rectangle: RectangleEntity = {
+      id: "rect_origin",
+      layerId: "layer_0",
+      type: "rectangle",
+      x: 0,
+      y: 0,
+      width: 4,
+      height: 2,
+      rotation: 0
+    };
+
+    const polyline: PolylineEntity = {
+      id: "path_b",
+      layerId: "layer_0",
+      type: "polyline",
+      points: [
+        { x: 0, y: 0 },
+        { x: 0, y: 10 }
+      ],
+      closed: false
+    };
+
+    const result = buildPathArrayEntities([rectangle], {
+      polyline,
+      params: { count: 2, basePoint: { x: 0, y: 0 }, alignToTangent: true }
+    });
+
+    const firstRect = result.createdEntities[0] as RectangleEntity;
+    expect(firstRect.rotation).toBeCloseTo(Math.PI / 2);
+  });
+
+  it("does not duplicate start/end on closed polylines", () => {
+    const circle: CircleEntity = {
+      id: "circle_origin",
+      layerId: "layer_0",
+      type: "circle",
+      center: { x: 0, y: 0 },
+      radius: 1
+    };
+
+    const polyline: PolylineEntity = {
+      id: "path_closed",
+      layerId: "layer_0",
+      type: "polyline",
+      points: [
+        { x: 0, y: 0 },
+        { x: 4, y: 0 },
+        { x: 4, y: 4 },
+        { x: 0, y: 4 }
+      ],
+      closed: true
+    };
+
+    const result = buildPathArrayEntities([circle], {
+      polyline,
+      params: { count: 4, basePoint: { x: 0, y: 0 }, alignToTangent: false }
+    });
+
+    const positions = result.createdEntities.map((entity) => (entity as CircleEntity).center);
+    const uniquePositions = new Set(positions.map((point) => `${point.x.toFixed(3)},${point.y.toFixed(3)}`));
+
+    expect(uniquePositions.size).toBe(4);
+  });
+
+  it("preserves layerId on cloned entities", () => {
+    const line: LineEntity = {
+      id: "line_origin",
+      layerId: "custom_layer",
+      type: "line",
+      start: { x: 0, y: 0 },
+      end: { x: 1, y: 0 }
+    };
+
+    const polyline: PolylineEntity = {
+      id: "path_layer",
+      layerId: "layer_0",
+      type: "polyline",
+      points: [
+        { x: 0, y: 0 },
+        { x: 5, y: 0 }
+      ],
+      closed: false
+    };
+
+    const result = buildPathArrayEntities([line], {
+      polyline,
+      params: { count: 3, basePoint: { x: 0, y: 0 }, alignToTangent: false }
+    });
+
+    for (const entity of result.createdEntities) {
+      expect(entity.layerId).toBe("custom_layer");
+    }
+  });
+
+  it("rejects invalid params", () => {
+    const polyline: PolylineEntity = {
+      id: "path_x",
+      layerId: "layer_0",
+      type: "polyline",
+      points: [
+        { x: 0, y: 0 },
+        { x: 0, y: 0 }
+      ],
+      closed: false
+    };
+
+    expect(() =>
+      buildPathArrayEntities([], {
+        polyline,
+        params: { count: 3, basePoint: { x: 0, y: 0 }, alignToTangent: true }
+      })
+    ).toThrow();
+  });
+});
+
+describe("estimatePathArrayEntityCount", () => {
+  it("multiplies the selected count by the path count", () => {
+    expect(
+      estimatePathArrayEntityCount(2, { count: 5, basePoint: { x: 0, y: 0 }, alignToTangent: true })
+    ).toBe(10);
+  });
+
+  it("returns zero for invalid configuration", () => {
+    expect(
+      estimatePathArrayEntityCount(0, { count: 5, basePoint: { x: 0, y: 0 }, alignToTangent: true })
+    ).toBe(0);
   });
 });
