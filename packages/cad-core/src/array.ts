@@ -3,11 +3,18 @@ import {
   buildRectangularArrayOffsets,
   countPolarArrayCopies,
   countRectangularArrayPositions,
+  getPolylineTransformAtSample,
   offsetPoint,
   rotatePointAroundCenter,
+  samplePolylineByCount,
+  validatePathArrayParams,
   validatePolarArrayParams,
   validateRectangularArrayParams,
+  type PathArrayParams,
+  type PathArrayTransform,
+  type PathSample,
   type PolarArrayParams,
+  type PolylinePath,
   type Point2D,
   type RectangularArrayParams,
   type Vector2D
@@ -515,4 +522,97 @@ function defaultPolarArrayIdFactory(sourceEntity: CadEntity, _angleRadians: numb
   }
 
   return `${sourceEntity.type}_arraypolar_${sourceEntity.id}_${sequence}_${Date.now()}_${Math.floor(Math.random() * 1_000_000)}`;
+}
+
+// O bloco abaixo cobre o caso Path Array: cada copia ancora seu basePoint sobre uma amostra do caminho,
+// opcionalmente alinhando a entidade a tangente local da PolylineEntity.
+
+export type PathArrayIdFactory = (sourceEntity: CadEntity, sample: PathSample, sequence: number) => EntityId;
+
+export function transformEntityForPathArray(
+  entity: CadEntity,
+  transform: PathArrayTransform,
+  newId: EntityId
+): CadEntity {
+  // O metodo aplica rotacao em torno do basePoint e em seguida traduz basePoint ate samplePoint.
+  // O fluxo reaproveita rotateCadEntityAroundCenter e cloneCadEntityWithOffset para garantir que
+  // todos os tipos suportados (line, rectangle, circle, arc, polyline e dimension) sigam a mesma logica.
+  const offset: Vector2D = {
+    x: transform.samplePoint.x - transform.basePoint.x,
+    y: transform.samplePoint.y - transform.basePoint.y
+  };
+
+  if (Math.abs(transform.rotationRadians) <= 1e-12) {
+    return cloneCadEntityWithOffset(entity, offset, newId);
+  }
+
+  // O passo 1 rotaciona em torno do basePoint preservando o id temporariamente.
+  const rotated = rotateCadEntityAroundCenter(entity, transform.basePoint, transform.rotationRadians, "__path_array_temp__");
+  // O passo 2 desloca o resultado pelo offset basePoint -> samplePoint e atribui o id final.
+  return cloneCadEntityWithOffset(rotated, offset, newId);
+}
+
+export type BuildPathArrayInput = Readonly<{
+  polyline: PolylinePath;
+  params: PathArrayParams;
+}>;
+
+export type PathArrayBuildResult = Readonly<{
+  createdEntities: ReadonlyArray<CadEntity>;
+  totalNewEntities: number;
+  samplesCount: number;
+  samples: ReadonlyArray<PathSample>;
+}>;
+
+export function buildPathArrayEntities(
+  entities: ReadonlyArray<CadEntity>,
+  input: BuildPathArrayInput,
+  idFactory?: PathArrayIdFactory
+): PathArrayBuildResult {
+  // O metodo orquestra a amostragem do caminho e a transformacao de cada entidade source.
+  const validation = validatePathArrayParams(input.params, input.polyline);
+
+  if (!validation.ok) {
+    throw new Error(`Invalid path array params: ${validation.reason}`);
+  }
+
+  const samples = samplePolylineByCount(input.polyline, input.params.count);
+  const factory = idFactory ?? defaultPathArrayIdFactory;
+  const createdEntities: CadEntity[] = [];
+  let sequence = 0;
+
+  for (const sample of samples) {
+    const transform = getPolylineTransformAtSample(sample, input.params.basePoint, input.params.alignToTangent);
+
+    for (const entity of entities) {
+      const newId = factory(entity, sample, sequence);
+      createdEntities.push(transformEntityForPathArray(entity, transform, newId));
+      sequence += 1;
+    }
+  }
+
+  return {
+    createdEntities,
+    totalNewEntities: createdEntities.length,
+    samplesCount: samples.length,
+    samples
+  };
+}
+
+export function estimatePathArrayEntityCount(selectedCount: number, params: PathArrayParams): number {
+  // O calculo prevê o tamanho do array antes da amostragem, util para avisos de performance.
+  if (selectedCount <= 0 || !Number.isInteger(params.count) || params.count < 1) {
+    return 0;
+  }
+
+  return selectedCount * params.count;
+}
+
+function defaultPathArrayIdFactory(sourceEntity: CadEntity, _sample: PathSample, sequence: number): EntityId {
+  // O gerador padrao adiciona o sufixo arraypath para diferenciar entre tipos de array.
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `${sourceEntity.type}_arraypath_${sourceEntity.id}_${sequence}_${crypto.randomUUID()}`;
+  }
+
+  return `${sourceEntity.type}_arraypath_${sourceEntity.id}_${sequence}_${Date.now()}_${Math.floor(Math.random() * 1_000_000)}`;
 }

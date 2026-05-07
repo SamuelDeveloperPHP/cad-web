@@ -1,4 +1,4 @@
-import { Circle, Copy, CornerDownRight, CornerRightDown, Eraser, Grid3X3, Hand, Minus, MousePointer2, Move, MoveRight, RotateCcw, RotateCw, Scaling, Scissors, Spline, Square } from "lucide-react";
+import { Circle, Copy, CornerDownRight, CornerRightDown, Eraser, Grid3X3, Hand, Minus, MousePointer2, Move, MoveRight, RotateCcw, RotateCw, Route, Scaling, Scissors, Spline, Square } from "lucide-react";
 import type { ActiveCadTool } from "../../state/useCadStore";
 
 type CadToolbarProps = Readonly<{
@@ -22,6 +22,7 @@ const tools = [
   { id: "chamfer", icon: CornerRightDown, label: "Cham" },
   { id: "array", icon: Grid3X3, label: "Arr" },
   { id: "arrayPolar", icon: RotateCcw, label: "Polar" },
+  { id: "arrayPath", icon: Route, label: "Path" },
   { id: "erase", icon: Eraser, label: "Erase" },
   { id: "pan", icon: Hand, label: "Pan" }
 ] as const;

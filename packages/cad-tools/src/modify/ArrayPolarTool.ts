@@ -59,7 +59,7 @@ const EMPTY_POLAR_PARAMS: ArrayPolarWorkingParams = {
 export class ArrayPolarTool implements CadTool {
   readonly id = "arrayPolar";
   readonly name = "Array Polar";
-  readonly aliases = ["ap", "arraypolar", "matrizpolar", "polar"];
+  readonly aliases = ["arraypolar", "matrizpolar", "polar"];
 
   private phase: ArrayPolarPhase = "selecting_objects";
   private params: ArrayPolarWorkingParams = EMPTY_POLAR_PARAMS;

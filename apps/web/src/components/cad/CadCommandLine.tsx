@@ -24,6 +24,7 @@ const toolPrompts: Record<ActiveCadTool, string> = {
   chamfer: "[Chamfer] Specify first distance",
   array: "[Array] Select objects",
   arrayPolar: "[ArrayPolar] Select objects",
+  arrayPath: "[PathArray] Select objects",
   erase: "[Erase] Select objects or press Delete",
   pan: "[Pan] Drag to pan view",
   dimLinear: "[DimLinear] Specify first extension origin",
