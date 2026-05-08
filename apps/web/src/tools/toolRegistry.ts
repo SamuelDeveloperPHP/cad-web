@@ -16,6 +16,7 @@ import {
   ArrayTool,
   ArrayPolarTool,
   PathArrayTool,
+  ExplodeTool,
   EraseTool,
   DimLinearTool,
   DimAlignedTool,
@@ -43,6 +44,7 @@ export function createWebToolRegistry(): ToolRegistry {
   registry.register(new ArrayTool());
   registry.register(new ArrayPolarTool());
   registry.register(new PathArrayTool());
+  registry.register(new ExplodeTool());
   registry.register(new EraseTool());
   registry.register(new DimLinearTool());
   registry.register(new DimAlignedTool());

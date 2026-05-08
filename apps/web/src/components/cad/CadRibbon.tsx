@@ -9,6 +9,7 @@ import {
   Grid3X3,
   RotateCcw,
   Route,
+  Bomb,
   Eraser,
   Eye,
   EyeOff,
@@ -78,6 +79,7 @@ const modifyTools: ReadonlyArray<RibbonTool> = [
   { id: "array", label: "Array", icon: Grid3X3 },
   { id: "arrayPolar", label: "Polar", icon: RotateCcw },
   { id: "arrayPath", label: "Path", icon: Route },
+  { id: "explode", label: "Explode", icon: Bomb },
   { id: "erase", label: "Erase", icon: Eraser }
 ];
 

@@ -32,6 +32,7 @@ const toolLabels: Record<ActiveCadTool, string> = {
   array: "Array",
   arrayPolar: "Array Polar",
   arrayPath: "Path Array",
+  explode: "Explode",
   erase: "Erase",
   pan: "Pan",
   dimLinear: "Dim Linear",
