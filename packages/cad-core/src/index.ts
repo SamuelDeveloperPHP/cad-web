@@ -921,6 +921,84 @@ export class FilletLineLineCommand implements CadCommand {
   }
 }
 
+// O ExplodeEntitiesCommand quebra entidades compostas (rectangle, polyline) em entidades primitivas
+// preservando layer/style. As entidades originais sao removidas no execute e restauradas no undo.
+export type ExplodeEntityPair = Readonly<{
+  originalEntity: CadEntity;
+  resultEntities: ReadonlyArray<CadEntity>;
+}>;
+
+export class ExplodeEntitiesCommand implements CadCommand {
+  readonly type = "ExplodeEntitiesCommand";
+  readonly description = "Explodes composite entities into primitive segments.";
+  private readonly originalIds: ReadonlySet<string>;
+  private readonly resultIds: ReadonlySet<string>;
+
+  constructor(readonly explosions: ReadonlyArray<ExplodeEntityPair>) {
+    // O agente cacheia os ids para tornar execute/undo O(n) em vez de O(n*m).
+    this.originalIds = new Set(explosions.map((pair) => pair.originalEntity.id));
+    const collectedResultIds = new Set<string>();
+    for (const pair of explosions) {
+      for (const entity of pair.resultEntities) {
+        collectedResultIds.add(entity.id);
+      }
+    }
+    this.resultIds = collectedResultIds;
+  }
+
+  get id(): string {
+    return `cmd_explode_entities_${this.explosions.length}_${Date.now()}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    // O execute remove as entidades originais e adiciona as resultantes em uma unica troca imutavel.
+    if (this.explosions.length === 0) {
+      return document;
+    }
+
+    const filtered = document.entities.filter((entity) => !this.originalIds.has(entity.id));
+    const existingResultIds = new Set(filtered.map((entity) => entity.id));
+    const resultsToInsert: CadEntity[] = [];
+
+    for (const pair of this.explosions) {
+      for (const entity of pair.resultEntities) {
+        if (!existingResultIds.has(entity.id)) {
+          resultsToInsert.push(entity);
+          existingResultIds.add(entity.id);
+        }
+      }
+    }
+
+    return {
+      ...document,
+      entities: filtered.concat(resultsToInsert)
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    // O undo remove as resultantes e reinsere as originais preservadas pelo construtor.
+    if (this.explosions.length === 0) {
+      return document;
+    }
+
+    const withoutResults = document.entities.filter((entity) => !this.resultIds.has(entity.id));
+    const existingIds = new Set(withoutResults.map((entity) => entity.id));
+    const originalsToRestore: CadEntity[] = [];
+
+    for (const pair of this.explosions) {
+      if (!existingIds.has(pair.originalEntity.id)) {
+        originalsToRestore.push(pair.originalEntity);
+        existingIds.add(pair.originalEntity.id);
+      }
+    }
+
+    return {
+      ...document,
+      entities: withoutResults.concat(originalsToRestore)
+    };
+  }
+}
+
 // O ArrayEntitiesCommand registra a criacao em lote de copias produzidas pela ferramenta Array Retangular.
 // O comando insere as entidades pre-calculadas no execute e as remove no undo, sem alterar as entidades originais.
 export class ArrayEntitiesCommand implements CadCommand {
