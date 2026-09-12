@@ -112,3 +112,95 @@ describe("StretchEntitiesCommand", () => {
     expect((redone.entities[0] as LineEntity).end).toEqual({ x: 110, y: 5 });
   });
 });
+
+import type { DimensionEntity } from "./index";
+
+describe("stretchEntity dimensions", () => {
+  // Janela cobrindo o lado direito (x de 40 a 200).
+  const WIN = { minX: 40, minY: -100, maxX: 200, maxY: 100 };
+  const D = { x: 10, y: 5 };
+
+  it("moves the linear dimension origin inside the window and keeps the other", () => {
+    const dim: DimensionEntity = {
+      id: "d1",
+      layerId: "layer_0",
+      type: "dimension",
+      dimensionType: "linear",
+      definition: {
+        firstPoint: { x: 0, y: 0 },
+        secondPoint: { x: 100, y: 0 },
+        dimensionLinePoint: { x: 20, y: -10 },
+        orientation: "horizontal"
+      }
+    };
+
+    const result = stretchEntity(dim, WIN, D) as DimensionEntity;
+    const def = result.definition as any;
+
+    expect(def.firstPoint).toEqual({ x: 0, y: 0 });
+    expect(def.secondPoint).toEqual({ x: 110, y: 5 });
+    // O ponto da linha de cota (20,-10) está fora da janela (x < 40) e permanece.
+    expect(def.dimensionLinePoint).toEqual({ x: 20, y: -10 });
+  });
+
+  it("leaves a dimension untouched when no point is inside the window", () => {
+    const dim: DimensionEntity = {
+      id: "d2",
+      layerId: "layer_0",
+      type: "dimension",
+      dimensionType: "linear",
+      definition: {
+        firstPoint: { x: 0, y: 0 },
+        secondPoint: { x: 30, y: 0 },
+        dimensionLinePoint: { x: 15, y: -10 },
+        orientation: "horizontal"
+      }
+    };
+
+    expect(stretchEntity(dim, WIN, D)).toBe(dim);
+  });
+
+  it("moves radius dimension center and leader when inside the window", () => {
+    const dim: DimensionEntity = {
+      id: "d3",
+      layerId: "layer_0",
+      type: "dimension",
+      dimensionType: "radius",
+      definition: {
+        center: { x: 60, y: 0 },
+        radius: 20,
+        leaderEndPoint: { x: 90, y: 0 }
+      }
+    };
+
+    const result = stretchEntity(dim, WIN, D) as DimensionEntity;
+    const def = result.definition as any;
+
+    expect(def.center).toEqual({ x: 70, y: 5 });
+    expect(def.leaderEndPoint).toEqual({ x: 100, y: 5 });
+    expect(def.radius).toBe(20);
+  });
+
+  it("moves only the angular points inside the window", () => {
+    const dim: DimensionEntity = {
+      id: "d4",
+      layerId: "layer_0",
+      type: "dimension",
+      dimensionType: "angular",
+      definition: {
+        vertex: { x: 0, y: 0 },
+        firstPoint: { x: 60, y: 0 },
+        secondPoint: { x: 0, y: 60 },
+        arcPoint: { x: 50, y: 50 }
+      }
+    };
+
+    const result = stretchEntity(dim, WIN, D) as DimensionEntity;
+    const def = result.definition as any;
+
+    expect(def.vertex).toEqual({ x: 0, y: 0 });
+    expect(def.firstPoint).toEqual({ x: 70, y: 5 });
+    expect(def.secondPoint).toEqual({ x: 0, y: 60 });
+    expect(def.arcPoint).toEqual({ x: 60, y: 55 });
+  });
+});
