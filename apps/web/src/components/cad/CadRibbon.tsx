@@ -19,6 +19,7 @@ import {
   Magnet,
   Maximize,
   Minus,
+  MousePointer2,
   Move,
   Spline,
   MoveRight,
@@ -60,6 +61,8 @@ type RibbonTool = Readonly<{
   icon: LucideIcon;
 }>;
 
+const selectTool: RibbonTool = { id: "select", label: "Select", icon: MousePointer2 };
+
 const drawTools: ReadonlyArray<RibbonTool> = [
   { id: "line", label: "Line", icon: Minus },
   { id: "polyline", label: "PLine", icon: Spline },
@@ -96,6 +99,10 @@ export function CadRibbon(props: CadRibbonProps) {
 
   return (
     <nav className="cad-ribbon" aria-label="Ribbon CAD">
+      <RibbonGroup title="Selecionar">
+        <RibbonToolButton tool={selectTool} activeTool={props.activeTool} onToolChange={props.onToolChange} />
+      </RibbonGroup>
+
       <RibbonGroup title="Desenhar">
         {drawTools.map((tool) => (
           <RibbonToolButton key={tool.id} tool={tool} activeTool={props.activeTool} onToolChange={props.onToolChange} />
