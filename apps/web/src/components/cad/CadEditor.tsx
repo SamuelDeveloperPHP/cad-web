@@ -10,7 +10,6 @@ import { CadDiagnosticPanel } from "./CadDiagnosticPanel";
 import { CadRibbon } from "./CadRibbon";
 import { CadRightPanel } from "./CadRightPanel";
 import { CadStatusBar } from "./CadStatusBar";
-import { CadToolbar } from "./CadToolbar";
 import { CadTopMenu } from "./CadTopMenu";
 
 type DisplayUnitInput = ConstructorParameters<typeof ChangeDisplayUnitCommand>[0];
@@ -71,7 +70,20 @@ export function CadEditor() {
 
   return (
     <section className="app-shell">
-      <CadTopMenu />
+      <CadTopMenu
+        documentName="Desenho1"
+        canUndo={cad.canUndo}
+        canRedo={cad.canRedo}
+        onNew={cad.clearDocument}
+        onOpen={handleImportClick}
+        onSave={() => {
+          if (confirmLargeExport()) {
+            downloadCadDocument(cad.document);
+          }
+        }}
+        onUndo={cad.undo}
+        onRedo={cad.redo}
+      />
 
       <CadRibbon
         activeTool={cad.activeTool}
@@ -108,10 +120,13 @@ export function CadEditor() {
       />
 
       <div className="cad-editor">
-        <CadToolbar activeTool={cad.activeTool} onToolChange={cad.setActiveTool} />
-
         <div className="cad-workspace">
           {(import.meta.env.DEV || import.meta.env.VITE_ENABLE_CAD_DIAGNOSTICS === "true") && <CadDiagnosticPanel cad={cad} />}
+          <div className="cad-viewport-labels" aria-label="Controles de viewport">
+            <button className="cad-viewport-chip" type="button" title="Menu de vista">{"−"}</button>
+            <button className="cad-viewport-chip" type="button" title="Vista atual">Topo</button>
+            <button className="cad-viewport-chip" type="button" title="Estilo visual">Wireframe 2D</button>
+          </div>
           <CadCanvas cad={cad} />
         </div>
 
