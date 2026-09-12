@@ -1,5 +1,6 @@
 export const COMMAND_ALIASES = {
   select: ["sel", "select"],
+  arc: ["a", "arc", "arco"],
   move: ["m", "move"],
   rotate: ["ro", "rotate"],
   scale: ["sc", "scale"],

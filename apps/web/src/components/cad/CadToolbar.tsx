@@ -1,4 +1,4 @@
-import { Bomb, Circle, Copy, CornerDownRight, CornerRightDown, Eraser, Grid3X3, Hand, Minus, MousePointer2, Move, MoveRight, RotateCcw, RotateCw, Route, Scaling, Scissors, Spline, Square } from "lucide-react";
+import { Bomb, Circle, Copy, CornerDownRight, CornerRightDown, Eraser, Grid3X3, Hand, Minus, MousePointer2, Rainbow, Move, MoveRight, RotateCcw, RotateCw, Route, Scaling, Scissors, Spline, Square } from "lucide-react";
 import type { ActiveCadTool } from "../../state/useCadStore";
 
 type CadToolbarProps = Readonly<{
@@ -12,6 +12,7 @@ const tools = [
   { id: "polyline", icon: Spline, label: "PLine" },
   { id: "rectangle", icon: Square, label: "Rect" },
   { id: "circle", icon: Circle, label: "Circ" },
+  { id: "arc", icon: Rainbow, label: "Arc" },
   { id: "move", icon: Move, label: "Move" },
   { id: "rotate", icon: RotateCw, label: "Rot" },
   { id: "scale", icon: Scaling, label: "Scale" },
