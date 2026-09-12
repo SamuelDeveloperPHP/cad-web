@@ -1130,7 +1130,7 @@ function moveEntities(
   };
 }
 
-function moveEntity(entity: CadEntity, displacement: Point2D): CadEntity {
+export function moveEntity(entity: CadEntity, displacement: Point2D): CadEntity {
   if (entity.type === "line") {
     return {
       ...entity,
@@ -1169,7 +1169,58 @@ function moveEntity(entity: CadEntity, displacement: Point2D): CadEntity {
     };
   }
 
+  if (entity.type === "dimension") {
+    // O move desloca a cota inteira: todos os pontos da definição andam pelo mesmo vetor.
+    return moveDimensionEntity(entity, displacement);
+  }
+
   return entity;
+}
+
+/**
+ * Translada uma cota como um todo, somando o deslocamento a cada ponto da definição.
+ * O valor medido e o estilo permanecem, pois a distância entre os pontos não muda.
+ */
+function moveDimensionEntity(entity: DimensionEntity, displacement: Point2D): DimensionEntity {
+  const definition = entity.definition;
+
+  if (entity.dimensionType === "linear" || entity.dimensionType === "aligned") {
+    const def = definition as LinearDimensionDef | AlignedDimensionDef;
+    return {
+      ...entity,
+      definition: {
+        ...def,
+        firstPoint: addVector(def.firstPoint, displacement),
+        secondPoint: addVector(def.secondPoint, displacement),
+        dimensionLinePoint: addVector(def.dimensionLinePoint, displacement)
+      }
+    };
+  }
+
+  if (entity.dimensionType === "radius" || entity.dimensionType === "diameter") {
+    const def = definition as RadiusDimensionDef | DiameterDimensionDef;
+    return {
+      ...entity,
+      definition: {
+        ...def,
+        center: addVector(def.center, displacement),
+        leaderEndPoint: addVector(def.leaderEndPoint, displacement)
+      }
+    };
+  }
+
+  // Cota angular: vértice, os dois pontos das linhas e o ponto do arco acompanham o deslocamento.
+  const def = definition as AngularDimensionDef;
+  return {
+    ...entity,
+    definition: {
+      ...def,
+      vertex: addVector(def.vertex, displacement),
+      firstPoint: addVector(def.firstPoint, displacement),
+      secondPoint: addVector(def.secondPoint, displacement),
+      arcPoint: addVector(def.arcPoint, displacement)
+    }
+  };
 }
 
 function rotateEntities(

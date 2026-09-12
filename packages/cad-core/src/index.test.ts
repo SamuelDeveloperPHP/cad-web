@@ -14,7 +14,9 @@ import {
   createEmptyDocument,
   createDimensionStyleFromPreset,
   getDimensionStylePresetById,
+  moveEntity,
   type ArcEntity,
+  type DimensionEntity,
   type LineEntity
 } from "./index";
 
@@ -86,6 +88,72 @@ describe("cad-core", () => {
       start: { x: 5, y: 10 },
       end: { x: 15, y: 10 }
     });
+  });
+
+  it("moves a linear dimension by translating every definition point", () => {
+    const dimension: DimensionEntity = {
+      id: "dim_linear",
+      layerId: "layer_0",
+      type: "dimension",
+      dimensionType: "linear",
+      definition: {
+        firstPoint: { x: 0, y: 0 },
+        secondPoint: { x: 100, y: 0 },
+        dimensionLinePoint: { x: 50, y: 10 },
+        orientation: "horizontal"
+      }
+    };
+
+    const moved = moveEntity(dimension, { x: 8, y: -4 }) as DimensionEntity;
+    const def = moved.definition as typeof dimension.definition;
+
+    // A cota inteira translada; a distância medida (100) permanece.
+    expect(def.firstPoint).toEqual({ x: 8, y: -4 });
+    expect(def.secondPoint).toEqual({ x: 108, y: -4 });
+    expect(def.dimensionLinePoint).toEqual({ x: 58, y: 6 });
+  });
+
+  it("moves a radius dimension keeping the radius unchanged", () => {
+    const dimension: DimensionEntity = {
+      id: "dim_radius",
+      layerId: "layer_0",
+      type: "dimension",
+      dimensionType: "radius",
+      definition: {
+        center: { x: 20, y: 20 },
+        radius: 15,
+        leaderEndPoint: { x: 40, y: 40 }
+      }
+    };
+
+    const moved = moveEntity(dimension, { x: -5, y: 3 }) as DimensionEntity;
+    const def = moved.definition as typeof dimension.definition;
+
+    expect(def.center).toEqual({ x: 15, y: 23 });
+    expect(def.leaderEndPoint).toEqual({ x: 35, y: 43 });
+    expect(def.radius).toBe(15);
+  });
+
+  it("restores a moved dimension on undo", () => {
+    const dimension: DimensionEntity = {
+      id: "dim_linear",
+      layerId: "layer_0",
+      type: "dimension",
+      dimensionType: "linear",
+      definition: {
+        firstPoint: { x: 0, y: 0 },
+        secondPoint: { x: 100, y: 0 },
+        dimensionLinePoint: { x: 50, y: 10 },
+        orientation: "horizontal"
+      }
+    };
+    const history = new CommandHistory({
+      ...createEmptyDocument("doc_dim_move"),
+      entities: [dimension]
+    });
+
+    history.execute(new MoveEntitiesCommand(["dim_linear"], { x: 8, y: -4 }));
+    expect(history.undo().entities[0]).toEqual(dimension);
   });
 
   it("executes undo and redo for ClearDocumentCommand", () => {
