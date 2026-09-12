@@ -49,6 +49,9 @@ export type EllipseEntity = BaseEntity & Readonly<{
   radiusY: number;
   // rotation é o ângulo do eixo maior em radianos em relação ao eixo X do mundo.
   rotation: number;
+  // startAngle e endAngle (ângulos paramétricos) recortam um arco de elipse; ausentes = elipse fechada.
+  startAngle?: number;
+  endAngle?: number;
 }>;
 
 export type PolylineEntity = BaseEntity & Readonly<{
@@ -1440,12 +1443,20 @@ export function mirrorEntity(entity: CadEntity, axisStart: Point2D, axisEnd: Poi
   }
 
   if (entity.type === "ellipse") {
-    // O espelhamento reflete o centro e reflete o ângulo do eixo maior; os semi-eixos não mudam.
-    return {
+    // O espelhamento reflete o centro e o ângulo do eixo maior; os semi-eixos não mudam.
+    // Para um arco, a reflexão inverte a orientação paramétrica: os ângulos são negados e trocados,
+    // preservando a mesma porção varrida.
+    const mirrored: EllipseEntity = {
       ...entity,
       center: transformPoint(entity.center, matrix),
       rotation: reflectAngleAcrossAxis(entity.rotation, axisAngle)
     };
+
+    if (entity.startAngle !== undefined && entity.endAngle !== undefined) {
+      return { ...mirrored, startAngle: -entity.endAngle, endAngle: -entity.startAngle };
+    }
+
+    return mirrored;
   }
 
   if (entity.type === "polyline") {

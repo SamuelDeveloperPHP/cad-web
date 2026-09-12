@@ -15,7 +15,120 @@ export type EllipseGeometry = Readonly<{
   radiusX: number;
   radiusY: number;
   rotation: number;
+  // Quando startAngle e endAngle existem, a geometria é um arco de elipse que varre do ângulo
+  // paramétrico inicial ao final no sentido crescente (anti-horário no espaço paramétrico).
+  // Ausentes (ou varredura completa), representam a elipse fechada.
+  startAngle?: number | undefined;
+  endAngle?: number | undefined;
 }>;
+
+/**
+ * Normaliza a varredura de um arco de elipse: devolve o ângulo inicial e a varredura em (0, 2π].
+ * A varredura sempre cresce do início ao fim (sentido paramétrico positivo).
+ */
+export function normalizeEllipseSweep(startAngle: number, endAngle: number): { start: number; sweep: number } {
+  const rawSweep = (endAngle - startAngle) % TWO_PI;
+  const sweep = rawSweep <= CAD_EPSILON ? rawSweep + TWO_PI : rawSweep;
+
+  return { start: startAngle, sweep };
+}
+
+/**
+ * Indica se a geometria representa a elipse completa (sem recorte de arco).
+ */
+export function isFullEllipse(ellipse: EllipseGeometry): boolean {
+  if (ellipse.startAngle === undefined || ellipse.endAngle === undefined) {
+    return true;
+  }
+
+  const { sweep } = normalizeEllipseSweep(ellipse.startAngle, ellipse.endAngle);
+
+  return Math.abs(sweep - TWO_PI) <= 1e-9;
+}
+
+/**
+ * Ângulo paramétrico correspondente a um ponto do mundo em relação à elipse.
+ * O ponto é levado ao referencial local (des-rotacionado) e o ângulo vem de atan2(yLocal/ry, xLocal/rx).
+ */
+export function ellipseParamAtPoint(
+  center: Point2D,
+  radiusX: number,
+  radiusY: number,
+  rotation: number,
+  point: Point2D
+): number {
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  // Rotação inversa leva o ponto ao referencial local dos eixos da elipse.
+  const localX = dx * cos + dy * sin;
+  const localY = -dx * sin + dy * cos;
+  const rx = Math.max(radiusX, CAD_EPSILON);
+  const ry = Math.max(radiusY, CAD_EPSILON);
+
+  return Math.atan2(localY / ry, localX / rx);
+}
+
+/**
+ * Amostra pontos ao longo do arco de elipse, do ângulo inicial ao final no sentido crescente.
+ * Quando a geometria é a elipse completa, cobre a volta inteira.
+ */
+export function ellipseArcPoints(ellipse: EllipseGeometry, samples = 64): ReadonlyArray<Point2D> {
+  const steps = Math.max(2, Math.floor(samples));
+  const start = ellipse.startAngle ?? 0;
+  const sweep = ellipse.startAngle === undefined || ellipse.endAngle === undefined
+    ? TWO_PI
+    : normalizeEllipseSweep(ellipse.startAngle, ellipse.endAngle).sweep;
+  const points: Point2D[] = [];
+
+  for (let index = 0; index <= steps; index += 1) {
+    const param = start + (sweep * index) / steps;
+    points.push(ellipsePointAtParam(ellipse.center, ellipse.radiusX, ellipse.radiusY, ellipse.rotation, param));
+  }
+
+  return points;
+}
+
+/**
+ * Envoltório de um arco de elipse. O cálculo inclui as extremidades do arco e os pontos extremos
+ * dos semi-eixos (0, π/2, π, 3π/2 no referencial local) que caem dentro da varredura.
+ */
+export function ellipseArcBoundingBox(ellipse: EllipseGeometry): BoundingBox {
+  if (isFullEllipse(ellipse)) {
+    return ellipseBoundingBox(ellipse.center, ellipse.radiusX, ellipse.radiusY, ellipse.rotation);
+  }
+
+  const start = ellipse.startAngle ?? 0;
+  const { sweep } = normalizeEllipseSweep(ellipse.startAngle ?? 0, ellipse.endAngle ?? TWO_PI);
+  const candidates: Point2D[] = [
+    ellipsePointAtParam(ellipse.center, ellipse.radiusX, ellipse.radiusY, ellipse.rotation, start),
+    ellipsePointAtParam(ellipse.center, ellipse.radiusX, ellipse.radiusY, ellipse.rotation, start + sweep)
+  ];
+
+  // Os extremos dos semi-eixos entram no envoltório apenas quando pertencem à varredura.
+  for (const axisParam of [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2]) {
+    const relative = (axisParam - start + TWO_PI * 2) % TWO_PI;
+
+    if (relative <= sweep + 1e-9) {
+      candidates.push(ellipsePointAtParam(ellipse.center, ellipse.radiusX, ellipse.radiusY, ellipse.rotation, axisParam));
+    }
+  }
+
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  for (const point of candidates) {
+    if (point.x < minX) minX = point.x;
+    if (point.y < minY) minY = point.y;
+    if (point.x > maxX) maxX = point.x;
+    if (point.y > maxY) maxY = point.y;
+  }
+
+  return { minX, minY, maxX, maxY };
+}
 
 /**
  * Retorna o ponto sobre a elipse no ângulo paramétrico informado (0..2π).
@@ -76,13 +189,18 @@ export function distancePointToEllipse(
   const rx = Math.max(ellipse.radiusX, CAD_EPSILON);
   const ry = Math.max(ellipse.radiusY, CAD_EPSILON);
   const steps = Math.max(12, Math.floor(samples));
-  const stepSize = TWO_PI / steps;
+  // Arco de elipse limita a amostragem ao intervalo varrido; a elipse completa cobre 0..2π.
+  const rangeStart = ellipse.startAngle ?? 0;
+  const rangeSweep = ellipse.startAngle === undefined || ellipse.endAngle === undefined
+    ? TWO_PI
+    : normalizeEllipseSweep(ellipse.startAngle, ellipse.endAngle).sweep;
+  const stepSize = rangeSweep / steps;
 
-  let bestParam = 0;
+  let bestParam = rangeStart;
   let bestDistance = Number.POSITIVE_INFINITY;
 
-  for (let index = 0; index < steps; index += 1) {
-    const param = index * stepSize;
+  for (let index = 0; index <= steps; index += 1) {
+    const param = rangeStart + index * stepSize;
     const candidate = ellipsePointAtParam(ellipse.center, rx, ry, ellipse.rotation, param);
     const candidateDistance = distance(point, candidate);
 
@@ -92,9 +210,10 @@ export function distancePointToEllipse(
     }
   }
 
-  // O refinamento reduz o intervalo em torno do melhor candidato para melhorar a precisão.
-  let low = bestParam - stepSize;
-  let high = bestParam + stepSize;
+  // O refinamento reduz o intervalo em torno do melhor candidato para melhorar a precisão,
+  // sem sair do intervalo varrido pelo arco.
+  let low = Math.max(rangeStart, bestParam - stepSize);
+  let high = Math.min(rangeStart + rangeSweep, bestParam + stepSize);
 
   for (let iteration = 0; iteration < 24; iteration += 1) {
     const mid1 = low + (high - low) / 3;
@@ -146,4 +265,25 @@ export function ellipseFromAxisPoints(
   }
 
   return { type: "ellipse", center, radiusX, radiusY, rotation };
+}
+
+/**
+ * Constrói um arco de elipse a partir da elipse completa e de dois pontos que definem os ângulos
+ * inicial e final. Cada ponto é projetado no referencial da elipse para obter o ângulo paramétrico;
+ * a varredura vai do início ao fim no sentido crescente.
+ */
+export function ellipseArcFromPoints(
+  base: EllipseGeometry,
+  startPoint: Point2D,
+  endPoint: Point2D
+): EllipseGeometry | null {
+  const startAngle = ellipseParamAtPoint(base.center, base.radiusX, base.radiusY, base.rotation, startPoint);
+  const endAngle = ellipseParamAtPoint(base.center, base.radiusX, base.radiusY, base.rotation, endPoint);
+  const { sweep } = normalizeEllipseSweep(startAngle, endAngle);
+
+  if (sweep <= CAD_EPSILON) {
+    return null;
+  }
+
+  return { ...base, startAngle, endAngle };
 }

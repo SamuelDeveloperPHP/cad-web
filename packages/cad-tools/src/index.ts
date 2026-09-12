@@ -9,6 +9,7 @@ export * from "./contracts/ToolResult";
 export * from "./draw/ArcTool";
 export * from "./draw/CircleTool";
 export * from "./draw/EllipseTool";
+export * from "./draw/EllipseArcTool";
 export * from "./draw/LineTool";
 export * from "./draw/PolylineTool";
 export * from "./draw/RectangleTool";
