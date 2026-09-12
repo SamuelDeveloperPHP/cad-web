@@ -36,6 +36,10 @@ export type RenderStyle = Readonly<{
   lineWidth: number;
   selectedStrokeColor?: string;
   previewStrokeColor?: string;
+  // Quando overrideStroke é verdadeiro, todas as entidades usam strokeColor, lineWidth e lineDash do estilo,
+  // ignorando cor, espessura e tipo de linha próprios. Usado para destacar a seleção com traço tracejado.
+  overrideStroke?: boolean;
+  lineDash?: ReadonlyArray<number>;
 }>;
 
 export type GridLine = Readonly<{

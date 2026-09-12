@@ -277,7 +277,9 @@ function renderSelectedEntities(context: CanvasRenderingContext2D, cad: CadStore
   context.save();
   renderDocument2D(context, { ...cad.document, entities: selectedEntities }, cad.viewport, {
     strokeColor: "#22c55e",
-    lineWidth: 2
+    lineWidth: 2,
+    overrideStroke: true,
+    lineDash: [6, 4]
   });
   context.restore();
 }
@@ -298,6 +300,36 @@ function renderPreview(context: CanvasRenderingContext2D, cad: CadStore): void {
   if (cad.preview.type === "snapMarker") {
     renderSnapMarker2D(context, worldToScreen(cad.preview.point, cad.viewport), cad.preview.snapType);
   }
+
+  if (cad.preview.type === "selectionBox") {
+    renderSelectionBoxPreview(context, cad, cad.preview.start, cad.preview.end, cad.preview.mode);
+  }
+}
+
+function renderSelectionBoxPreview(
+  context: CanvasRenderingContext2D,
+  cad: CadStore,
+  start: Point2D,
+  end: Point2D,
+  mode: "window" | "crossing"
+): void {
+  const a = worldToScreen(start, cad.viewport);
+  const b = worldToScreen(end, cad.viewport);
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  const width = Math.abs(b.x - a.x);
+  const height = Math.abs(b.y - a.y);
+  // A janela (esquerda->direita) usa azul com borda contínua; o cruzamento (direita->esquerda) usa verde tracejado.
+  const color = mode === "window" ? "#38bdf8" : "#22c55e";
+
+  context.save();
+  context.fillStyle = mode === "window" ? "rgba(56, 189, 248, 0.12)" : "rgba(34, 197, 94, 0.12)";
+  context.strokeStyle = color;
+  context.lineWidth = 1;
+  context.setLineDash(mode === "window" ? [] : [6, 4]);
+  context.fillRect(x, y, width, height);
+  context.strokeRect(x, y, width, height);
+  context.restore();
 }
 
 function renderRubberBandPreview(
