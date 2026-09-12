@@ -147,6 +147,8 @@ export function CadEditor() {
         documentUnits={cad.document.units}
         onSnapSettingsChange={cad.setSnapSettings}
         onDisplayUnitChange={(unit) => cad.executeCommand(new ChangeDisplayUnitCommand(unit as DisplayUnitInput))}
+        onZoomPercentChange={(percent) => cad.setZoomScale(percent / 100)}
+        onZoomExtents={cad.zoomToExtents}
       />
 
       <input

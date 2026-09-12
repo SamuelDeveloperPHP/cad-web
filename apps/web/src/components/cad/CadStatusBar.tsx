@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { Point2D, SnapSettings } from "@cad-web/cad-geometry";
 import type { ActiveCadTool } from "../../state/useCadStore";
 
@@ -13,6 +14,8 @@ type CadStatusBarProps = Readonly<{
   documentUnits: string;
   onSnapSettingsChange(settings: SnapSettings): void;
   onDisplayUnitChange(unit: string): void;
+  onZoomPercentChange(percent: number): void;
+  onZoomExtents(): void;
 }>;
 
 const toolLabels: Record<ActiveCadTool, string> = {
@@ -54,6 +57,8 @@ export function CadStatusBar({
   mouseWorld,
   onDisplayUnitChange,
   onSnapSettingsChange,
+  onZoomExtents,
+  onZoomPercentChange,
   snapSettings,
   zoom
 }: CadStatusBarProps) {
@@ -65,7 +70,7 @@ export function CadStatusBar({
         <StatusItem label="Tool" value={toolLabels[activeTool]} strong />
         <StatusItem label="X" value={mouseWorld.x.toFixed(3)} monospace />
         <StatusItem label="Y" value={mouseWorld.y.toFixed(3)} monospace />
-        <StatusItem label="Zoom" value={`${(zoom * 100).toFixed(0)}%`} />
+        <ZoomControl zoom={zoom} onZoomPercentChange={onZoomPercentChange} onZoomExtents={onZoomExtents} />
       </div>
 
       <div className="cad-statusbar-group">
@@ -103,6 +108,62 @@ export function CadStatusBar({
         <StatusItem label="Modes" value={activeModes} />
       </div>
     </footer>
+  );
+}
+
+function ZoomControl({
+  zoom,
+  onZoomPercentChange,
+  onZoomExtents
+}: Readonly<{ zoom: number; onZoomPercentChange(percent: number): void; onZoomExtents(): void }>) {
+  const currentPercent = (zoom * 100).toFixed(0);
+  const [draft, setDraft] = useState(currentPercent);
+
+  // O campo acompanha o zoom vindo do store enquanto o usuário não está digitando um novo valor.
+  useEffect(() => {
+    setDraft(currentPercent);
+  }, [currentPercent]);
+
+  const commit = () => {
+    const parsed = Number.parseFloat(draft.replace(",", "."));
+
+    if (Number.isFinite(parsed) && parsed > 0) {
+      onZoomPercentChange(parsed);
+    } else {
+      setDraft(currentPercent);
+    }
+  };
+
+  return (
+    <span className="cad-statusbar-item cad-statusbar-zoom" title="Zoom (digite a porcentagem e Enter)">
+      <span>Zoom</span>
+      <input
+        className="cad-statusbar-zoom-input"
+        value={draft}
+        inputMode="decimal"
+        aria-label="Zoom em porcentagem"
+        onChange={(event) => setDraft(event.currentTarget.value)}
+        onFocus={(event) => event.currentTarget.select()}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.currentTarget.blur();
+          } else if (event.key === "Escape") {
+            setDraft(currentPercent);
+            event.currentTarget.blur();
+          }
+        }}
+      />
+      <span className="cad-statusbar-zoom-suffix">%</span>
+      <button
+        className="cad-statusbar-btn"
+        type="button"
+        onClick={onZoomExtents}
+        title="Centralizar o desenho na tela (zoom extents)"
+      >
+        Fit
+      </button>
+    </span>
   );
 }
 

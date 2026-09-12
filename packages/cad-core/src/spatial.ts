@@ -12,6 +12,33 @@ import {
 } from "@cad-web/cad-geometry";
 import type { CadDocument, CadEntity, DimensionEntity, DimensionStyle } from "./index";
 
+/**
+ * A função calcula o retângulo envolvente de todas as entidades do documento.
+ * O resultado une os bounding boxes individuais e serve, por exemplo, para o zoom que
+ * centraliza o desenho. Quando o documento não possui entidades a função devolve null.
+ */
+export function documentBoundingBox(document: CadDocument): BoundingBox | null {
+  let bounds: BoundingBox | null = null;
+
+  for (const entity of document.entities) {
+    const entityBounds = entityBoundingBox(entity);
+
+    if (bounds === null) {
+      bounds = entityBounds;
+      continue;
+    }
+
+    bounds = {
+      minX: Math.min(bounds.minX, entityBounds.minX),
+      minY: Math.min(bounds.minY, entityBounds.minY),
+      maxX: Math.max(bounds.maxX, entityBounds.maxX),
+      maxY: Math.max(bounds.maxY, entityBounds.maxY)
+    };
+  }
+
+  return bounds;
+}
+
 export function entityBoundingBox(entity: CadEntity): BoundingBox {
   if (entity.type === "line") {
     return {
