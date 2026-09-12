@@ -1,5 +1,5 @@
 import { getDocumentSpatialIndex, resolveDimensionStyle, type CadDocument } from "@cad-web/cad-core";
-import { rotationMatrix, transformPoint, buildLinearDimensionGeometry, buildAlignedDimensionGeometry, buildRadiusDimensionGeometry, buildDiameterDimensionGeometry, buildAngularDimensionGeometry, type Point2D } from "@cad-web/cad-geometry";
+import { rotationMatrix, transformPoint, ellipseArcPoints, buildLinearDimensionGeometry, buildAlignedDimensionGeometry, buildRadiusDimensionGeometry, buildDiameterDimensionGeometry, buildAngularDimensionGeometry, type Point2D } from "@cad-web/cad-geometry";
 import { screenToWorld, worldToScreen } from "./viewport";
 import { DEFAULT_RENDER_STYLE, type RenderStyle, type Viewport } from "./types";
 
@@ -112,15 +112,44 @@ export function renderDocument2D(
       context.arc(center.x, center.y, radiusScreen, entity.startAngle, entity.endAngle, !entity.clockwise);
       context.stroke();
     } else if (entity.type === "ellipse") {
-      // A elipse usa a API nativa do Canvas; a escala converte os semi-eixos para pixels.
-      // Como worldToScreen não espelha os eixos, a rotação é aplicada sem inverter o sinal.
-      const center = worldToScreen(entity.center, viewport);
-      const radiusXScreen = entity.radiusX * viewport.scale;
-      const radiusYScreen = entity.radiusY * viewport.scale;
+      const isArc = entity.startAngle !== undefined && entity.endAngle !== undefined;
 
-      context.beginPath();
-      context.ellipse(center.x, center.y, radiusXScreen, radiusYScreen, entity.rotation, 0, Math.PI * 2);
-      context.stroke();
+      if (isArc) {
+        // O arco de elipse é traçado por amostragem, o que mantém render, envoltório e hit-test coerentes.
+        const points = ellipseArcPoints(
+          {
+            type: "ellipse",
+            center: entity.center,
+            radiusX: entity.radiusX,
+            radiusY: entity.radiusY,
+            rotation: entity.rotation,
+            startAngle: entity.startAngle,
+            endAngle: entity.endAngle
+          },
+          Math.max(48, Math.ceil(Math.max(entity.radiusX, entity.radiusY) * viewport.scale))
+        );
+
+        context.beginPath();
+        points.forEach((point, index) => {
+          const screenPoint = worldToScreen(point, viewport);
+          if (index === 0) {
+            context.moveTo(screenPoint.x, screenPoint.y);
+          } else {
+            context.lineTo(screenPoint.x, screenPoint.y);
+          }
+        });
+        context.stroke();
+      } else {
+        // A elipse completa usa a API nativa do Canvas; a escala converte os semi-eixos para pixels.
+        // Como worldToScreen não espelha os eixos, a rotação é aplicada sem inverter o sinal.
+        const center = worldToScreen(entity.center, viewport);
+        const radiusXScreen = entity.radiusX * viewport.scale;
+        const radiusYScreen = entity.radiusY * viewport.scale;
+
+        context.beginPath();
+        context.ellipse(center.x, center.y, radiusXScreen, radiusYScreen, entity.rotation, 0, Math.PI * 2);
+        context.stroke();
+      }
     } else if (entity.type === "polyline") {
       // O renderer percorre os vertices em ordem; quando closed o path fecha do ultimo ao primeiro.
       if (entity.points.length >= 2) {

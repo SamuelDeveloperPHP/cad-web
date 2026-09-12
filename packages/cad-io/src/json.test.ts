@@ -115,6 +115,27 @@ describe("cad-io JSON", () => {
     expect(parseCadDocument(serializeCadDocument(document))).toEqual(document);
   });
 
+  it("serializes and parses elliptical arc entities", () => {
+    const document = {
+      ...createEmptyDocument("doc_ellipse_arc_json"),
+      entities: [
+        {
+          id: "ellipse_arc_001",
+          layerId: "layer_0",
+          type: "ellipse" as const,
+          center: { x: 0, y: 0 },
+          radiusX: 30,
+          radiusY: 10,
+          rotation: 0,
+          startAngle: 0,
+          endAngle: Math.PI / 2
+        }
+      ]
+    };
+
+    expect(parseCadDocument(serializeCadDocument(document))).toEqual(document);
+  });
+
   it("rejects unsupported entity types with a path", () => {
     const invalidDocument = {
       ...createEmptyDocument("doc_invalid"),

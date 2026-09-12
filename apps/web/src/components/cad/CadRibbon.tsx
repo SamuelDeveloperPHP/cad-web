@@ -1,5 +1,6 @@
 import type { SnapSettings } from "@cad-web/cad-geometry";
 import {
+  ChartSpline,
   ChevronDown,
   Circle,
   Ellipse,
@@ -73,7 +74,8 @@ const drawTools: ReadonlyArray<RibbonTool> = [
   { id: "rectangle", label: "Rect", icon: Square },
   { id: "circle", label: "Circle", icon: Circle },
   { id: "arc", label: "Arc", icon: Rainbow },
-  { id: "ellipse", label: "Ellipse", icon: Ellipse }
+  { id: "ellipse", label: "Ellipse", icon: Ellipse },
+  { id: "ellipseArc", label: "Ell Arc", icon: ChartSpline }
 ];
 
 const modifyTools: ReadonlyArray<RibbonTool> = [

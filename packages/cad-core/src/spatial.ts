@@ -2,7 +2,7 @@ import {
   buildAlignedDimensionGeometry,
   buildAngularDimensionGeometry,
   arcBoundingBox,
-  ellipseBoundingBox,
+  ellipseArcBoundingBox,
   buildDiameterDimensionGeometry,
   buildLinearDimensionGeometry,
   buildRadiusDimensionGeometry,
@@ -91,7 +91,16 @@ export function entityBoundingBox(entity: CadEntity): BoundingBox {
   }
 
   if (entity.type === "ellipse") {
-    return ellipseBoundingBox(entity.center, entity.radiusX, entity.radiusY, entity.rotation);
+    // ellipseArcBoundingBox cobre tanto a elipse completa quanto o recorte de arco.
+    return ellipseArcBoundingBox({
+      type: "ellipse",
+      center: entity.center,
+      radiusX: entity.radiusX,
+      radiusY: entity.radiusY,
+      rotation: entity.rotation,
+      startAngle: entity.startAngle,
+      endAngle: entity.endAngle
+    });
   }
 
   if (entity.type === "polyline") {

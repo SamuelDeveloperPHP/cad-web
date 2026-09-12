@@ -167,7 +167,7 @@ function serializePolylineToSvg(entity: PolylineEntity, precision: number): stri
   ].join(" ");
 }
 
-import { arcBoundingBox, arcEndPoint, arcStartPoint, arcSweepAngle, ellipseBoundingBox, buildAlignedDimensionGeometry, buildLinearDimensionGeometry, buildRadiusDimensionGeometry, buildDiameterDimensionGeometry, buildAngularDimensionGeometry } from "@cad-web/cad-geometry";
+import { arcBoundingBox, arcEndPoint, arcStartPoint, arcSweepAngle, ellipseArcBoundingBox, ellipsePointAtParam, normalizeEllipseSweep, buildAlignedDimensionGeometry, buildLinearDimensionGeometry, buildRadiusDimensionGeometry, buildDiameterDimensionGeometry, buildAngularDimensionGeometry } from "@cad-web/cad-geometry";
 
 function serializeDimensionToSvg(entity: any, precision: number, document: any): string {
   const resolvedStyle = resolveDimensionStyle(document, entity);
@@ -323,6 +323,11 @@ function serializeCircleToSvg(entity: CircleEntity, precision: number): string {
 }
 
 function serializeEllipseToSvg(entity: EllipseEntity, precision: number): string {
+  // Arco de elipse é exportado como <path> com o comando A (elliptical arc) do SVG.
+  if (entity.startAngle !== undefined && entity.endAngle !== undefined) {
+    return serializeEllipseArcToSvg(entity, precision);
+  }
+
   // O exportador usa <ellipse> com transform rotate no centro quando há rotação.
   const attributes = [
     `<ellipse id="${escapeSvgAttribute(entity.id)}"`,
@@ -343,6 +348,26 @@ function serializeEllipseToSvg(entity: EllipseEntity, precision: number): string
   attributes.push("/>");
 
   return attributes.join(" ");
+}
+
+function serializeEllipseArcToSvg(entity: EllipseEntity, precision: number): string {
+  const startAngle = entity.startAngle ?? 0;
+  const endAngle = entity.endAngle ?? 0;
+  const { sweep } = normalizeEllipseSweep(startAngle, endAngle);
+
+  const start = ellipsePointAtParam(entity.center, entity.radiusX, entity.radiusY, entity.rotation, startAngle);
+  const end = ellipsePointAtParam(entity.center, entity.radiusX, entity.radiusY, entity.rotation, startAngle + sweep);
+  const xAxisRotation = (entity.rotation * 180) / Math.PI;
+  const largeArcFlag = sweep > Math.PI ? 1 : 0;
+  // A varredura cresce no sentido paramétrico positivo, que no sistema y-para-baixo do documento é o sweep-flag 1.
+  const sweepFlag = 1;
+
+  return [
+    `<path id="${escapeSvgAttribute(entity.id)}"`,
+    `data-layer-id="${escapeSvgAttribute(entity.layerId)}"`,
+    `data-entity-type="ellipse"`,
+    `d="M ${formatNumber(start.x, precision)} ${formatNumber(start.y, precision)} A ${formatNumber(entity.radiusX, precision)} ${formatNumber(entity.radiusY, precision)} ${formatNumber(xAxisRotation, precision)} ${largeArcFlag} ${sweepFlag} ${formatNumber(end.x, precision)} ${formatNumber(end.y, precision)}" />`
+  ].join(" ");
 }
 
 function serializeArcToSvg(entity: ArcEntity, precision: number): string {
@@ -709,7 +734,15 @@ function calculateEntityBounds(entity: CadEntity, document?: CadDocument): SvgBo
   }
 
   if (entity.type === "ellipse") {
-    return ellipseBoundingBox(entity.center, entity.radiusX, entity.radiusY, entity.rotation);
+    return ellipseArcBoundingBox({
+      type: "ellipse",
+      center: entity.center,
+      radiusX: entity.radiusX,
+      radiusY: entity.radiusY,
+      rotation: entity.rotation,
+      startAngle: entity.startAngle,
+      endAngle: entity.endAngle
+    });
   }
 
   if (entity.type === "polyline") {
