@@ -1,5 +1,5 @@
 import type { CadDocument, EntityId } from "@cad-web/cad-core";
-import type { Point2D, SnapResult } from "@cad-web/cad-geometry";
+import type { Point2D, SnapEntity, SnapResult } from "@cad-web/cad-geometry";
 import type { ToolPointerEvent } from "./ToolEvent";
 import type { CadCommand, CadPreview } from "./ToolResult";
 
@@ -13,7 +13,8 @@ export type ViewportState = Readonly<{
 }>;
 
 export interface SnapService {
-  findSnap(event: ToolPointerEvent, context: ToolContext): SnapResult | null;
+  // O parâmetro extraEntities permite que a ferramenta ativa ofereça snaps da geometria em andamento (ex.: fechar uma polyline).
+  findSnap(event: ToolPointerEvent, context: ToolContext, extraEntities?: ReadonlyArray<SnapEntity>): SnapResult | null;
 }
 
 export interface CommandBus {

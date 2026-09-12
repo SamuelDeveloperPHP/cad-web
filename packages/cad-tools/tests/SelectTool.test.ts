@@ -4,25 +4,64 @@ import { SelectTool } from "../src";
 import { createKeyboardEvent, createMockToolContext, createPointerEvent } from "./testContext";
 
 describe("SelectTool", () => {
-  it("selects the nearest line entity", () => {
+  it("selects the nearest line entity on click (down then up)", () => {
     const tool = new SelectTool();
     const context = createMockToolContext();
 
-    const result = tool.onPointerDown(createPointerEvent({ x: 50, y: 0.2 }), context);
+    tool.onPointerDown(createPointerEvent({ x: 50, y: 0.2 }), context);
+    const result = tool.onPointerUp(createPointerEvent({ x: 50, y: 0.2 }), context);
 
     expect(result.type).toBe("message");
     expect(context.selection.entityIds).toEqual(["line_001"]);
   });
 
-  it("clears selection when no entity is hit", () => {
+  it("clears selection when clicking empty space", () => {
     const tool = new SelectTool();
     const context = createMockToolContext({
       selection: { entityIds: ["line_001"] }
     });
 
     tool.onPointerDown(createPointerEvent({ x: 50, y: 100 }), context);
+    tool.onPointerUp(createPointerEvent({ x: 50, y: 100 }), context);
 
     expect(context.selection.entityIds).toEqual([]);
+  });
+
+  it("selects entities inside a left-to-right window drag", () => {
+    const tool = new SelectTool();
+    const context = createMockToolContext();
+
+    // line_001 vai de (0,0) a (100,0); a janela (-10,-10)->(110,10) contém a linha inteira.
+    tool.onPointerDown(createPointerEvent({ x: -10, y: -10 }), context);
+    tool.onPointerMove(createPointerEvent({ x: 110, y: 10 }), context);
+    const result = tool.onPointerUp(createPointerEvent({ x: 110, y: 10 }), context);
+
+    expect(result.type).toBe("complete");
+    expect(context.selection.entityIds).toEqual(["line_001"]);
+  });
+
+  it("does not select a partially covered entity in window mode", () => {
+    const tool = new SelectTool();
+    const context = createMockToolContext();
+
+    // A janela (esquerda->direita) cobre só metade da linha; no modo janela ela não é selecionada.
+    tool.onPointerDown(createPointerEvent({ x: -10, y: -10 }), context);
+    tool.onPointerMove(createPointerEvent({ x: 50, y: 10 }), context);
+    tool.onPointerUp(createPointerEvent({ x: 50, y: 10 }), context);
+
+    expect(context.selection.entityIds).toEqual([]);
+  });
+
+  it("selects a partially covered entity in crossing mode (right-to-left)", () => {
+    const tool = new SelectTool();
+    const context = createMockToolContext();
+
+    // Arrasto da direita para a esquerda (cruzamento): basta cruzar a linha.
+    tool.onPointerDown(createPointerEvent({ x: 50, y: 10 }), context);
+    tool.onPointerMove(createPointerEvent({ x: -10, y: -10 }), context);
+    tool.onPointerUp(createPointerEvent({ x: -10, y: -10 }), context);
+
+    expect(context.selection.entityIds).toEqual(["line_001"]);
   });
 
   it("cancels and clears selection on Escape", () => {
@@ -37,14 +76,15 @@ describe("SelectTool", () => {
     expect(context.selection.entityIds).toEqual([]);
   });
 
-  it("selects a dimension entity by its dimension line", () => {
+  it("selects a dimension entity by its dimension line on click", () => {
     const tool = new SelectTool();
     const context = createMockToolContext({
       document: createDimensionDocument(),
       viewport: { origin: { x: 0, y: 0 }, scale: 1 }
     });
 
-    const result = tool.onPointerDown(createPointerEvent({ x: 5, y: 4 }), context);
+    tool.onPointerDown(createPointerEvent({ x: 5, y: 4 }), context);
+    const result = tool.onPointerUp(createPointerEvent({ x: 5, y: 4 }), context);
 
     expect(result.type).toBe("message");
     expect(context.selection.entityIds).toEqual(["dim_linear"]);

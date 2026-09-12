@@ -188,9 +188,11 @@ export function useCadStore(): CadStore {
   );
 
   const updateSnapResultFromPointer = useCallback((event: ToolPointerEvent, context: ToolContext) => {
-    const result = context.snapService.findSnap(event, context);
+    // O marcador de snap também considera a geometria em andamento da ferramenta ativa (ex.: fechar polyline).
+    const extraEntities = toolRegistry.resolve(activeTool)?.getSnapEntities?.() ?? [];
+    const result = context.snapService.findSnap(event, context, extraEntities);
     setSnapResult(result?.snapped === true ? result : null);
-  }, []);
+  }, [activeTool, toolRegistry]);
 
   const processToolResult = useCallback((result: ToolResult) => {
     if (result.type === "preview") {

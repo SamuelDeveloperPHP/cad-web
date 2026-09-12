@@ -1,15 +1,24 @@
-import { UpdateEntityCommand, type DimensionEntity } from "@cad-web/cad-core";
+import { UpdateEntityCommand, type DimensionEntity, type EntityId } from "@cad-web/cad-core";
 import { getDimensionGripPoints, updateDimensionByGrip, type Point2D } from "@cad-web/cad-geometry";
 import type { CadTool } from "../contracts/CadTool";
 import type { ToolContext } from "../contracts/ToolContext";
 import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent";
-import type { ToolResult } from "../contracts/ToolResult";
+import type { CadPreview, ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
 import { findNearestEntityId } from "./hitTesting";
+import { boxSelectionMode, entitiesInSelectionBox } from "./boxSelection";
 
 const DEFAULT_SCREEN_TOLERANCE_PIXELS = 8;
 const DIMENSION_GRIP_TOLERANCE_PIXELS = 10;
+const BOX_DRAG_THRESHOLD_PIXELS = 4;
+
+type PendingSelection = Readonly<{
+  startWorld: Point2D;
+  startScreen: Point2D;
+  entityUnderCursor: EntityId | null;
+  boxing: boolean;
+}>;
 
 type DimensionGripHit = Readonly<{
   entity: DimensionEntity;
@@ -28,13 +37,15 @@ export class SelectTool implements CadTool {
   readonly aliases = ["sel", "select"];
 
   private gripDrag: DimensionGripDragState | null = null;
+  private pending: PendingSelection | null = null;
 
   activate(context: ToolContext): void {
-    context.showMessage("Select entity.");
+    context.showMessage("Select entity or drag a selection window.");
   }
 
   deactivate(context: ToolContext): void {
     this.gripDrag = null;
+    this.pending = null;
     context.clearPreview();
   }
 
@@ -63,19 +74,20 @@ export class SelectTool implements CadTool {
       return { type: "preview", preview };
     }
 
-    const entityId = findNearestEntityId(context.document, {
+    // A seleção é decidida no release: um clique seleciona a entidade sob o cursor; um arrasto vira janela.
+    const entityUnderCursor = findNearestEntityId(context.document, {
       worldPoint: event.worldPoint,
       toleranceWorld: DEFAULT_SCREEN_TOLERANCE_PIXELS / context.viewport.scale
     });
 
-    if (entityId === null) {
-      context.clearSelection();
-      return { type: "message", message: "Selection cleared." };
-    }
+    this.pending = {
+      startWorld: event.worldPoint,
+      startScreen: event.screenPoint,
+      entityUnderCursor,
+      boxing: false
+    };
 
-    context.selectEntities([entityId]);
-
-    return { type: "message", message: `Selected ${entityId}.` };
+    return TOOL_RESULT_NONE;
   }
 
   onPointerMove(event: ToolPointerEvent, context: ToolContext): ToolResult {
@@ -92,6 +104,33 @@ export class SelectTool implements CadTool {
 
       context.setPreview(preview);
 
+      return { type: "preview", preview };
+    }
+
+    if (this.pending !== null) {
+      // A janela de seleção só começa após arrastar além do limiar e quando não há entidade sob o clique inicial.
+      if (!this.pending.boxing) {
+        const moved = Math.hypot(
+          event.screenPoint.x - this.pending.startScreen.x,
+          event.screenPoint.y - this.pending.startScreen.y
+        );
+
+        if (moved < BOX_DRAG_THRESHOLD_PIXELS || this.pending.entityUnderCursor !== null) {
+          return TOOL_RESULT_NONE;
+        }
+
+        this.pending = { ...this.pending, boxing: true };
+      }
+
+      const mode = boxSelectionMode(this.pending.startWorld, event.worldPoint);
+      const preview: CadPreview = {
+        type: "selectionBox",
+        start: this.pending.startWorld,
+        end: event.worldPoint,
+        mode
+      };
+
+      context.setPreview(preview);
       return { type: "preview", preview };
     }
 
@@ -117,7 +156,29 @@ export class SelectTool implements CadTool {
       return { type: "complete" };
     }
 
-    return TOOL_RESULT_NONE;
+    const pending = this.pending;
+    this.pending = null;
+
+    if (pending === null) {
+      return TOOL_RESULT_NONE;
+    }
+
+    if (pending.boxing) {
+      const mode = boxSelectionMode(pending.startWorld, event.worldPoint);
+      const ids = entitiesInSelectionBox(context.document, pending.startWorld, event.worldPoint, mode);
+      context.clearPreview();
+      context.selectEntities(ids);
+      context.showMessage(`${ids.length} entit${ids.length === 1 ? "y" : "ies"} selected (${mode}).`);
+      return { type: "complete" };
+    }
+
+    if (pending.entityUnderCursor !== null) {
+      context.selectEntities([pending.entityUnderCursor]);
+      return { type: "message", message: `Selected ${pending.entityUnderCursor}.` };
+    }
+
+    context.clearSelection();
+    return { type: "message", message: "Selection cleared." };
   }
 
   onKeyDown(event: ToolKeyboardEvent, context: ToolContext): ToolResult {
@@ -126,6 +187,12 @@ export class SelectTool implements CadTool {
         this.gripDrag = null;
         context.clearPreview();
         context.showMessage("[Grip] Edit canceled.");
+        return { type: "cancel" };
+      }
+
+      if (this.pending !== null) {
+        this.pending = null;
+        context.clearPreview();
         return { type: "cancel" };
       }
 

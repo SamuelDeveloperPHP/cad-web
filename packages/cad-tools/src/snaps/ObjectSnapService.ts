@@ -15,7 +15,7 @@ import type { SnapService } from "../contracts/ToolContext";
 export class ObjectSnapService implements SnapService {
   constructor(private readonly settings: SnapSettings = DEFAULT_SNAP_SETTINGS) {}
 
-  findSnap(event: ToolPointerEvent, context: ToolContext): SnapResult | null {
+  findSnap(event: ToolPointerEvent, context: ToolContext, extraEntities: ReadonlyArray<SnapEntity> = []): SnapResult | null {
     if (!this.settings.enabled || this.settings.tolerancePx <= 0) {
       return findBestSnap(
         event.worldPoint,
@@ -45,16 +45,25 @@ export class ObjectSnapService implements SnapService {
       candidates = candidates.filter((e) => !invisibleLayerIds.has(e.layerId || "layer_0"));
     }
 
+    // As entidades extras da ferramenta ativa entram junto dos candidatos do índice espacial.
+    const allCandidates = extraEntities.length > 0
+      ? [...(candidates as ReadonlyArray<SnapEntity>), ...extraEntities]
+      : (candidates as ReadonlyArray<SnapEntity>);
+
     return findBestSnap(
       event.worldPoint,
       event.screenPoint,
-      candidates as ReadonlyArray<SnapEntity>,
+      allCandidates,
       this.settings,
       context.viewport
     );
   }
 }
 
-export function resolveSnappedPoint(event: ToolPointerEvent, context: ToolContext): Point2D {
-  return context.snapService.findSnap(event, context)?.point ?? event.worldPoint;
+export function resolveSnappedPoint(
+  event: ToolPointerEvent,
+  context: ToolContext,
+  extraEntities?: ReadonlyArray<SnapEntity>
+): Point2D {
+  return context.snapService.findSnap(event, context, extraEntities)?.point ?? event.worldPoint;
 }
