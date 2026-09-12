@@ -13,39 +13,48 @@ está em [AGENTS.md](AGENTS.md); a documentação de cada MVP está em [`docs/`]
 ## Setup
 
 ```bash
-# 1. Instalar as dependências (raiz + todos os workspaces)
+# Instalar as dependências (raiz + todos os workspaces)
 npm install
-
-# 2. Compilar os pacotes internos (obrigatório antes do primeiro dev)
-npx tsc -b
 ```
 
-> **Importante:** o passo 2 não é opcional. Os pacotes do workspace
+> **Por que o dev depende do `tsc -b`:** os pacotes do workspace
 > (`@cad-web/cad-core`, `cad-geometry`, `cad-renderer`, `cad-tools`, `cad-io`)
-> apontam `main` para `dist/index.js`, que não existe em um clone novo. O Vite do
-> `apps/web` **não** transpila essas libs internas, então `npm run dev` sozinho falha
-> com `Failed to resolve entry for package "@cad-web/cad-core"` até que o `tsc -b`
-> gere os `dist/`.
+> apontam `main` para `dist/index.js`, que não existe em um clone novo e não é
+> versionado. O Vite do `apps/web` **não** transpila essas libs internas, então sem
+> o `dist/` o app falha com `Failed to resolve entry for package "@cad-web/cad-core"`
+> ou com um erro de export ausente (`does not provide an export named ...`) quando o
+> `dist/` está desatualizado após um `git pull`. Por isso o `npm run dev` compila os
+> pacotes automaticamente (script `predev`) antes de subir o Vite.
 
 ## Desenvolvimento
 
 ```bash
-# Sobe o app web (Vite) em http://127.0.0.1:5173
+# Compila os pacotes (predev) e sobe o app web (Vite) em http://127.0.0.1:5173
 npm run dev
 ```
 
-Como o Vite não recompila os pacotes internos automaticamente, ao editar código em
-`packages/*` rode o compilador em modo watch num terminal separado:
+O `npm run dev` já roda `tsc -b` antes do Vite, então um clone novo ou um `git pull`
+recente funciona sem passo manual. Ao **editar** código em `packages/*` com o dev já
+rodando, o Vite não recompila as libs internas sozinho; mantenha o compilador em modo
+watch num terminal separado:
 
 ```bash
-npx tsc -b --watch
+npm run dev:watch   # equivale a: npx tsc -b --watch
+```
+
+Se algum dia o `dist/` ficar inconsistente (por exemplo, erro de export ausente),
+force uma recompilação limpa:
+
+```bash
+npx tsc -b --force
 ```
 
 ## Scripts (raiz)
 
 | Comando             | O que faz                                                        |
 | ------------------- | ---------------------------------------------------------------- |
-| `npm run dev`       | Sobe o app web em modo desenvolvimento (Vite, porta 5173)        |
+| `npm run dev`       | Compila os pacotes (`tsc -b`) e sobe o app web (Vite, porta 5173) |
+| `npm run dev:watch` | Recompila os pacotes internos em modo watch (terminal separado)  |
 | `npm run build`     | Compila os pacotes (`tsc -b`) e faz o build de produção do web   |
 | `npm run preview`   | Serve localmente o build de produção do web                      |
 | `npm run typecheck` | Type-check + build dos pacotes via project references (`tsc -b`) |

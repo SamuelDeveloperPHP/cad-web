@@ -9,7 +9,9 @@
     "apps/*"
   ],
   "scripts": {
+    "predev": "tsc -b",
     "dev": "npm run dev --workspace @cad-web/web",
+    "dev:watch": "tsc -b --watch --preserveWatchOutput",
     "build": "tsc -b && npm run build --workspace @cad-web/web",
     "preview": "npm run preview --workspace @cad-web/web",
     "test": "tsc -b && npm run test --workspaces --if-present",

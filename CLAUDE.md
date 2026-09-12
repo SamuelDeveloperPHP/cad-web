@@ -18,8 +18,9 @@ Regras específicas por área: `apps/web/AGENTS.md` e `packages/cad-tools/AGENTS
 
 ```bash
 npm ci                                  # dependências
-npx tsc -b                              # obrigatório antes do dev e após editar packages/*
-npm run dev                             # app web em http://127.0.0.1:5173
+npm run dev                             # compila os pacotes (predev) e sobe o app web em http://127.0.0.1:5173
+npm run dev:watch                       # recompila packages/* em watch (terminal separado, ao editar libs internas)
+npx tsc -b --force                      # recompila do zero se o dist/ ficar inconsistente
 npm run test --workspaces --if-present  # testes de todos os pacotes (Vitest)
 npx vitest run --root packages/<pacote> # testes de um pacote
 ```
