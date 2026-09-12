@@ -1,4 +1,4 @@
-import { addVector, rotationMatrix, scaleMatrix, transformPoint, type Point2D } from "@cad-web/cad-geometry";
+import { addVector, reflectAngleAcrossAxis, reflectionMatrix, rotationMatrix, scaleMatrix, transformPoint, type Point2D } from "@cad-web/cad-geometry";
 import { createDimensionStyleFromPreset, getDimensionStylePresetById } from "./dimensionStylePresets";
 
 export type EntityId = string;
@@ -1311,6 +1311,134 @@ export function scaleEntity(entity: CadEntity, pivot: Point2D, factor: number): 
 function assertPositiveScaleFactor(factor: number): void {
   if (factor <= 0 || !Number.isFinite(factor)) {
     throw new Error("Scale factor must be greater than zero.");
+  }
+}
+
+/**
+ * A função espelha uma entidade em torno da reta que passa por axisStart e axisEnd.
+ * A reflexão inverte a orientação, por isso o arco troca o sentido e o retângulo é
+ * reconstruído a partir de um canto refletido para permanecer um retângulo válido.
+ * Cotas ainda não são espelhadas nesta fase e a função devolve null para elas.
+ */
+export function mirrorEntity(entity: CadEntity, axisStart: Point2D, axisEnd: Point2D): CadEntity | null {
+  const matrix = reflectionMatrix(axisStart, axisEnd);
+  const axisAngle = Math.atan2(axisEnd.y - axisStart.y, axisEnd.x - axisStart.x);
+
+  if (entity.type === "line") {
+    return {
+      ...entity,
+      start: transformPoint(entity.start, matrix),
+      end: transformPoint(entity.end, matrix)
+    };
+  }
+
+  if (entity.type === "circle") {
+    return {
+      ...entity,
+      center: transformPoint(entity.center, matrix)
+    };
+  }
+
+  if (entity.type === "arc") {
+    // O espelhamento reflete o centro, reflete os ângulos das extremidades e inverte o sentido do arco.
+    return {
+      ...entity,
+      center: transformPoint(entity.center, matrix),
+      startAngle: reflectAngleAcrossAxis(entity.startAngle, axisAngle),
+      endAngle: reflectAngleAcrossAxis(entity.endAngle, axisAngle),
+      clockwise: !entity.clockwise
+    };
+  }
+
+  if (entity.type === "polyline") {
+    return {
+      ...entity,
+      points: entity.points.map((point) => transformPoint(point, matrix))
+    };
+  }
+
+  if (entity.type === "rectangle") {
+    // A reflexão inverte a orientação, então o retângulo é reconstruído usando o canto oposto
+    // (base + largura) como nova base, o que mantém largura e altura positivas e a forma refletida correta.
+    const rotation = entity.rotation ?? 0;
+    const widthCorner = {
+      x: entity.x + Math.cos(rotation) * entity.width,
+      y: entity.y + Math.sin(rotation) * entity.width
+    };
+    const reflectedBase = transformPoint(widthCorner, matrix);
+    const reflectedOrigin = transformPoint({ x: entity.x, y: entity.y }, matrix);
+    const nextRotation = Math.atan2(
+      reflectedOrigin.y - reflectedBase.y,
+      reflectedOrigin.x - reflectedBase.x
+    );
+
+    return {
+      ...entity,
+      x: reflectedBase.x,
+      y: reflectedBase.y,
+      rotation: nextRotation
+    };
+  }
+
+  return null;
+}
+
+/**
+ * O comando espelha entidades em torno de um eixo. As cópias refletidas já vêm prontas
+ * (com ids novos) do chamador, no mesmo padrão do ArrayEntitiesCommand. Quando keepOriginal
+ * é falso, as entidades originais são removidas no execute e restauradas no undo.
+ */
+export class MirrorEntitiesCommand implements CadCommand {
+  readonly type = "MirrorEntitiesCommand";
+  readonly description = "Mirrors entities across an axis.";
+  private readonly createdEntityIds: ReadonlySet<string>;
+  private removedEntities: ReadonlyArray<CadEntity> = [];
+
+  constructor(
+    readonly sourceEntityIds: ReadonlyArray<EntityId>,
+    readonly mirroredEntities: ReadonlyArray<CadEntity>,
+    readonly keepOriginal: boolean
+  ) {
+    this.createdEntityIds = new Set(mirroredEntities.map((entity) => entity.id));
+  }
+
+  get id(): string {
+    return `cmd_mirror_entities_${this.sourceEntityIds.length}_${this.mirroredEntities.length}_${Date.now()}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    if (this.mirroredEntities.length === 0) {
+      return document;
+    }
+
+    const existingIds = new Set(document.entities.map((entity) => entity.id));
+    const entitiesToInsert = this.mirroredEntities.filter((entity) => !existingIds.has(entity.id));
+    let entities = document.entities;
+
+    if (!this.keepOriginal) {
+      const sourceIds = new Set(this.sourceEntityIds);
+      this.removedEntities = document.entities.filter((entity) => sourceIds.has(entity.id));
+      entities = entities.filter((entity) => !sourceIds.has(entity.id));
+    }
+
+    return {
+      ...document,
+      entities: entities.concat(entitiesToInsert)
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    let entities = document.entities.filter((entity) => !this.createdEntityIds.has(entity.id));
+
+    if (!this.keepOriginal && this.removedEntities.length > 0) {
+      const presentIds = new Set(entities.map((entity) => entity.id));
+      entities = entities.concat(this.removedEntities.filter((entity) => !presentIds.has(entity.id)));
+    }
+
+    return {
+      ...document,
+      entities
+    };
   }
 }
 
