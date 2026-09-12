@@ -12,6 +12,7 @@ export * from "./draw/LineTool";
 export * from "./draw/PolylineTool";
 export * from "./draw/RectangleTool";
 export * from "./modify/EraseTool";
+export * from "./modify/MirrorTool";
 export * from "./modify/MoveTool";
 export * from "./modify/RotateTool";
 export * from "./modify/ScaleTool";

@@ -6,6 +6,7 @@ import {
   CornerDownRight,
   CornerRightDown,
   Copy,
+  FlipHorizontal2,
   Download,
   Grid3X3,
   RotateCcw,
@@ -74,6 +75,7 @@ const drawTools: ReadonlyArray<RibbonTool> = [
 
 const modifyTools: ReadonlyArray<RibbonTool> = [
   { id: "move", label: "Move", icon: Move },
+  { id: "mirror", label: "Mirror", icon: FlipHorizontal2 },
   { id: "rotate", label: "Rotate", icon: RotateCw },
   { id: "scale", label: "Scale", icon: Scaling },
   { id: "offset", label: "Offset", icon: Copy },
