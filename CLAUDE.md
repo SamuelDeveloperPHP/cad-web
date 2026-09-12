@@ -11,6 +11,8 @@ Regras específicas por área: `apps/web/AGENTS.md` e `packages/cad-tools/AGENTS
 - Último MVP entregue: `docs/MVP 3.5 — ExplodeTool - Explodir.md`.
 - Próximo MVP recomendado: `MVP 3.6 — ArcTool` (a `ArcEntity` já existe em `cad-core`, criada pelo Fillet, mas ainda não há ferramenta de desenho de arco).
 - `apps/api` (Laravel) ainda não foi iniciado; contém apenas README.
+- Roadmap completo por disciplina (fases 1 a 5): `docs/00 - ROADMAP — MVPs por disciplina de engenharia.md`.
+- CI: `.github/workflows/ci.yml` roda build, typecheck, testes, build do web e checagem de fronteiras a cada push e pull request.
 
 ## Comandos essenciais
 

@@ -1,0 +1,61 @@
+# Integração contínua do CAD-WEB.
+# O workflow instala as dependências, compila os pacotes internos com project
+# references, roda a suíte Vitest de todos os workspaces e faz o build de
+# produção do app web. Qualquer falha bloqueia o merge do pull request.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build, typecheck e testes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instala dependências
+        run: npm ci --no-audit --no-fund
+
+      - name: Compila pacotes e faz typecheck
+        run: npx tsc -b
+
+      - name: Testes unitários (todos os workspaces)
+        run: npm run test --workspaces --if-present
+
+      - name: Build de produção do app web
+        run: npm run build --workspace @cad-web/web
+
+      - name: Verifica fronteiras de pacote
+        # O passo falha se cad-geometry ou cad-core importarem React, DOM,
+        # cad-tools ou cad-renderer, o que violaria as regras do AGENTS.md.
+        run: |
+          set -e
+          if grep -rnE 'from "(react|react-dom|@cad-web/cad-tools|@cad-web/cad-renderer|@cad-web/cad-io|@cad-web/cad-core)"' packages/cad-geometry/src; then
+            echo "::error::cad-geometry importa pacote proibido"; exit 1
+          fi
+          if grep -rnE 'from "(react|react-dom|@cad-web/cad-tools|@cad-web/cad-renderer|@cad-web/cad-io)"' packages/cad-core/src; then
+            echo "::error::cad-core importa pacote proibido"; exit 1
+          fi
+          if grep -rnE 'from "(react|react-dom|@cad-web/cad-tools)"' packages/cad-renderer/src; then
+            echo "::error::cad-renderer importa pacote proibido"; exit 1
+          fi
+          if grep -rnE 'from "(react|react-dom|@cad-web/cad-renderer)"' packages/cad-tools/src; then
+            echo "::error::cad-tools importa pacote proibido"; exit 1
+          fi
+          echo "Fronteiras de pacote respeitadas."
