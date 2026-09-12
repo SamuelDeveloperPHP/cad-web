@@ -10,6 +10,7 @@ import {
   MirrorTool,
   RotateTool,
   ScaleTool,
+  StretchTool,
   OffsetTool,
   TrimTool,
   ExtendTool,
@@ -40,6 +41,7 @@ export function createWebToolRegistry(): ToolRegistry {
   registry.register(new MirrorTool());
   registry.register(new RotateTool());
   registry.register(new ScaleTool());
+  registry.register(new StretchTool());
   registry.register(new OffsetTool());
   registry.register(new TrimTool());
   registry.register(new ExtendTool());

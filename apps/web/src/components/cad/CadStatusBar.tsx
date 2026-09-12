@@ -34,6 +34,7 @@ const toolLabels: Record<ActiveCadTool, string> = {
   mirror: "Mirror",
   rotate: "Rotate",
   scale: "Scale",
+  stretch: "Stretch",
   offset: "Offset",
   trim: "Trim",
   extend: "Extend",
