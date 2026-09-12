@@ -60,13 +60,142 @@ button {
   position: relative;
   z-index: 220;
   display: flex;
-  align-items: stretch;
-  height: 34px;
-  min-height: 34px;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 10px;
   background: #14171a;
   border-bottom: 1px solid var(--cad-border);
   color: var(--cad-text);
   font-size: 13px;
+}
+
+.cad-app-menu {
+  position: relative;
+  display: flex;
+}
+
+.cad-app-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 9px;
+  background: var(--cad-primary);
+  border: 0;
+  border-radius: 6px;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.cad-app-btn:hover,
+.cad-app-btn:focus-visible {
+  background: var(--cad-accent-hover);
+  outline: none;
+}
+
+.cad-app-btn strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cad-app-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 260;
+  display: none;
+  flex-direction: column;
+  min-width: 200px;
+  padding: 6px;
+  background: #181c20;
+  border: 1px solid var(--cad-border);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.36);
+}
+
+.cad-app-menu:hover .cad-app-dropdown,
+.cad-app-menu:focus-within .cad-app-dropdown {
+  display: flex;
+}
+
+.cad-app-dropdown button {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 10px;
+  background: transparent;
+  border: 0;
+  color: var(--cad-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.cad-app-dropdown button:hover,
+.cad-app-dropdown button:focus-visible {
+  background: var(--cad-active-bg);
+  color: var(--cad-text-strong);
+  outline: none;
+}
+
+.cad-qat {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.cad-qat-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--cad-text);
+  cursor: pointer;
+}
+
+.cad-qat-btn:hover:not(:disabled),
+.cad-qat-btn:focus-visible:not(:disabled) {
+  background: var(--cad-panel-raised);
+  color: var(--cad-text-strong);
+  outline: none;
+}
+
+.cad-qat-btn:disabled {
+  color: #565f68;
+  cursor: default;
+}
+
+.cad-qat-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--cad-border);
+}
+
+.cad-top-menu-doc {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  color: var(--cad-text-muted);
+  font-size: 13px;
+}
+
+.cad-top-menu-doc span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cad-top-menu-spacer {
+  flex: none;
+  width: 96px;
 }
 
 .cad-top-menu-brand {
@@ -398,6 +527,36 @@ button {
   min-width: 0;
   min-height: 0;
   flex-direction: column;
+}
+
+.cad-viewport-labels {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cad-viewport-chip {
+  display: flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  background: rgba(20, 23, 26, 0.82);
+  border: 1px solid var(--cad-border);
+  border-radius: 4px;
+  color: var(--cad-text);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.cad-viewport-chip:hover,
+.cad-viewport-chip:focus-visible {
+  background: var(--cad-panel-raised);
+  color: var(--cad-text-strong);
+  outline: none;
 }
 
 .cad-canvas-host {
