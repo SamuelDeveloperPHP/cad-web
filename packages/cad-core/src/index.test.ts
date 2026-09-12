@@ -15,8 +15,11 @@ import {
   createDimensionStyleFromPreset,
   getDimensionStylePresetById,
   moveEntity,
+  scaleEntity,
+  entityBoundingBox,
   type ArcEntity,
   type DimensionEntity,
+  type EllipseEntity,
   type LineEntity
 } from "./index";
 
@@ -154,6 +157,31 @@ describe("cad-core", () => {
 
     history.execute(new MoveEntitiesCommand(["dim_linear"], { x: 8, y: -4 }));
     expect(history.undo().entities[0]).toEqual(dimension);
+  });
+
+  it("moves and scales an ellipse and computes its rotated bounding box", () => {
+    const ellipse: EllipseEntity = {
+      id: "el1",
+      layerId: "layer_0",
+      type: "ellipse",
+      center: { x: 10, y: 5 },
+      radiusX: 40,
+      radiusY: 20,
+      rotation: 0
+    };
+
+    const moved = moveEntity(ellipse, { x: 3, y: -2 }) as EllipseEntity;
+    expect(moved.center).toEqual({ x: 13, y: 3 });
+    expect(moved.radiusX).toBe(40);
+    expect(moved.radiusY).toBe(20);
+
+    const scaled = scaleEntity(ellipse, { x: 10, y: 5 }, 2) as EllipseEntity;
+    expect(scaled.center).toEqual({ x: 10, y: 5 });
+    expect(scaled.radiusX).toBe(80);
+    expect(scaled.radiusY).toBe(40);
+
+    const box = entityBoundingBox(ellipse);
+    expect(box).toEqual({ minX: -30, minY: -15, maxX: 50, maxY: 25 });
   });
 
   it("executes undo and redo for ClearDocumentCommand", () => {

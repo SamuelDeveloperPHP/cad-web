@@ -41,6 +41,16 @@ export type ArcEntity = BaseEntity & Readonly<{
   clockwise: boolean;
 }>;
 
+export type EllipseEntity = BaseEntity & Readonly<{
+  type: "ellipse";
+  center: Point2D;
+  // radiusX é o semi-eixo ao longo do eixo local X (antes da rotação); radiusY ao longo do local Y.
+  radiusX: number;
+  radiusY: number;
+  // rotation é o ângulo do eixo maior em radianos em relação ao eixo X do mundo.
+  rotation: number;
+}>;
+
 export type PolylineEntity = BaseEntity & Readonly<{
   type: "polyline";
   // O campo points contem todos os vertices da polyline em ordem; closed determina se fecha do ultimo ao primeiro.
@@ -112,7 +122,7 @@ export type DimensionEntity = BaseEntity & Readonly<{
   textOverride?: string;
 }>;
 
-export type CadEntity = LineEntity | RectangleEntity | CircleEntity | ArcEntity | PolylineEntity | DimensionEntity;
+export type CadEntity = LineEntity | RectangleEntity | CircleEntity | ArcEntity | EllipseEntity | PolylineEntity | DimensionEntity;
 
 export type CadLayer = Readonly<{
   id: string;
@@ -1161,6 +1171,14 @@ export function moveEntity(entity: CadEntity, displacement: Point2D): CadEntity 
     };
   }
 
+  if (entity.type === "ellipse") {
+    // O move desloca o centro da elipse; os semi-eixos e a rotação não mudam.
+    return {
+      ...entity,
+      center: addVector(entity.center, displacement)
+    };
+  }
+
   if (entity.type === "polyline") {
     // O move desloca todos os vertices preservando closed e demais atributos da polyline.
     return {
@@ -1279,6 +1297,16 @@ export function rotateEntity(entity: CadEntity, pivot: Point2D, angleRadians: nu
     };
   }
 
+  if (entity.type === "ellipse") {
+    // O rotate move o centro pelo pivô e soma o ângulo à rotação dos eixos.
+    const matrix = rotationMatrix(angleRadians, pivot);
+    return {
+      ...entity,
+      center: transformPoint(entity.center, matrix),
+      rotation: entity.rotation + angleRadians
+    };
+  }
+
   if (entity.type === "polyline") {
     // O rotate aplica a matriz a cada vertice, preservando o atributo closed.
     const matrix = rotationMatrix(angleRadians, pivot);
@@ -1348,6 +1376,16 @@ export function scaleEntity(entity: CadEntity, pivot: Point2D, factor: number): 
     };
   }
 
+  if (entity.type === "ellipse") {
+    // O scale uniforme move o centro e multiplica os dois semi-eixos pelo fator.
+    return {
+      ...entity,
+      center: transformPoint(entity.center, matrix),
+      radiusX: entity.radiusX * factor,
+      radiusY: entity.radiusY * factor
+    };
+  }
+
   if (entity.type === "polyline") {
     // O scale aplica a matriz uniforme a cada vertice mantendo o atributo closed.
     return {
@@ -1398,6 +1436,15 @@ export function mirrorEntity(entity: CadEntity, axisStart: Point2D, axisEnd: Poi
       startAngle: reflectAngleAcrossAxis(entity.startAngle, axisAngle),
       endAngle: reflectAngleAcrossAxis(entity.endAngle, axisAngle),
       clockwise: !entity.clockwise
+    };
+  }
+
+  if (entity.type === "ellipse") {
+    // O espelhamento reflete o centro e reflete o ângulo do eixo maior; os semi-eixos não mudam.
+    return {
+      ...entity,
+      center: transformPoint(entity.center, matrix),
+      rotation: reflectAngleAcrossAxis(entity.rotation, axisAngle)
     };
   }
 
@@ -1470,6 +1517,13 @@ export function stretchEntity(entity: CadEntity, window: BoundingBox, displaceme
   }
 
   if (entity.type === "arc") {
+    return boundingBoxContainsPoint(window, entity.center)
+      ? { ...entity, center: move(entity.center) }
+      : entity;
+  }
+
+  if (entity.type === "ellipse") {
+    // A elipse move-se por inteiro quando o centro está na janela, como círculo e arco.
     return boundingBoxContainsPoint(window, entity.center)
       ? { ...entity, center: move(entity.center) }
       : entity;

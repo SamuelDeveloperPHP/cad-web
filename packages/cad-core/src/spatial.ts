@@ -2,6 +2,7 @@ import {
   buildAlignedDimensionGeometry,
   buildAngularDimensionGeometry,
   arcBoundingBox,
+  ellipseBoundingBox,
   buildDiameterDimensionGeometry,
   buildLinearDimensionGeometry,
   buildRadiusDimensionGeometry,
@@ -87,6 +88,10 @@ export function entityBoundingBox(entity: CadEntity): BoundingBox {
 
   if (entity.type === "arc") {
     return arcBoundingBox(entity);
+  }
+
+  if (entity.type === "ellipse") {
+    return ellipseBoundingBox(entity.center, entity.radiusX, entity.radiusY, entity.rotation);
   }
 
   if (entity.type === "polyline") {
