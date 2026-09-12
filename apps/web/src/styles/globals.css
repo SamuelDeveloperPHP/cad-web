@@ -560,6 +560,7 @@ button {
 }
 
 .cad-canvas-host {
+  position: relative;
   flex: 1;
   min-height: 0;
   background: var(--cad-bg-dark);
@@ -901,4 +902,19 @@ button {
 
 .cad-statusbar-zoom-suffix {
   opacity: 0.7;
+}
+
+/* Retângulo do Zoom Window desenhado sobre o canvas durante o arrasto. */
+.cad-zoom-window-rect {
+  position: absolute;
+  pointer-events: none;
+  border: 1px solid var(--cad-accent, #38bdf8);
+  background: rgba(56, 189, 248, 0.12);
+  z-index: 5;
+}
+
+.cad-statusbar-zoom-step {
+  min-width: 20px;
+  padding-inline: 6px;
+  font-weight: 600;
 }

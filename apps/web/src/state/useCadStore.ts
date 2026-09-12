@@ -34,7 +34,7 @@ import {
 import { loadStoredSnapSettings, storeSnapSettings } from "../services/snapSettingsStorage";
 import { createWebToolRegistry } from "../tools/toolRegistry";
 
-export type ActiveCadTool = "select" | "line" | "polyline" | "rectangle" | "circle" | "arc" | "move" | "mirror" | "rotate" | "scale" | "offset" | "trim" | "extend" | "fillet" | "chamfer" | "array" | "arrayPolar" | "arrayPath" | "explode" | "erase" | "pan" | "dimLinear" | "dimAligned" | "dimRadius" | "dimDiameter" | "dimAngular";
+export type ActiveCadTool = "select" | "line" | "polyline" | "rectangle" | "circle" | "arc" | "move" | "mirror" | "rotate" | "scale" | "offset" | "trim" | "extend" | "fillet" | "chamfer" | "array" | "arrayPolar" | "arrayPath" | "explode" | "erase" | "pan" | "zoomWindow" | "dimLinear" | "dimAligned" | "dimRadius" | "dimDiameter" | "dimAngular";
 
 const ACTIVE_CAD_TOOLS: ReadonlySet<string> = new Set<ActiveCadTool>([
   "select",
@@ -58,6 +58,7 @@ const ACTIVE_CAD_TOOLS: ReadonlySet<string> = new Set<ActiveCadTool>([
   "explode",
   "erase",
   "pan",
+  "zoomWindow",
   "dimLinear",
   "dimAligned",
   "dimRadius",
@@ -82,7 +83,11 @@ export type CadStore = Readonly<{
   setViewport(viewport: Viewport): void;
   setScreenSize(size: ScreenSize): void;
   setZoomScale(scale: number): void;
+  zoomIn(): void;
+  zoomOut(): void;
   zoomToExtents(): void;
+  zoomToWindow(worldBounds: { minX: number; minY: number; maxX: number; maxY: number }): void;
+  zoomPrevious(): void;
   setMouseWorld(point: Point2D): void;
   setSnapSettings(settings: SnapSettings): void;
   panByScreenDelta(delta: Point2D): void;
@@ -105,6 +110,7 @@ export function useCadStore(): CadStore {
   const [history] = useState(() => new CommandHistory(document));
   const [viewport, setViewport] = useState<Viewport>(() => createViewport({ x: -50, y: -30 }, 8));
   const [screenSize, setScreenSize] = useState<ScreenSize>({ width: 1, height: 1 });
+  const viewportHistoryRef = useRef<Viewport[]>([]);
   const [activeTool, setActiveToolState] = useState<ActiveCadTool>("select");
   const [mouseWorld, setMouseWorld] = useState<Point2D>({ x: 0, y: 0 });
   const [selectedEntityIds, setSelectedEntityIds] = useState<ReadonlyArray<string>>([]);
@@ -243,10 +249,28 @@ export function useCadStore(): CadStore {
     setViewport((current) => panViewport(current, delta));
   }, []);
 
+  // O histórico guarda o viewport anterior a cada zoom discreto para alimentar o Zoom Previous.
+  const pushViewportHistory = useCallback((previous: Viewport) => {
+    const history = viewportHistoryRef.current;
+    const last = history[history.length - 1];
+
+    // Evita empilhar viewports idênticos consecutivos e limita o tamanho do histórico.
+    if (last !== undefined && last.scale === previous.scale && last.origin.x === previous.origin.x && last.origin.y === previous.origin.y) {
+      return;
+    }
+
+    history.push(previous);
+
+    if (history.length > 30) {
+      history.shift();
+    }
+  }, []);
+
   const setZoomScale = useCallback(
     (nextScale: number) => {
       // O zoom manual mantém fixo o ponto de mundo que está no centro da tela, evitando saltos de posição.
       setViewport((current) => {
+        pushViewportHistory(current);
         const clampedScale = clamp(nextScale, MIN_VIEWPORT_SCALE, MAX_VIEWPORT_SCALE);
         const screenCenter = { x: screenSize.width / 2, y: screenSize.height / 2 };
         const worldCenter = screenToWorld(screenCenter, current);
@@ -260,20 +284,83 @@ export function useCadStore(): CadStore {
         };
       });
     },
-    [screenSize]
+    [pushViewportHistory, screenSize]
   );
+
+  const zoomIn = useCallback(() => {
+    setViewport((current) => {
+      pushViewportHistory(current);
+      const clampedScale = clamp(current.scale * 1.25, MIN_VIEWPORT_SCALE, MAX_VIEWPORT_SCALE);
+      const screenCenter = { x: screenSize.width / 2, y: screenSize.height / 2 };
+      const worldCenter = screenToWorld(screenCenter, current);
+
+      return {
+        scale: clampedScale,
+        origin: {
+          x: worldCenter.x - screenCenter.x / clampedScale,
+          y: worldCenter.y - screenCenter.y / clampedScale
+        }
+      };
+    });
+  }, [pushViewportHistory, screenSize]);
+
+  const zoomOut = useCallback(() => {
+    setViewport((current) => {
+      pushViewportHistory(current);
+      const clampedScale = clamp(current.scale / 1.25, MIN_VIEWPORT_SCALE, MAX_VIEWPORT_SCALE);
+      const screenCenter = { x: screenSize.width / 2, y: screenSize.height / 2 };
+      const worldCenter = screenToWorld(screenCenter, current);
+
+      return {
+        scale: clampedScale,
+        origin: {
+          x: worldCenter.x - screenCenter.x / clampedScale,
+          y: worldCenter.y - screenCenter.y / clampedScale
+        }
+      };
+    });
+  }, [pushViewportHistory, screenSize]);
 
   const zoomToExtents = useCallback(() => {
     const bounds = documentBoundingBox(document);
 
-    if (bounds === null) {
-      // Sem entidades, o zoom retorna ao enquadramento padrão do documento novo.
-      setViewport(createViewport({ x: -50, y: -30 }, 8));
-      return;
-    }
+    setViewport((current) => {
+      pushViewportHistory(current);
 
-    setViewport(zoomExtents({ bounds, screenSize, paddingPixels: 48 }));
-  }, [document, screenSize]);
+      if (bounds === null) {
+        // Sem entidades, o zoom retorna ao enquadramento padrão do documento novo.
+        return createViewport({ x: -50, y: -30 }, 8);
+      }
+
+      return zoomExtents({ bounds, screenSize, paddingPixels: 48 });
+    });
+  }, [document, pushViewportHistory, screenSize]);
+
+  const zoomToWindow = useCallback(
+    (worldBounds: { minX: number; minY: number; maxX: number; maxY: number }) => {
+      // O Zoom Window enquadra o retângulo escolhido; caixas muito pequenas são ignoradas para evitar zoom exagerado acidental.
+      const width = worldBounds.maxX - worldBounds.minX;
+      const height = worldBounds.maxY - worldBounds.minY;
+
+      if (!(width > 1e-6) || !(height > 1e-6)) {
+        return;
+      }
+
+      setViewport((current) => {
+        pushViewportHistory(current);
+        return zoomExtents({ bounds: worldBounds, screenSize, paddingPixels: 8 });
+      });
+    },
+    [pushViewportHistory, screenSize]
+  );
+
+  const zoomPrevious = useCallback(() => {
+    const previous = viewportHistoryRef.current.pop();
+
+    if (previous !== undefined) {
+      setViewport(previous);
+    }
+  }, []);
 
   const dispatchPointerDown = useCallback(
     (event: ToolPointerEvent) => {
@@ -316,6 +403,12 @@ export function useCadStore(): CadStore {
 
   const dispatchKeyDown = useCallback(
     (event: ToolKeyboardEvent) => {
+      if (event.key === "Escape" && activeTool === "zoomWindow") {
+        // Esc encerra o modo Zoom Window e volta para a seleção.
+        setActiveTool("select");
+        return;
+      }
+
       if (event.key === "Delete") {
         runEraseTool(event);
         return;
@@ -358,7 +451,7 @@ export function useCadStore(): CadStore {
 
       dispatchToActiveTool((toolId, context) => toolRegistry.resolve(toolId)?.onKeyDown(event, context) ?? { type: "none" });
     },
-    [dispatchToActiveTool, redo, runEraseTool, setActiveTool, toolRegistry, undo]
+    [activeTool, dispatchToActiveTool, redo, runEraseTool, setActiveTool, toolRegistry, undo]
   );
 
   const clearDocument = useCallback(() => {
@@ -425,6 +518,18 @@ export function useCadStore(): CadStore {
         return;
       }
 
+      if (["zw", "zoomwindow", "zoomwin"].includes(normalizedCommand)) {
+        setActiveTool("zoomWindow");
+        showMessage("Zoom Window: arraste um retângulo na área de desenho.");
+        return;
+      }
+
+      if (["zp", "zoomprev", "zoomprevious"].includes(normalizedCommand)) {
+        zoomPrevious();
+        showMessage("Zoom anterior restaurado.");
+        return;
+      }
+
       if (resolvedTool?.id === "erase" && activeTool !== "erase") {
         runEraseTool({
           key: "Enter",
@@ -448,7 +553,7 @@ export function useCadStore(): CadStore {
         processToolResult(toolRegistry.resolve(activeTool)?.onCommandInput(command, context) ?? { type: "none" });
       }
     },
-    [activeTool, clearDocument, createToolContext, document.entities.length, processToolResult, redo, runEraseTool, setActiveTool, showMessage, toolRegistry, undo, zoomToExtents]
+    [activeTool, clearDocument, createToolContext, document.entities.length, processToolResult, redo, runEraseTool, setActiveTool, showMessage, toolRegistry, undo, zoomToExtents, zoomPrevious]
   );
 
   return useMemo(
@@ -469,7 +574,11 @@ export function useCadStore(): CadStore {
       setViewport,
       setScreenSize,
       setZoomScale,
+      zoomIn,
+      zoomOut,
       zoomToExtents,
+      zoomToWindow,
+      zoomPrevious,
       setMouseWorld,
       setSnapSettings,
       panByScreenDelta,
@@ -513,7 +622,11 @@ export function useCadStore(): CadStore {
       viewport,
       screenSize,
       setZoomScale,
-      zoomToExtents
+      zoomIn,
+      zoomOut,
+      zoomToExtents,
+      zoomToWindow,
+      zoomPrevious
     ]
   );
 }
