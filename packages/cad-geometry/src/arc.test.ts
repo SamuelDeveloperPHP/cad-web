@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { arcBoundingBox, computeLineLineFillet, distancePointToArc } from "./arc";
+import {
+  arcBoundingBox,
+  arcEndPoint,
+  arcSweepAngle,
+  computeArcFromCenterStartEnd,
+  computeArcFromThreePoints,
+  computeLineLineFillet,
+  distancePointToArc,
+  isAngleOnArc
+} from "./arc";
 
 describe("arc geometry", () => {
   it("computes a line-line fillet with tangent points and center", () => {
@@ -67,5 +76,99 @@ describe("arc geometry", () => {
     expect(bounds.maxX).toBeCloseTo(0);
     expect(bounds.maxY).toBeCloseTo(2);
     expect(distancePointToArc({ x: -1, y: 2 - Math.sqrt(3) }, arc)).toBeCloseTo(0);
+  });
+});
+
+describe("arc construction", () => {
+  it("builds an arc through three points with the middle point on the arc", () => {
+    const result = computeArcFromThreePoints({ x: 10, y: 0 }, { x: 0, y: 10 }, { x: -10, y: 0 });
+
+    expect(result.ok).toBe(true);
+
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.arc.center.x).toBeCloseTo(0);
+    expect(result.arc.center.y).toBeCloseTo(0);
+    expect(result.arc.radius).toBeCloseTo(10);
+    expect(isAngleOnArc(Math.PI / 2, result.arc.startAngle, result.arc.endAngle, result.arc.clockwise)).toBe(true);
+    expect(isAngleOnArc(-Math.PI / 2, result.arc.startAngle, result.arc.endAngle, result.arc.clockwise)).toBe(false);
+    expect(distancePointToArc({ x: 0, y: 10 }, result.arc)).toBeCloseTo(0);
+  });
+
+  it("chooses the opposite sweep when the middle point is below the chord", () => {
+    const result = computeArcFromThreePoints({ x: 10, y: 0 }, { x: 0, y: -10 }, { x: -10, y: 0 });
+
+    expect(result.ok).toBe(true);
+
+    if (!result.ok) {
+      return;
+    }
+
+    expect(isAngleOnArc(-Math.PI / 2, result.arc.startAngle, result.arc.endAngle, result.arc.clockwise)).toBe(true);
+    expect(isAngleOnArc(Math.PI / 2, result.arc.startAngle, result.arc.endAngle, result.arc.clockwise)).toBe(false);
+  });
+
+  it("solves an off-center three point arc", () => {
+    const result = computeArcFromThreePoints({ x: 3, y: 4 }, { x: 8, y: 9 }, { x: 13, y: 4 });
+
+    expect(result.ok).toBe(true);
+
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.arc.center.x).toBeCloseTo(8);
+    expect(result.arc.center.y).toBeCloseTo(4);
+    expect(result.arc.radius).toBeCloseTo(5);
+  });
+
+  it("rejects collinear points", () => {
+    const result = computeArcFromThreePoints({ x: 0, y: 0 }, { x: 5, y: 5 }, { x: 10, y: 10 });
+
+    expect(result.ok).toBe(false);
+
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.reason).toBe("Points are collinear.");
+  });
+
+  it("rejects coincident points", () => {
+    const result = computeArcFromThreePoints({ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 10, y: 10 });
+
+    expect(result.ok).toBe(false);
+  });
+
+  it("builds an arc from center, start and end point with the end projected onto the circle", () => {
+    const result = computeArcFromCenterStartEnd({ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 25 });
+
+    expect(result.ok).toBe(true);
+
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.arc.radius).toBeCloseTo(10);
+    expect(result.arc.startAngle).toBeCloseTo(0);
+    expect(result.arc.endAngle).toBeCloseTo(Math.PI / 2);
+    expect(result.arc.clockwise).toBe(true);
+    expect(arcSweepAngle(result.arc.startAngle, result.arc.endAngle, result.arc.clockwise)).toBeCloseTo(Math.PI / 2);
+    expect(arcEndPoint(result.arc).x).toBeCloseTo(0);
+    expect(arcEndPoint(result.arc).y).toBeCloseTo(10);
+  });
+
+  it("rejects a zero radius arc from center and start", () => {
+    const result = computeArcFromCenterStartEnd({ x: 5, y: 5 }, { x: 5, y: 5 }, { x: 10, y: 5 });
+
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects a zero sweep arc from center, start and end", () => {
+    const result = computeArcFromCenterStartEnd({ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 20, y: 0 });
+
+    expect(result.ok).toBe(false);
   });
 });
