@@ -55,6 +55,11 @@ export function CadCanvas({ cad }: CadCanvasProps) {
     return () => resizeObserver.disconnect();
   }, []);
 
+  // O tamanho da tela é reportado ao store para que o zoom manual e o zoom extents saibam centralizar.
+  useEffect(() => {
+    cad.setScreenSize(screenSize);
+  }, [cad, screenSize]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
 
