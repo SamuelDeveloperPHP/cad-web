@@ -1,5 +1,5 @@
-import type { CadEntity } from "@cad-web/cad-core";
-import { addVector, pointsNearlyEqual, subtractPoints, type Point2D } from "@cad-web/cad-geometry";
+import { moveEntity, type CadEntity } from "@cad-web/cad-core";
+import { pointsNearlyEqual, subtractPoints, type Point2D } from "@cad-web/cad-geometry";
 import { moveEntitiesCommand } from "../commands/CadCommandTypes";
 import type { CadTool } from "../contracts/CadTool";
 import type { ToolContext } from "../contracts/ToolContext";
@@ -140,31 +140,4 @@ function getSelectedEntities(context: ToolContext): ReadonlyArray<CadEntity> {
   return context.document.entities.filter(
     (entity) => selectedIds.has(entity.id) && !lockedLayerIds.has(entity.layerId || "layer_0")
   );
-}
-
-function moveEntity(entity: CadEntity, displacement: Point2D): CadEntity {
-  if (entity.type === "line") {
-    return {
-      ...entity,
-      start: addVector(entity.start, displacement),
-      end: addVector(entity.end, displacement)
-    };
-  }
-
-  if (entity.type === "rectangle") {
-    return {
-      ...entity,
-      x: entity.x + displacement.x,
-      y: entity.y + displacement.y
-    };
-  }
-
-  if (entity.type === "circle") {
-    return {
-      ...entity,
-      center: addVector(entity.center, displacement)
-    };
-  }
-
-  return entity;
 }

@@ -406,9 +406,27 @@ export function useCadStore(): CadStore {
 
   const dispatchKeyDown = useCallback(
     (event: ToolKeyboardEvent) => {
-      if (event.key === "Escape" && activeTool === "zoomWindow") {
-        // Esc encerra o modo Zoom Window e volta para a seleção.
-        setActiveTool("select");
+      if (event.key === "Escape") {
+        if (activeTool === "zoomWindow") {
+          // Esc encerra o modo Zoom Window e volta para a seleção.
+          setActiveTool("select");
+          return;
+        }
+
+        // A ferramenta ativa cancela sua operação em andamento (reset interno e limpeza do preview).
+        if (activeTool !== "pan") {
+          dispatchToActiveTool((toolId, context) => toolRegistry.resolve(toolId)?.onKeyDown(event, context) ?? { type: "none" });
+        }
+
+        // Fora da Select, o Esc encerra o comando: devolve o controle à ferramenta Select e libera o objeto.
+        // Na própria Select, o Esc já é tratado em estágios pela ferramenta (cancela grip, cancela janela, limpa seleção).
+        if (activeTool !== "select") {
+          setActiveTool("select");
+          setSelectedEntityIds([]);
+        }
+
+        setPreview(null);
+        setSnapResult(null);
         return;
       }
 
