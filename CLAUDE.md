@@ -8,9 +8,9 @@ Regras específicas por área: `apps/web/AGENTS.md` e `packages/cad-tools/AGENTS
 
 ## Estado do projeto
 
-- Último MVP entregue: `docs/MVP 3.7 — MirrorTool - Espelhar.md`.
+- Último MVP entregue: `docs/MVP 3.8 — StretchTool - Esticar.md`.
 - Ajustes de UX adicionados: `docs/MVP 3.7.1 — Controles de Zoom (digitar e centralizar).md` e `docs/MVP 3.7.2 — Zoom completo (Window, Previous, In-Out).md` (zoom digitado, extents, window, previous e in/out).
-- Próximo MVP recomendado: `MVP 3.8 — StretchTool` (esticar vértices dentro de janela de seleção).
+- Próximo MVP recomendado: `MVP 3.9 — EllipseTool` (entidade nova, ou seguir o roadmap para blocos e DXF).
 - `apps/api` (Laravel) ainda não foi iniciado; contém apenas README.
 - Roadmap completo por disciplina (fases 1 a 5): `docs/00 - ROADMAP — MVPs por disciplina de engenharia.md`.
 - CI: `.github/workflows/ci.yml` roda build, typecheck, testes, build do web e checagem de fronteiras a cada push e pull request.

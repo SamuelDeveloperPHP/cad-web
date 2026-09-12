@@ -19,6 +19,7 @@ const toolPrompts: Record<ActiveCadTool, string> = {
   mirror: "[Mirror] Select objects, then specify mirror axis",
   rotate: "[Rotate] Specify pivot point",
   scale: "[Scale] Specify base point",
+  stretch: "[Stretch] Specify first corner of stretch window",
   offset: "[Offset] Specify offset distance",
   trim: "[Trim] Select cutting edges or press Enter for all",
   extend: "[Extend] Select boundary edges or press Enter for all",
