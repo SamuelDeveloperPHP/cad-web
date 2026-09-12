@@ -30,6 +30,9 @@ export function CadCanvas({ cad }: CadCanvasProps) {
   const panStateRef = useRef<Readonly<{ active: boolean; lastScreen: Point2D }> | null>(null);
   // O retângulo do Zoom Window é mantido em estado para desenhar um overlay enquanto o usuário arrasta.
   const [zoomWindowBox, setZoomWindowBox] = useState<Readonly<{ start: Point2D; current: Point2D }> | null>(null);
+  // O ref mantém o store atual acessível dentro do listener nativo de roda, que é registrado apenas uma vez.
+  const cadRef = useRef(cad);
+  cadRef.current = cad;
   const [screenSize, setScreenSize] = useState({ width: 1, height: 1 });
 
   useEffect(() => {
@@ -68,6 +71,29 @@ export function CadCanvas({ cad }: CadCanvasProps) {
       setZoomWindowBox(null);
     }
   }, [cad.activeTool, zoomWindowBox]);
+
+  // O zoom pela roda usa um listener nativo não passivo; assim o preventDefault é aceito e não gera o aviso
+  // "Unable to preventDefault inside passive event listener invocation" que o onWheel do React causa.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+
+    if (canvas === null) {
+      return;
+    }
+
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const screenPoint = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+      const store = cadRef.current;
+      store.setViewport(zoomViewportAtScreenPoint(store.viewport, screenPoint, factor));
+    };
+
+    canvas.addEventListener("wheel", handleWheel, { passive: false });
+
+    return () => canvas.removeEventListener("wheel", handleWheel);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -223,12 +249,6 @@ export function CadCanvas({ cad }: CadCanvasProps) {
           if (event.currentTarget.hasPointerCapture(event.pointerId)) {
             event.currentTarget.releasePointerCapture(event.pointerId);
           }
-        }}
-        onWheel={(event) => {
-          event.preventDefault();
-          const screenPoint = toScreenPoint(event);
-          const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
-          cad.setViewport(zoomViewportAtScreenPoint(cad.viewport, screenPoint, factor));
         }}
         onContextMenu={(event) => event.preventDefault()}
       />
