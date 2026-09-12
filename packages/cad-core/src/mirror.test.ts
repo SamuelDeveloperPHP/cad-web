@@ -6,6 +6,7 @@ import {
   type ArcEntity,
   type CadDocument,
   type CadEntity,
+  type EllipseEntity,
   type LineEntity,
   type RectangleEntity
 } from "./index";
@@ -26,6 +27,32 @@ describe("mirrorEntity", () => {
     expect(result.start.y).toBeCloseTo(1);
     expect(result.end.x).toBeCloseTo(-6);
     expect(result.end.y).toBeCloseTo(4);
+  });
+
+  it("mirrors an elliptical arc reflecting the rotation and reversing the parametric sweep", () => {
+    const arc: EllipseEntity = {
+      id: "el_arc",
+      layerId: "layer_0",
+      type: "ellipse",
+      center: { x: 5, y: 0 },
+      radiusX: 30,
+      radiusY: 10,
+      rotation: 0,
+      startAngle: 0,
+      endAngle: Math.PI / 2
+    };
+
+    const result = mirrorEntity(arc, VERTICAL_AXIS_A, VERTICAL_AXIS_B) as EllipseEntity;
+
+    // Centro refletido, semi-eixos preservados.
+    expect(result.center.x).toBeCloseTo(-5, 6);
+    expect(result.center.y).toBeCloseTo(0, 6);
+    expect(result.radiusX).toBe(30);
+    expect(result.radiusY).toBe(10);
+    // Eixo maior refletido (0 -> π no eixo vertical) e ângulos negados/trocados.
+    expect(result.rotation).toBeCloseTo(Math.PI, 6);
+    expect(result.startAngle).toBeCloseTo(-Math.PI / 2, 6);
+    expect(result.endAngle).toBeCloseTo(0, 6);
   });
 
   it("mirrors a circle center but keeps the radius", () => {
