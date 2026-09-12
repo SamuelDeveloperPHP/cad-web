@@ -28,6 +28,8 @@ export function CadCanvas({ cad }: CadCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const panStateRef = useRef<Readonly<{ active: boolean; lastScreen: Point2D }> | null>(null);
+  // O retângulo do Zoom Window é mantido em estado para desenhar um overlay enquanto o usuário arrasta.
+  const [zoomWindowBox, setZoomWindowBox] = useState<Readonly<{ start: Point2D; current: Point2D }> | null>(null);
   const [screenSize, setScreenSize] = useState({ width: 1, height: 1 });
 
   useEffect(() => {
@@ -59,6 +61,13 @@ export function CadCanvas({ cad }: CadCanvasProps) {
   useEffect(() => {
     cad.setScreenSize(screenSize);
   }, [cad, screenSize]);
+
+  // Ao sair do modo Zoom Window (por exemplo com Esc ou trocando de ferramenta), o retângulo em andamento é descartado.
+  useEffect(() => {
+    if (cad.activeTool !== "zoomWindow" && zoomWindowBox !== null) {
+      setZoomWindowBox(null);
+    }
+  }, [cad.activeTool, zoomWindowBox]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -108,6 +117,12 @@ export function CadCanvas({ cad }: CadCanvasProps) {
       return;
     }
 
+    if (cad.activeTool === "zoomWindow" && event.button === 0) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+      setZoomWindowBox({ start: screenPoint, current: screenPoint });
+      return;
+    }
+
     if (event.button === 0) {
       event.currentTarget.setPointerCapture(event.pointerId);
     }
@@ -142,6 +157,11 @@ export function CadCanvas({ cad }: CadCanvasProps) {
       return;
     }
 
+    if (zoomWindowBox !== null) {
+      setZoomWindowBox({ start: zoomWindowBox.start, current: screenPoint });
+      return;
+    }
+
     cad.dispatchPointerMove(
       createToolPointerEvent({
         worldPoint,
@@ -157,7 +177,7 @@ export function CadCanvas({ cad }: CadCanvasProps) {
   };
 
   return (
-    <div ref={hostRef} className="cad-canvas-host">
+    <div ref={hostRef} className={`cad-canvas-host ${cad.activeTool === "zoomWindow" ? "zoom-window-mode" : ""}`}>
       <canvas
         ref={canvasRef}
         className="cad-canvas"
@@ -168,6 +188,26 @@ export function CadCanvas({ cad }: CadCanvasProps) {
           const worldPoint = screenToWorld(screenPoint, cad.viewport);
 
           panStateRef.current = null;
+
+          if (zoomWindowBox !== null) {
+            // Ao soltar, converte os dois cantos de tela em mundo e enquadra a região; depois volta ao Select.
+            const cornerA = screenToWorld(zoomWindowBox.start, cad.viewport);
+            const cornerB = screenToWorld(screenPoint, cad.viewport);
+            setZoomWindowBox(null);
+            cad.zoomToWindow({
+              minX: Math.min(cornerA.x, cornerB.x),
+              minY: Math.min(cornerA.y, cornerB.y),
+              maxX: Math.max(cornerA.x, cornerB.x),
+              maxY: Math.max(cornerA.y, cornerB.y)
+            });
+            cad.setActiveTool("select");
+
+            if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+              event.currentTarget.releasePointerCapture(event.pointerId);
+            }
+            return;
+          }
+
           cad.dispatchPointerUp(
             createToolPointerEvent({
               worldPoint,
@@ -192,6 +232,17 @@ export function CadCanvas({ cad }: CadCanvasProps) {
         }}
         onContextMenu={(event) => event.preventDefault()}
       />
+      {zoomWindowBox !== null && (
+        <div
+          className="cad-zoom-window-rect"
+          style={{
+            left: Math.min(zoomWindowBox.start.x, zoomWindowBox.current.x),
+            top: Math.min(zoomWindowBox.start.y, zoomWindowBox.current.y),
+            width: Math.abs(zoomWindowBox.current.x - zoomWindowBox.start.x),
+            height: Math.abs(zoomWindowBox.current.y - zoomWindowBox.start.y)
+          }}
+        />
+      )}
     </div>
   );
 }
