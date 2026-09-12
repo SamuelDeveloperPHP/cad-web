@@ -96,6 +96,25 @@ describe("cad-io JSON", () => {
     expect(parseCadDocument(serializeCadDocument(document))).toEqual(document);
   });
 
+  it("serializes and parses ellipse entities", () => {
+    const document = {
+      ...createEmptyDocument("doc_ellipse_json"),
+      entities: [
+        {
+          id: "ellipse_001",
+          layerId: "layer_0",
+          type: "ellipse" as const,
+          center: { x: 12, y: -4 },
+          radiusX: 40,
+          radiusY: 18,
+          rotation: Math.PI / 6
+        }
+      ]
+    };
+
+    expect(parseCadDocument(serializeCadDocument(document))).toEqual(document);
+  });
+
   it("rejects unsupported entity types with a path", () => {
     const invalidDocument = {
       ...createEmptyDocument("doc_invalid"),

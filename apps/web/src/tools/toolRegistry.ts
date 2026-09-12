@@ -6,6 +6,7 @@ import {
   RectangleTool,
   CircleTool,
   ArcTool,
+  EllipseTool,
   MoveTool,
   MirrorTool,
   RotateTool,
@@ -37,6 +38,7 @@ export function createWebToolRegistry(): ToolRegistry {
   registry.register(new RectangleTool());
   registry.register(new CircleTool());
   registry.register(new ArcTool());
+  registry.register(new EllipseTool());
   registry.register(new MoveTool());
   registry.register(new MirrorTool());
   registry.register(new RotateTool());

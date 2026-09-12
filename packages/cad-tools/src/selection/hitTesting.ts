@@ -7,6 +7,7 @@ import {
   buildRadiusDimensionGeometry,
   distance,
   distancePointToArc,
+  distancePointToEllipse,
   distancePointToSegment,
   rotationMatrix,
   transformPoint,
@@ -70,6 +71,14 @@ export function findNearestEntityId(document: CadDocument, options: HitTestOptio
       candidateDistance = Math.abs(distToCenter - entity.radius);
     } else if (entity.type === "arc") {
       candidateDistance = distancePointToArc(options.worldPoint, entity);
+    } else if (entity.type === "ellipse") {
+      candidateDistance = distancePointToEllipse(options.worldPoint, {
+        type: "ellipse",
+        center: entity.center,
+        radiusX: entity.radiusX,
+        radiusY: entity.radiusY,
+        rotation: entity.rotation
+      });
     } else if (entity.type === "polyline") {
       candidateDistance = distancePointToPolyline(options.worldPoint, entity.points, entity.closed);
     } else if (entity.type === "dimension") {

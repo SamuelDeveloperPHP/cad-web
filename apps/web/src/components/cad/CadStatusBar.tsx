@@ -30,6 +30,7 @@ const toolLabels: Record<ActiveCadTool, string> = {
   rectangle: "Rectangle",
   circle: "Circle",
   arc: "Arc",
+  ellipse: "Ellipse",
   move: "Move",
   mirror: "Mirror",
   rotate: "Rotate",

@@ -8,9 +8,9 @@ Regras específicas por área: `apps/web/AGENTS.md` e `packages/cad-tools/AGENTS
 
 ## Estado do projeto
 
-- Último MVP entregue: `docs/MVP 3.8 — StretchTool - Esticar.md`.
-- Ajustes de UX adicionados: `docs/MVP 3.7.1 — Controles de Zoom (digitar e centralizar).md`, `docs/MVP 3.7.2 — Zoom completo (Window, Previous, In-Out).md` (zoom digitado, extents, window, previous e in/out) `docs/MVP 3.8.1 — Seleção por área, snap de fechamento e Stretch vinculado.md` (snap na polyline, seleção por janela/cruzamento com tracejado, Stretch vinculado à seleção por área) `docs/MVP 3.8.2 — Stretch associativo de cotas.md` (as cotas acompanham o Stretch e o valor recalcula) e `docs/MVP 3.8.3 — ESC encerra o comando e mover cotas em qualquer direção.md` (Esc volta para Select liberando o objeto; cotas movem em +X/+Y/−X/−Y no Move).
-- Próximo MVP recomendado: `MVP 3.9 — EllipseTool` (entidade nova, ou seguir o roadmap para blocos e DXF).
+- Último MVP entregue: `docs/MVP 3.9 — EllipseTool - Elipse.md` (elipse como entidade nativa: ferramenta, render, seleção, transformações e IO JSON/SVG).
+- Ajustes de UX adicionados: `docs/MVP 3.7.1 — Controles de Zoom (digitar e centralizar).md`, `docs/MVP 3.7.2 — Zoom completo (Window, Previous, In-Out).md` (zoom digitado, extents, window, previous e in/out) `docs/MVP 3.8.1 — Seleção por área, snap de fechamento e Stretch vinculado.md` (snap na polyline, seleção por janela/cruzamento com tracejado, Stretch vinculado à seleção por área) `docs/MVP 3.8.2 — Stretch associativo de cotas.md` (as cotas acompanham o Stretch e o valor recalcula) `docs/MVP 3.8.3 — ESC encerra o comando e mover cotas em qualquer direção.md` (Esc volta para Select liberando o objeto; cotas movem em +X/+Y/−X/−Y no Move) e `docs/MVP 3.9 — EllipseTool - Elipse.md` (elipse nativa).
+- Próximo MVP recomendado: arco de elipse e snaps de quadrante, ou seguir o roadmap para blocos e importação DXF.
 - `apps/api` (Laravel) ainda não foi iniciado; contém apenas README.
 - Roadmap completo por disciplina (fases 1 a 5): `docs/00 - ROADMAP — MVPs por disciplina de engenharia.md`.
 - CI: `.github/workflows/ci.yml` roda build, typecheck, testes, build do web e checagem de fronteiras a cada push e pull request.
