@@ -1,4 +1,4 @@
-import { addVector, reflectAngleAcrossAxis, reflectionMatrix, rotationMatrix, scaleMatrix, transformPoint, type Point2D } from "@cad-web/cad-geometry";
+import { addVector, boundingBoxContainsPoint, reflectAngleAcrossAxis, reflectionMatrix, rotationMatrix, scaleMatrix, transformPoint, type BoundingBox, type Point2D } from "@cad-web/cad-geometry";
 import { createDimensionStyleFromPreset, getDimensionStylePresetById } from "./dimensionStylePresets";
 
 export type EntityId = string;
@@ -1381,6 +1381,120 @@ export function mirrorEntity(entity: CadEntity, axisStart: Point2D, axisEnd: Poi
   }
 
   return null;
+}
+
+/**
+ * A função estica uma entidade movendo por um deslocamento apenas os pontos que estão dentro
+ * da janela de seleção. Linhas e polylines esticam por vértice; círculo e arco movem-se por
+ * inteiro quando o centro está na janela; o retângulo move-se por inteiro apenas quando os
+ * quatro cantos estão na janela, pois não é possível representar um retângulo cisalhado.
+ * Cotas não são esticadas nesta fase e retornam inalteradas.
+ */
+export function stretchEntity(entity: CadEntity, window: BoundingBox, displacement: Point2D): CadEntity {
+  const move = (point: Point2D): Point2D =>
+    boundingBoxContainsPoint(window, point)
+      ? { x: point.x + displacement.x, y: point.y + displacement.y }
+      : point;
+
+  if (entity.type === "line") {
+    const startInside = boundingBoxContainsPoint(window, entity.start);
+    const endInside = boundingBoxContainsPoint(window, entity.end);
+
+    // Quando nenhum extremo está na janela a linha permanece a mesma referência, o que ajuda a filtrar entidades inalteradas.
+    return startInside || endInside
+      ? { ...entity, start: move(entity.start), end: move(entity.end) }
+      : entity;
+  }
+
+  if (entity.type === "polyline") {
+    return entity.points.some((point) => boundingBoxContainsPoint(window, point))
+      ? { ...entity, points: entity.points.map(move) }
+      : entity;
+  }
+
+  if (entity.type === "circle") {
+    return boundingBoxContainsPoint(window, entity.center)
+      ? { ...entity, center: move(entity.center) }
+      : entity;
+  }
+
+  if (entity.type === "arc") {
+    return boundingBoxContainsPoint(window, entity.center)
+      ? { ...entity, center: move(entity.center) }
+      : entity;
+  }
+
+  if (entity.type === "rectangle") {
+    const rotation = entity.rotation ?? 0;
+    const origin = { x: entity.x, y: entity.y };
+    const matrix = rotationMatrix(rotation, origin);
+    const corners = [
+      origin,
+      { x: entity.x + entity.width, y: entity.y },
+      { x: entity.x + entity.width, y: entity.y + entity.height },
+      { x: entity.x, y: entity.y + entity.height }
+    ].map((corner) => transformPoint(corner, matrix));
+
+    // O retângulo só se move quando está totalmente dentro da janela; um canto isolado não é representável.
+    return corners.every((corner) => boundingBoxContainsPoint(window, corner))
+      ? { ...entity, x: entity.x + displacement.x, y: entity.y + displacement.y }
+      : entity;
+  }
+
+  return entity;
+}
+
+/**
+ * O comando substitui entidades por versões esticadas, guardando o estado anterior para o undo.
+ * O chamador passa apenas as entidades que mudaram; a captura dos originais acontece no execute,
+ * o que mantém o redo coerente.
+ */
+export class StretchEntitiesCommand implements CadCommand {
+  readonly type = "StretchEntitiesCommand";
+  readonly description = "Stretches entities by moving vertices inside a window.";
+  private readonly updatedById: Map<string, CadEntity>;
+  private oldEntities = new Map<string, CadEntity>();
+
+  constructor(readonly updatedEntities: ReadonlyArray<CadEntity>) {
+    this.updatedById = new Map(updatedEntities.map((entity) => [entity.id, entity]));
+  }
+
+  get id(): string {
+    return `cmd_stretch_entities_${this.updatedEntities.length}_${Date.now()}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    if (this.updatedById.size === 0) {
+      return document;
+    }
+
+    this.oldEntities = new Map();
+    let changed = false;
+
+    const entities = document.entities.map((entity) => {
+      const updated = this.updatedById.get(entity.id);
+
+      if (updated !== undefined) {
+        this.oldEntities.set(entity.id, entity);
+        changed = true;
+        return updated;
+      }
+
+      return entity;
+    });
+
+    return changed ? { ...document, entities } : document;
+  }
+
+  undo(document: CadDocument): CadDocument {
+    if (this.oldEntities.size === 0) {
+      return document;
+    }
+
+    const entities = document.entities.map((entity) => this.oldEntities.get(entity.id) ?? entity);
+
+    return { ...document, entities };
+  }
 }
 
 /**
