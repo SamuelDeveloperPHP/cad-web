@@ -297,6 +297,13 @@ function validateCadEntity(entity: CadEntity | undefined, path: string): void {
     assertPositiveNumber(entity.radiusX, `${path}.radiusX`);
     assertPositiveNumber(entity.radiusY, `${path}.radiusY`);
     assertFiniteNumber(entity.rotation, `${path}.rotation`);
+
+    // startAngle e endAngle são opcionais (recorte de arco); quando presentes, ambos devem existir e ser finitos.
+    if (entity.startAngle !== undefined || entity.endAngle !== undefined) {
+      assertFiniteNumber(entity.startAngle, `${path}.startAngle`);
+      assertFiniteNumber(entity.endAngle, `${path}.endAngle`);
+    }
+
     return;
   }
 

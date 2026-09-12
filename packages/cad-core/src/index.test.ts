@@ -184,6 +184,26 @@ describe("cad-core", () => {
     expect(box).toEqual({ minX: -30, minY: -15, maxX: 50, maxY: 25 });
   });
 
+  it("bounds an elliptical arc by the swept portion only", () => {
+    const arc: EllipseEntity = {
+      id: "el_arc",
+      layerId: "layer_0",
+      type: "ellipse",
+      center: { x: 0, y: 0 },
+      radiusX: 30,
+      radiusY: 10,
+      rotation: 0,
+      startAngle: 0,
+      endAngle: Math.PI / 2
+    };
+
+    const box = entityBoundingBox(arc);
+    expect(box.minX).toBeCloseTo(0, 6);
+    expect(box.minY).toBeCloseTo(0, 6);
+    expect(box.maxX).toBeCloseTo(30, 6);
+    expect(box.maxY).toBeCloseTo(10, 6);
+  });
+
   it("executes undo and redo for ClearDocumentCommand", () => {
     const line = createLine("line_001");
     const history = new CommandHistory({

@@ -77,7 +77,9 @@ export function findNearestEntityId(document: CadDocument, options: HitTestOptio
         center: entity.center,
         radiusX: entity.radiusX,
         radiusY: entity.radiusY,
-        rotation: entity.rotation
+        rotation: entity.rotation,
+        startAngle: entity.startAngle,
+        endAngle: entity.endAngle
       });
     } else if (entity.type === "polyline") {
       candidateDistance = distancePointToPolyline(options.worldPoint, entity.points, entity.closed);
