@@ -1,5 +1,5 @@
 import type { CadEntity, PolylineEntity } from "@cad-web/cad-core";
-import { isValidPolyline, pointsNearlyEqual, type Point2D } from "@cad-web/cad-geometry";
+import { isValidPolyline, pointsNearlyEqual, type Point2D, type SnapEntity } from "@cad-web/cad-geometry";
 import { createEntityCommand } from "../commands/CadCommandTypes";
 import type { CadTool } from "../contracts/CadTool";
 import type { ToolContext } from "../contracts/ToolContext";
@@ -53,7 +53,7 @@ export class PolylineTool implements CadTool {
       return TOOL_RESULT_NONE;
     }
 
-    const point = resolveSnappedPoint(event, context);
+    const point = resolveSnappedPoint(event, context, this.getSnapEntities());
 
     if (this.phase === "waiting_first_point") {
       this.points = [point];
@@ -83,7 +83,7 @@ export class PolylineTool implements CadTool {
       return TOOL_RESULT_NONE;
     }
 
-    this.cursorPoint = resolveSnappedPoint(event, context);
+    this.cursorPoint = resolveSnappedPoint(event, context, this.getSnapEntities());
     this.refreshPreview(context);
 
     return TOOL_RESULT_NONE;
@@ -91,6 +91,22 @@ export class PolylineTool implements CadTool {
 
   onPointerUp(_event: ToolPointerEvent, _context: ToolContext): ToolResult {
     return TOOL_RESULT_NONE;
+  }
+
+  getSnapEntities(): ReadonlyArray<SnapEntity> {
+    // Os vértices já confirmados viram uma polyline de snap, permitindo mirar o primeiro ponto para fechar a figura.
+    if (this.phase !== "drawing_polyline" || this.points.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        id: "polyline_inprogress",
+        type: "polyline",
+        points: this.points.map((point) => ({ ...point })),
+        closed: false
+      }
+    ];
   }
 
   onKeyDown(event: ToolKeyboardEvent, context: ToolContext): ToolResult {

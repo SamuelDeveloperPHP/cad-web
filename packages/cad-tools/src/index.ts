@@ -33,6 +33,7 @@ export * from "./dimensions/DimAngularTool";
 export * from "./registry/ToolRegistry";
 export * from "./selection/SelectTool";
 export * from "./selection/SelectionBox";
+export * from "./selection/boxSelection";
 export * from "./selection/SelectionMode";
 export * from "./selection/hitTesting";
 export * from "./snaps/ObjectSnapService";

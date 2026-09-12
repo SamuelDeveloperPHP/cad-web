@@ -135,7 +135,9 @@ export class StretchTool implements CadTool {
     this.candidates = candidates;
     this.phase = "base";
     context.clearPreview();
-    context.showMessage("Specify base point.");
+    // As entidades apanhadas pela janela ficam selecionadas (traço tracejado) como feedback, ligando o Stretch à seleção por área.
+    context.selectEntities(candidates.map((entity) => entity.id));
+    context.showMessage(`${candidates.length} entit${candidates.length === 1 ? "y" : "ies"} in window. Specify base point.`);
     return TOOL_RESULT_NONE;
   }
 

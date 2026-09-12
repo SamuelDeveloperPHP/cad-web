@@ -46,15 +46,22 @@ export function renderDocument2D(
     const layer = layerMap.get(entity.layerId || "layer_0");
     if (layer && !layer.visible) continue;
 
-    context.strokeStyle = entity.color || layer?.color || style.strokeColor;
-    context.lineWidth = entity.lineThickness !== undefined ? entity.lineThickness : style.lineWidth;
-    
-    if (entity.lineType === "dashed") {
-      context.setLineDash([8, 6]);
-    } else if (entity.lineType === "dotted") {
-      context.setLineDash([2, 4]);
+    if (style.overrideStroke === true) {
+      // O modo de destaque força cor, espessura e tracejado do estilo, ignorando os da entidade.
+      context.strokeStyle = style.strokeColor;
+      context.lineWidth = style.lineWidth;
+      context.setLineDash(style.lineDash !== undefined ? [...style.lineDash] : []);
     } else {
-      context.setLineDash([]);
+      context.strokeStyle = entity.color || layer?.color || style.strokeColor;
+      context.lineWidth = entity.lineThickness !== undefined ? entity.lineThickness : style.lineWidth;
+
+      if (entity.lineType === "dashed") {
+        context.setLineDash([8, 6]);
+      } else if (entity.lineType === "dotted") {
+        context.setLineDash([2, 4]);
+      } else {
+        context.setLineDash([]);
+      }
     }
     if (entity.type === "line") {
       const start = worldToScreen(entity.start, viewport);
