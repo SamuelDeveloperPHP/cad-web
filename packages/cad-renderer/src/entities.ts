@@ -111,6 +111,16 @@ export function renderDocument2D(
       context.beginPath();
       context.arc(center.x, center.y, radiusScreen, entity.startAngle, entity.endAngle, !entity.clockwise);
       context.stroke();
+    } else if (entity.type === "ellipse") {
+      // A elipse usa a API nativa do Canvas; a escala converte os semi-eixos para pixels.
+      // Como worldToScreen não espelha os eixos, a rotação é aplicada sem inverter o sinal.
+      const center = worldToScreen(entity.center, viewport);
+      const radiusXScreen = entity.radiusX * viewport.scale;
+      const radiusYScreen = entity.radiusY * viewport.scale;
+
+      context.beginPath();
+      context.ellipse(center.x, center.y, radiusXScreen, radiusYScreen, entity.rotation, 0, Math.PI * 2);
+      context.stroke();
     } else if (entity.type === "polyline") {
       // O renderer percorre os vertices em ordem; quando closed o path fecha do ultimo ao primeiro.
       if (entity.points.length >= 2) {

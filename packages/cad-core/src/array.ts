@@ -83,6 +83,14 @@ export function cloneCadEntityWithOffset(
     };
   }
 
+  if (entity.type === "ellipse") {
+    return {
+      ...entity,
+      id: newId,
+      center: offsetPoint(entity.center, offset)
+    };
+  }
+
   if (entity.type === "polyline") {
     return {
       ...entity,
@@ -289,6 +297,15 @@ export function rotateCadEntityAroundCenter(
       center: rotatePointAroundCenter(entity.center, center, angleRadians),
       startAngle: entity.startAngle + angleRadians,
       endAngle: entity.endAngle + angleRadians
+    };
+  }
+
+  if (entity.type === "ellipse") {
+    return {
+      ...entity,
+      id: newId,
+      center: rotatePointAroundCenter(entity.center, center, angleRadians),
+      rotation: entity.rotation + angleRadians
     };
   }
 

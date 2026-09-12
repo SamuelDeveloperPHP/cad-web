@@ -1,4 +1,4 @@
-import { resolveDimensionStyle, type ArcEntity, type CadDocument, type CadEntity, type CircleEntity, type LineEntity, type PolylineEntity, type RectangleEntity } from "@cad-web/cad-core";
+import { resolveDimensionStyle, type ArcEntity, type CadDocument, type CadEntity, type CircleEntity, type EllipseEntity, type LineEntity, type PolylineEntity, type RectangleEntity } from "@cad-web/cad-core";
 import type { CadJsonExportOptions } from "./json";
 import { CAD_IO_APPLICATION, CAD_IO_SCHEMA_VERSION, CadIoValidationError, validateCadDocument } from "./json";
 
@@ -135,6 +135,10 @@ function serializeEntityToSvg(entity: CadEntity, precision: number, document: an
     return serializeArcToSvg(entity, precision);
   }
 
+  if (entity.type === "ellipse") {
+    return serializeEllipseToSvg(entity, precision);
+  }
+
   if (entity.type === "polyline") {
     return serializePolylineToSvg(entity, precision);
   }
@@ -163,7 +167,7 @@ function serializePolylineToSvg(entity: PolylineEntity, precision: number): stri
   ].join(" ");
 }
 
-import { arcBoundingBox, arcEndPoint, arcStartPoint, arcSweepAngle, buildAlignedDimensionGeometry, buildLinearDimensionGeometry, buildRadiusDimensionGeometry, buildDiameterDimensionGeometry, buildAngularDimensionGeometry } from "@cad-web/cad-geometry";
+import { arcBoundingBox, arcEndPoint, arcStartPoint, arcSweepAngle, ellipseBoundingBox, buildAlignedDimensionGeometry, buildLinearDimensionGeometry, buildRadiusDimensionGeometry, buildDiameterDimensionGeometry, buildAngularDimensionGeometry } from "@cad-web/cad-geometry";
 
 function serializeDimensionToSvg(entity: any, precision: number, document: any): string {
   const resolvedStyle = resolveDimensionStyle(document, entity);
@@ -316,6 +320,29 @@ function serializeCircleToSvg(entity: CircleEntity, precision: number): string {
     `cy="${formatNumber(entity.center.y, precision)}"`,
     `r="${formatNumber(entity.radius, precision)}" />`
   ].join(" ");
+}
+
+function serializeEllipseToSvg(entity: EllipseEntity, precision: number): string {
+  // O exportador usa <ellipse> com transform rotate no centro quando há rotação.
+  const attributes = [
+    `<ellipse id="${escapeSvgAttribute(entity.id)}"`,
+    `data-layer-id="${escapeSvgAttribute(entity.layerId)}"`,
+    `data-entity-type="ellipse"`,
+    `cx="${formatNumber(entity.center.x, precision)}"`,
+    `cy="${formatNumber(entity.center.y, precision)}"`,
+    `rx="${formatNumber(entity.radiusX, precision)}"`,
+    `ry="${formatNumber(entity.radiusY, precision)}"`
+  ];
+
+  if (entity.rotation !== 0) {
+    attributes.push(
+      `transform="rotate(${formatNumber((entity.rotation * 180) / Math.PI, precision)} ${formatNumber(entity.center.x, precision)} ${formatNumber(entity.center.y, precision)})"`
+    );
+  }
+
+  attributes.push("/>");
+
+  return attributes.join(" ");
 }
 
 function serializeArcToSvg(entity: ArcEntity, precision: number): string {
@@ -679,6 +706,10 @@ function calculateEntityBounds(entity: CadEntity, document?: CadDocument): SvgBo
 
   if (entity.type === "arc") {
     return arcBoundingBox(entity);
+  }
+
+  if (entity.type === "ellipse") {
+    return ellipseBoundingBox(entity.center, entity.radiusX, entity.radiusY, entity.rotation);
   }
 
   if (entity.type === "polyline") {

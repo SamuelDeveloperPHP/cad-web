@@ -292,6 +292,14 @@ function validateCadEntity(entity: CadEntity | undefined, path: string): void {
     return;
   }
 
+  if (entity.type === "ellipse") {
+    validatePoint(entity.center, `${path}.center`);
+    assertPositiveNumber(entity.radiusX, `${path}.radiusX`);
+    assertPositiveNumber(entity.radiusY, `${path}.radiusY`);
+    assertFiniteNumber(entity.rotation, `${path}.rotation`);
+    return;
+  }
+
   if (entity.type === "polyline") {
     // O JSON valida o array de points e o flag closed; vertices precisam ser pontos finitos.
     if (!Array.isArray((entity as any).points)) {
