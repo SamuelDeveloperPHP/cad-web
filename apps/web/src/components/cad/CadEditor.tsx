@@ -149,6 +149,11 @@ export function CadEditor() {
         onDisplayUnitChange={(unit) => cad.executeCommand(new ChangeDisplayUnitCommand(unit as DisplayUnitInput))}
         onZoomPercentChange={(percent) => cad.setZoomScale(percent / 100)}
         onZoomExtents={cad.zoomToExtents}
+        onZoomIn={cad.zoomIn}
+        onZoomOut={cad.zoomOut}
+        onZoomWindow={() => cad.setActiveTool(cad.activeTool === "zoomWindow" ? "select" : "zoomWindow")}
+        onZoomPrevious={cad.zoomPrevious}
+        zoomWindowActive={cad.activeTool === "zoomWindow"}
       />
 
       <input

@@ -30,6 +30,7 @@ const toolPrompts: Record<ActiveCadTool, string> = {
   explode: "[Explode] Select objects",
   erase: "[Erase] Select objects or press Delete",
   pan: "[Pan] Drag to pan view",
+  zoomWindow: "[Zoom Window] Drag a rectangle to zoom",
   dimLinear: "[DimLinear] Specify first extension origin",
   dimAligned: "[DimAligned] Specify first extension origin",
   dimRadius: "[DimRadius] Select circle",

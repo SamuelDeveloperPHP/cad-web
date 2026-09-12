@@ -16,6 +16,11 @@ type CadStatusBarProps = Readonly<{
   onDisplayUnitChange(unit: string): void;
   onZoomPercentChange(percent: number): void;
   onZoomExtents(): void;
+  onZoomIn(): void;
+  onZoomOut(): void;
+  onZoomWindow(): void;
+  onZoomPrevious(): void;
+  zoomWindowActive: boolean;
 }>;
 
 const toolLabels: Record<ActiveCadTool, string> = {
@@ -40,6 +45,7 @@ const toolLabels: Record<ActiveCadTool, string> = {
   explode: "Explode",
   erase: "Erase",
   pan: "Pan",
+  zoomWindow: "Zoom Window",
   dimLinear: "Dim Linear",
   dimAligned: "Dim Aligned",
   dimRadius: "Dim Radius",
@@ -58,9 +64,14 @@ export function CadStatusBar({
   onDisplayUnitChange,
   onSnapSettingsChange,
   onZoomExtents,
+  onZoomIn,
+  onZoomOut,
   onZoomPercentChange,
+  onZoomPrevious,
+  onZoomWindow,
   snapSettings,
-  zoom
+  zoom,
+  zoomWindowActive
 }: CadStatusBarProps) {
   const activeModes = formatActiveSnaps(snapSettings);
 
@@ -70,7 +81,16 @@ export function CadStatusBar({
         <StatusItem label="Tool" value={toolLabels[activeTool]} strong />
         <StatusItem label="X" value={mouseWorld.x.toFixed(3)} monospace />
         <StatusItem label="Y" value={mouseWorld.y.toFixed(3)} monospace />
-        <ZoomControl zoom={zoom} onZoomPercentChange={onZoomPercentChange} onZoomExtents={onZoomExtents} />
+        <ZoomControl
+          zoom={zoom}
+          zoomWindowActive={zoomWindowActive}
+          onZoomPercentChange={onZoomPercentChange}
+          onZoomExtents={onZoomExtents}
+          onZoomIn={onZoomIn}
+          onZoomOut={onZoomOut}
+          onZoomWindow={onZoomWindow}
+          onZoomPrevious={onZoomPrevious}
+        />
       </div>
 
       <div className="cad-statusbar-group">
@@ -113,9 +133,23 @@ export function CadStatusBar({
 
 function ZoomControl({
   zoom,
+  zoomWindowActive,
   onZoomPercentChange,
-  onZoomExtents
-}: Readonly<{ zoom: number; onZoomPercentChange(percent: number): void; onZoomExtents(): void }>) {
+  onZoomExtents,
+  onZoomIn,
+  onZoomOut,
+  onZoomWindow,
+  onZoomPrevious
+}: Readonly<{
+  zoom: number;
+  zoomWindowActive: boolean;
+  onZoomPercentChange(percent: number): void;
+  onZoomExtents(): void;
+  onZoomIn(): void;
+  onZoomOut(): void;
+  onZoomWindow(): void;
+  onZoomPrevious(): void;
+}>) {
   const currentPercent = (zoom * 100).toFixed(0);
   const [draft, setDraft] = useState(currentPercent);
 
@@ -137,6 +171,9 @@ function ZoomControl({
   return (
     <span className="cad-statusbar-item cad-statusbar-zoom" title="Zoom (digite a porcentagem e Enter)">
       <span>Zoom</span>
+      <button className="cad-statusbar-btn cad-statusbar-zoom-step" type="button" onClick={onZoomOut} title="Reduzir zoom">
+        −
+      </button>
       <input
         className="cad-statusbar-zoom-input"
         value={draft}
@@ -155,6 +192,9 @@ function ZoomControl({
         }}
       />
       <span className="cad-statusbar-zoom-suffix">%</span>
+      <button className="cad-statusbar-btn cad-statusbar-zoom-step" type="button" onClick={onZoomIn} title="Ampliar zoom">
+        +
+      </button>
       <button
         className="cad-statusbar-btn"
         type="button"
@@ -162,6 +202,22 @@ function ZoomControl({
         title="Centralizar o desenho na tela (zoom extents)"
       >
         Fit
+      </button>
+      <button
+        className={`cad-statusbar-btn ${zoomWindowActive ? "active" : ""}`}
+        type="button"
+        onClick={onZoomWindow}
+        title="Zoom Window: arraste um retângulo para ampliar uma região"
+      >
+        Win
+      </button>
+      <button
+        className="cad-statusbar-btn"
+        type="button"
+        onClick={onZoomPrevious}
+        title="Voltar ao zoom anterior"
+      >
+        Prev
       </button>
     </span>
   );
