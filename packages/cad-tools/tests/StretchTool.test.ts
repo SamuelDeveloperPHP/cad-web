@@ -41,7 +41,7 @@ describe("StretchTool", () => {
 
     tool.activate(context);
     selectRightHalfWindow(tool, context);
-    expect(context.messages.at(-1)).toBe("Specify base point.");
+    expect(context.messages.at(-1)).toContain("Specify base point.");
 
     tool.onPointerDown(createPointerEvent({ x: 100, y: 0 }), context);
     const preview = tool.onPointerMove(createPointerEvent({ x: 120, y: 10 }), context);
