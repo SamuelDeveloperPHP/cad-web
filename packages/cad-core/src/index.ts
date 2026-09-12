@@ -1441,6 +1441,79 @@ export function stretchEntity(entity: CadEntity, window: BoundingBox, displaceme
       : entity;
   }
 
+  if (entity.type === "dimension") {
+    // A cota acompanha a geometria: cada ponto da definição que estiver dentro da janela se move.
+    // O valor exibido recalcula sozinho, pois é derivado dos pontos da definição.
+    return stretchDimensionEntity(entity, window, displacement, move);
+  }
+
+  return entity;
+}
+
+function stretchDimensionEntity(
+  entity: DimensionEntity,
+  window: BoundingBox,
+  displacement: Point2D,
+  move: (point: Point2D) => Point2D
+): DimensionEntity {
+  const definition = entity.definition;
+  const anyInside = (points: ReadonlyArray<Point2D>): boolean =>
+    points.some((point) => boundingBoxContainsPoint(window, point));
+
+  if (entity.dimensionType === "linear" || entity.dimensionType === "aligned") {
+    const def = definition as LinearDimensionDef | AlignedDimensionDef;
+
+    if (!anyInside([def.firstPoint, def.secondPoint, def.dimensionLinePoint])) {
+      return entity;
+    }
+
+    return {
+      ...entity,
+      definition: {
+        ...def,
+        firstPoint: move(def.firstPoint),
+        secondPoint: move(def.secondPoint),
+        dimensionLinePoint: move(def.dimensionLinePoint)
+      }
+    };
+  }
+
+  if (entity.dimensionType === "radius" || entity.dimensionType === "diameter") {
+    const def = definition as RadiusDimensionDef | DiameterDimensionDef;
+
+    if (!anyInside([def.center, def.leaderEndPoint])) {
+      return entity;
+    }
+
+    return {
+      ...entity,
+      definition: {
+        ...def,
+        center: move(def.center),
+        leaderEndPoint: move(def.leaderEndPoint)
+      }
+    };
+  }
+
+  if (entity.dimensionType === "angular") {
+    const def = definition as AngularDimensionDef;
+
+    if (!anyInside([def.vertex, def.firstPoint, def.secondPoint, def.arcPoint])) {
+      return entity;
+    }
+
+    return {
+      ...entity,
+      definition: {
+        ...def,
+        vertex: move(def.vertex),
+        firstPoint: move(def.firstPoint),
+        secondPoint: move(def.secondPoint),
+        arcPoint: move(def.arcPoint)
+      }
+    };
+  }
+
   return entity;
 }
 
