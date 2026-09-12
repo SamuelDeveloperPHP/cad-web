@@ -1,11 +1,21 @@
 import {
   ClearDocumentCommand,
   CommandHistory,
+  documentBoundingBox,
   type CadCommand,
   type CadDocument
 } from "@cad-web/cad-core";
-import type { Point2D, SnapResult, SnapSettings } from "@cad-web/cad-geometry";
-import { createViewport, panViewport, type Viewport } from "@cad-web/cad-renderer";
+import { clamp, type Point2D, type SnapResult, type SnapSettings } from "@cad-web/cad-geometry";
+import {
+  MAX_VIEWPORT_SCALE,
+  MIN_VIEWPORT_SCALE,
+  createViewport,
+  panViewport,
+  screenToWorld,
+  zoomExtents,
+  type ScreenSize,
+  type Viewport
+} from "@cad-web/cad-renderer";
 import {
   ObjectSnapService,
   type CadPreview,
@@ -58,6 +68,7 @@ const ACTIVE_CAD_TOOLS: ReadonlySet<string> = new Set<ActiveCadTool>([
 export type CadStore = Readonly<{
   document: CadDocument;
   viewport: Viewport;
+  screenSize: ScreenSize;
   activeTool: ActiveCadTool;
   mouseWorld: Point2D;
   selectedEntityIds: ReadonlyArray<string>;
@@ -69,6 +80,9 @@ export type CadStore = Readonly<{
   message: string;
   setActiveTool(tool: ActiveCadTool): void;
   setViewport(viewport: Viewport): void;
+  setScreenSize(size: ScreenSize): void;
+  setZoomScale(scale: number): void;
+  zoomToExtents(): void;
   setMouseWorld(point: Point2D): void;
   setSnapSettings(settings: SnapSettings): void;
   panByScreenDelta(delta: Point2D): void;
@@ -90,6 +104,7 @@ export function useCadStore(): CadStore {
   const [document, setDocument] = useState<CadDocument>(() => loadStoredDocument() ?? createInitialDocument());
   const [history] = useState(() => new CommandHistory(document));
   const [viewport, setViewport] = useState<Viewport>(() => createViewport({ x: -50, y: -30 }, 8));
+  const [screenSize, setScreenSize] = useState<ScreenSize>({ width: 1, height: 1 });
   const [activeTool, setActiveToolState] = useState<ActiveCadTool>("select");
   const [mouseWorld, setMouseWorld] = useState<Point2D>({ x: 0, y: 0 });
   const [selectedEntityIds, setSelectedEntityIds] = useState<ReadonlyArray<string>>([]);
@@ -227,6 +242,38 @@ export function useCadStore(): CadStore {
   const panByScreenDelta = useCallback((delta: Point2D) => {
     setViewport((current) => panViewport(current, delta));
   }, []);
+
+  const setZoomScale = useCallback(
+    (nextScale: number) => {
+      // O zoom manual mantém fixo o ponto de mundo que está no centro da tela, evitando saltos de posição.
+      setViewport((current) => {
+        const clampedScale = clamp(nextScale, MIN_VIEWPORT_SCALE, MAX_VIEWPORT_SCALE);
+        const screenCenter = { x: screenSize.width / 2, y: screenSize.height / 2 };
+        const worldCenter = screenToWorld(screenCenter, current);
+
+        return {
+          scale: clampedScale,
+          origin: {
+            x: worldCenter.x - screenCenter.x / clampedScale,
+            y: worldCenter.y - screenCenter.y / clampedScale
+          }
+        };
+      });
+    },
+    [screenSize]
+  );
+
+  const zoomToExtents = useCallback(() => {
+    const bounds = documentBoundingBox(document);
+
+    if (bounds === null) {
+      // Sem entidades, o zoom retorna ao enquadramento padrão do documento novo.
+      setViewport(createViewport({ x: -50, y: -30 }, 8));
+      return;
+    }
+
+    setViewport(zoomExtents({ bounds, screenSize, paddingPixels: 48 }));
+  }, [document, screenSize]);
 
   const dispatchPointerDown = useCallback(
     (event: ToolPointerEvent) => {
@@ -372,6 +419,12 @@ export function useCadStore(): CadStore {
         return;
       }
 
+      if (["z", "za", "ze", "zoom", "zoomall", "zoomextents"].includes(normalizedCommand)) {
+        zoomToExtents();
+        showMessage("Zoom ajustado ao desenho.");
+        return;
+      }
+
       if (resolvedTool?.id === "erase" && activeTool !== "erase") {
         runEraseTool({
           key: "Enter",
@@ -395,13 +448,14 @@ export function useCadStore(): CadStore {
         processToolResult(toolRegistry.resolve(activeTool)?.onCommandInput(command, context) ?? { type: "none" });
       }
     },
-    [activeTool, clearDocument, createToolContext, document.entities.length, processToolResult, redo, runEraseTool, setActiveTool, showMessage, toolRegistry, undo]
+    [activeTool, clearDocument, createToolContext, document.entities.length, processToolResult, redo, runEraseTool, setActiveTool, showMessage, toolRegistry, undo, zoomToExtents]
   );
 
   return useMemo(
     () => ({
       document,
       viewport,
+      screenSize,
       activeTool,
       mouseWorld,
       selectedEntityIds,
@@ -413,6 +467,9 @@ export function useCadStore(): CadStore {
       message,
       setActiveTool,
       setViewport,
+      setScreenSize,
+      setZoomScale,
+      zoomToExtents,
       setMouseWorld,
       setSnapSettings,
       panByScreenDelta,
@@ -453,7 +510,10 @@ export function useCadStore(): CadStore {
       showMessage,
       undo,
       redo,
-      viewport
+      viewport,
+      screenSize,
+      setZoomScale,
+      zoomToExtents
     ]
   );
 }
