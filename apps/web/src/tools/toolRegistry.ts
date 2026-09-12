@@ -5,6 +5,7 @@ import {
   PolylineTool,
   RectangleTool,
   CircleTool,
+  ArcTool,
   MoveTool,
   RotateTool,
   ScaleTool,
@@ -33,6 +34,7 @@ export function createWebToolRegistry(): ToolRegistry {
   registry.register(new PolylineTool());
   registry.register(new RectangleTool());
   registry.register(new CircleTool());
+  registry.register(new ArcTool());
   registry.register(new MoveTool());
   registry.register(new RotateTool());
   registry.register(new ScaleTool());

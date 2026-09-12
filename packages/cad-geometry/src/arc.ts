@@ -309,3 +309,95 @@ function addScaledVector(point: Point2D, vector: Vector2D, scale: number): Point
     y: point.y + vector.y * scale
   };
 }
+
+export type ArcConstructionResult =
+  | Readonly<{ ok: true; arc: ArcGeometry }>
+  | Readonly<{ ok: false; reason: string }>;
+
+/**
+ * A função constrói um arco que passa por três pontos: início, um ponto intermediário e fim.
+ * O centro é o circuncentro do triângulo formado pelos pontos; o sentido do arco é escolhido
+ * de modo que o ponto intermediário fique sobre o arco resultante.
+ */
+export function computeArcFromThreePoints(
+  start: Point2D,
+  middle: Point2D,
+  end: Point2D,
+  epsilon = CAD_EPSILON
+): ArcConstructionResult {
+  if (
+    distance(start, middle) <= epsilon ||
+    distance(middle, end) <= epsilon ||
+    distance(start, end) <= epsilon
+  ) {
+    return { ok: false, reason: "Points must be distinct." };
+  }
+
+  const ab = subtractPoints(middle, start);
+  const ac = subtractPoints(end, start);
+  const determinant = 2 * cross(ab, ac);
+
+  if (Math.abs(determinant) <= epsilon) {
+    return { ok: false, reason: "Points are collinear." };
+  }
+
+  // O circuncentro resulta da interseção das mediatrizes dos lados AB e AC.
+  const abLengthSquared = dot(ab, ab);
+  const acLengthSquared = dot(ac, ac);
+  const center: Point2D = {
+    x: start.x + (ac.y * abLengthSquared - ab.y * acLengthSquared) / determinant,
+    y: start.y + (ab.x * acLengthSquared - ac.x * abLengthSquared) / determinant
+  };
+  const radius = distance(center, start);
+
+  if (!Number.isFinite(radius) || radius <= epsilon) {
+    return { ok: false, reason: "Radius must be greater than zero." };
+  }
+
+  const startAngle = Math.atan2(start.y - center.y, start.x - center.x);
+  const middleAngle = Math.atan2(middle.y - center.y, middle.x - center.x);
+  const endAngle = Math.atan2(end.y - center.y, end.x - center.x);
+  // O sentido é definido pela orientação em que o ponto intermediário pertence ao arco.
+  const clockwise = isAngleOnArc(middleAngle, startAngle, endAngle, true, epsilon);
+
+  return {
+    ok: true,
+    arc: buildArcFromCenterRadiusAngles(center, radius, startAngle, endAngle, clockwise)
+  };
+}
+
+/**
+ * A função constrói um arco a partir do centro, do ponto inicial e de um ponto que define o ângulo final.
+ * O raio é a distância entre centro e ponto inicial; o ponto final é projetado sobre a circunferência.
+ * O arco percorre ângulos crescentes (clockwise = true na convenção do documento), o que corresponde
+ * ao sentido anti-horário padrão do AutoCAD quando o eixo Y cresce para cima.
+ */
+export function computeArcFromCenterStartEnd(
+  center: Point2D,
+  start: Point2D,
+  end: Point2D,
+  clockwise = true,
+  epsilon = CAD_EPSILON
+): ArcConstructionResult {
+  const radius = distance(center, start);
+
+  if (radius <= epsilon) {
+    return { ok: false, reason: "Radius must be greater than zero." };
+  }
+
+  if (distance(center, end) <= epsilon) {
+    return { ok: false, reason: "End point must differ from center." };
+  }
+
+  const startAngle = Math.atan2(start.y - center.y, start.x - center.x);
+  const endAngle = Math.atan2(end.y - center.y, end.x - center.x);
+
+  if (Math.abs(normalizeArcAngle(endAngle - startAngle)) <= epsilon) {
+    return { ok: false, reason: "Arc sweep must be greater than zero." };
+  }
+
+  return {
+    ok: true,
+    arc: buildArcFromCenterRadiusAngles(center, radius, startAngle, endAngle, clockwise)
+  };
+}

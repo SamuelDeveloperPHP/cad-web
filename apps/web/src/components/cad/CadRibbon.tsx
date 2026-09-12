@@ -2,6 +2,7 @@ import type { SnapSettings } from "@cad-web/cad-geometry";
 import {
   ChevronDown,
   Circle,
+  Rainbow,
   CornerDownRight,
   CornerRightDown,
   Copy,
@@ -64,7 +65,8 @@ const drawTools: ReadonlyArray<RibbonTool> = [
   { id: "line", label: "Line", icon: Minus },
   { id: "polyline", label: "PLine", icon: Spline },
   { id: "rectangle", label: "Rect", icon: Square },
-  { id: "circle", label: "Circle", icon: Circle }
+  { id: "circle", label: "Circle", icon: Circle },
+  { id: "arc", label: "Arc", icon: Rainbow }
 ];
 
 const modifyTools: ReadonlyArray<RibbonTool> = [

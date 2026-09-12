@@ -21,6 +21,7 @@ const toolLabels: Record<ActiveCadTool, string> = {
   polyline: "Polyline",
   rectangle: "Rectangle",
   circle: "Circle",
+  arc: "Arc",
   move: "Move",
   rotate: "Rotate",
   scale: "Scale",

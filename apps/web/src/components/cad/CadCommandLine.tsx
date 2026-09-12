@@ -14,6 +14,7 @@ const toolPrompts: Record<ActiveCadTool, string> = {
   polyline: "[Polyline] Specify first point",
   rectangle: "[Rectangle] Specify first corner",
   circle: "[Circle] Specify center point",
+  arc: "[Arc] Specify start point or ce for center",
   move: "[Move] Select objects or specify base point",
   rotate: "[Rotate] Specify pivot point",
   scale: "[Scale] Specify base point",
