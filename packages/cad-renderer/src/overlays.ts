@@ -48,6 +48,15 @@ export function renderSnapMarker2D(
     context.beginPath();
     context.arc(point.x, point.y, radius, 0, Math.PI * 2);
     context.stroke();
+  } else if (snapType === "quadrant") {
+    // O quadrante usa um losango (quadrado a 45°), convenção do AutoCAD.
+    context.beginPath();
+    context.moveTo(point.x, point.y - radius);
+    context.lineTo(point.x + radius, point.y);
+    context.lineTo(point.x, point.y + radius);
+    context.lineTo(point.x - radius, point.y);
+    context.closePath();
+    context.stroke();
   } else {
     context.beginPath();
     context.moveTo(point.x, point.y - radius);
@@ -129,6 +138,10 @@ function getSnapLabel(snapType: SnapType): string {
 
   if (snapType === "center") {
     return "Center";
+  }
+
+  if (snapType === "quadrant") {
+    return "Quadrant";
   }
 
   return "Nearest";
