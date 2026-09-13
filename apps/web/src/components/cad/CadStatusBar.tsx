@@ -244,6 +244,7 @@ function formatActiveSnaps(settings: SnapSettings): string {
     settings.endpoint ? "Endpoint" : null,
     settings.midpoint ? "Midpoint" : null,
     settings.center ? "Center" : null,
+    settings.quadrant ? "Quadrant" : null,
     settings.nearest ? "Nearest" : null
   ].filter((snap): snap is string => snap !== null);
 
