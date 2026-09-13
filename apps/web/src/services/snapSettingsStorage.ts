@@ -33,6 +33,7 @@ function normalizeSnapSettings(value: unknown): SnapSettings {
     midpoint: typeof candidate.midpoint === "boolean" ? candidate.midpoint : DEFAULT_SNAP_SETTINGS.midpoint,
     center: typeof candidate.center === "boolean" ? candidate.center : DEFAULT_SNAP_SETTINGS.center,
     quadrant: typeof candidate.quadrant === "boolean" ? candidate.quadrant : DEFAULT_SNAP_SETTINGS.quadrant,
+    intersection: typeof candidate.intersection === "boolean" ? candidate.intersection : DEFAULT_SNAP_SETTINGS.intersection,
     nearest: typeof candidate.nearest === "boolean" ? candidate.nearest : DEFAULT_SNAP_SETTINGS.nearest,
     tolerancePx:
       typeof candidate.tolerancePx === "number" && Number.isFinite(candidate.tolerancePx)

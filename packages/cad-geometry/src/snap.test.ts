@@ -211,6 +211,57 @@ describe("cad-geometry object snap", () => {
     expect(result.snapped).toBe(false);
   });
 
+  it("finds an intersection snap between two crossing lines", () => {
+    const lineA: SnapEntity = { id: "la", type: "line", start: { x: -5, y: -5 }, end: { x: 5, y: 5 } };
+    const lineB: SnapEntity = { id: "lb", type: "line", start: { x: -5, y: 5 }, end: { x: 5, y: -5 } };
+
+    // As linhas se cruzam em (0,0); só endpoint/intersection/nearest disponíveis, intersection vence perto do cruzamento.
+    const result = findBestSnap(
+      { x: 0.05, y: 0.03 },
+      { x: 0.5, y: 0.3 },
+      [lineA, lineB],
+      { ...defaultSettings, endpoint: false, midpoint: false },
+      viewport
+    );
+
+    expect(result.candidate?.type).toBe("intersection");
+    expect(result.point.x).toBeCloseTo(0, 6);
+    expect(result.point.y).toBeCloseTo(0, 6);
+  });
+
+  it("finds an intersection snap between a line and an ellipse", () => {
+    const line: SnapEntity = { id: "l", type: "line", start: { x: -40, y: 0 }, end: { x: 40, y: 0 } };
+    const ellipse: SnapEntity = { id: "el", type: "ellipse", center: { x: 0, y: 0 }, radiusX: 30, radiusY: 10, rotation: 0 };
+
+    // A linha horizontal cruza a elipse em (±30,0). Perto de (30,0), o snap de interseção vence o nearest.
+    const result = findBestSnap(
+      { x: 30.05, y: 0.03 },
+      { x: 300.5, y: 0.3 },
+      [line, ellipse],
+      { ...defaultSettings, endpoint: false, midpoint: false, quadrant: false },
+      viewport
+    );
+
+    expect(result.candidate?.type).toBe("intersection");
+    expect(result.point.x).toBeCloseTo(30, 4);
+    expect(result.point.y).toBeCloseTo(0, 4);
+  });
+
+  it("offers no intersection snap when the entities do not cross", () => {
+    const lineA: SnapEntity = { id: "la", type: "line", start: { x: 0, y: 0 }, end: { x: 10, y: 0 } };
+    const lineB: SnapEntity = { id: "lb", type: "line", start: { x: 0, y: 5 }, end: { x: 10, y: 5 } };
+
+    const result = findBestSnap(
+      { x: 5.05, y: 2.5 },
+      { x: 50.5, y: 25 },
+      [lineA, lineB],
+      { ...defaultSettings, endpoint: false, midpoint: false, center: false, quadrant: false, nearest: false },
+      viewport
+    );
+
+    expect(result.snapped).toBe(false);
+  });
+
   it("returns raw point when snap is disabled", () => {
     const rawPoint = { x: 0.4, y: 0.2 };
     const result = findBestSnap(
