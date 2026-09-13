@@ -15,14 +15,20 @@ import type { SnapService } from "../contracts/ToolContext";
 export class ObjectSnapService implements SnapService {
   constructor(private readonly settings: SnapSettings = DEFAULT_SNAP_SETTINGS) {}
 
-  findSnap(event: ToolPointerEvent, context: ToolContext, extraEntities: ReadonlyArray<SnapEntity> = []): SnapResult | null {
+  findSnap(
+    event: ToolPointerEvent,
+    context: ToolContext,
+    extraEntities: ReadonlyArray<SnapEntity> = [],
+    referencePoint?: Point2D
+  ): SnapResult | null {
     if (!this.settings.enabled || this.settings.tolerancePx <= 0) {
       return findBestSnap(
         event.worldPoint,
         event.screenPoint,
         [],
         this.settings,
-        context.viewport
+        context.viewport,
+        referencePoint
       );
     }
 
@@ -55,7 +61,8 @@ export class ObjectSnapService implements SnapService {
       event.screenPoint,
       allCandidates,
       this.settings,
-      context.viewport
+      context.viewport,
+      referencePoint
     );
   }
 }
@@ -63,7 +70,8 @@ export class ObjectSnapService implements SnapService {
 export function resolveSnappedPoint(
   event: ToolPointerEvent,
   context: ToolContext,
-  extraEntities?: ReadonlyArray<SnapEntity>
+  extraEntities?: ReadonlyArray<SnapEntity>,
+  referencePoint?: Point2D
 ): Point2D {
-  return context.snapService.findSnap(event, context, extraEntities)?.point ?? event.worldPoint;
+  return context.snapService.findSnap(event, context, extraEntities, referencePoint)?.point ?? event.worldPoint;
 }

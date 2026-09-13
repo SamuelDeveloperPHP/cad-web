@@ -12,8 +12,17 @@ import {
   type EllipseGeometry
 } from "./ellipse";
 import { intersectPrimitives, type IntersectPrimitive } from "./intersections";
+import { perpendicularPointsOnPrimitive, tangentPointsOnPrimitive } from "./perpTangent";
 
-export type SnapType = "endpoint" | "midpoint" | "center" | "quadrant" | "intersection" | "nearest";
+export type SnapType =
+  | "endpoint"
+  | "midpoint"
+  | "center"
+  | "quadrant"
+  | "intersection"
+  | "perpendicular"
+  | "tangent"
+  | "nearest";
 
 export type SnapSettings = Readonly<{
   enabled: boolean;
@@ -22,6 +31,8 @@ export type SnapSettings = Readonly<{
   center: boolean;
   quadrant: boolean;
   intersection: boolean;
+  perpendicular: boolean;
+  tangent: boolean;
   nearest: boolean;
   tolerancePx: number;
 }>;
@@ -113,14 +124,18 @@ export const DEFAULT_SNAP_SETTINGS: SnapSettings = {
   center: true,
   quadrant: true,
   intersection: true,
+  perpendicular: true,
+  tangent: true,
   nearest: true,
   tolerancePx: 12
 };
 
 const SNAP_PRIORITY: Record<SnapType, number> = {
-  endpoint: 6,
-  intersection: 5,
-  midpoint: 4,
+  endpoint: 8,
+  intersection: 7,
+  midpoint: 6,
+  perpendicular: 5,
+  tangent: 4,
   quadrant: 3,
   center: 2,
   nearest: 1
@@ -199,6 +214,32 @@ export function getIntersectionSnapCandidates(
   }
 
   return candidates;
+}
+
+export function getPerpendicularSnapCandidates(
+  entity: SnapEntity,
+  referencePoint: Point2D,
+  screenPoint: Point2D,
+  viewport: SnapViewport
+): ReadonlyArray<SnapCandidate> {
+  return snapEntityToPrimitives(entity).flatMap((primitive) =>
+    perpendicularPointsOnPrimitive(primitive, referencePoint).map((point) =>
+      createSnapCandidate("perpendicular", point, entity.id, screenPoint, viewport)
+    )
+  );
+}
+
+export function getTangentSnapCandidates(
+  entity: SnapEntity,
+  referencePoint: Point2D,
+  screenPoint: Point2D,
+  viewport: SnapViewport
+): ReadonlyArray<SnapCandidate> {
+  return snapEntityToPrimitives(entity).flatMap((primitive) =>
+    tangentPointsOnPrimitive(primitive, referencePoint).map((point) =>
+      createSnapCandidate("tangent", point, entity.id, screenPoint, viewport)
+    )
+  );
 }
 
 export function getEndpointSnapCandidates(
@@ -423,7 +464,9 @@ export function findBestSnap(
   screenPoint: Point2D,
   entities: ReadonlyArray<SnapEntity>,
   settings: SnapSettings,
-  viewport: SnapViewport
+  viewport: SnapViewport,
+  // Ponto de referência (o ponto anterior do desenho em andamento); habilita perpendicular e tangente.
+  referencePoint?: Point2D
 ): SnapResult {
   if (!settings.enabled || settings.tolerancePx <= 0) {
     return createUnsnappedResult(rawPoint);
@@ -446,6 +489,14 @@ export function findBestSnap(
 
     if (settings.quadrant) {
       candidates.push(...getQuadrantSnapCandidates(entity, screenPoint, viewport));
+    }
+
+    if (settings.perpendicular && referencePoint !== undefined) {
+      candidates.push(...getPerpendicularSnapCandidates(entity, referencePoint, screenPoint, viewport));
+    }
+
+    if (settings.tangent && referencePoint !== undefined) {
+      candidates.push(...getTangentSnapCandidates(entity, referencePoint, screenPoint, viewport));
     }
 
     if (settings.nearest) {

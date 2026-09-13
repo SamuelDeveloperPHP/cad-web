@@ -14,7 +14,13 @@ export type ViewportState = Readonly<{
 
 export interface SnapService {
   // O parâmetro extraEntities permite que a ferramenta ativa ofereça snaps da geometria em andamento (ex.: fechar uma polyline).
-  findSnap(event: ToolPointerEvent, context: ToolContext, extraEntities?: ReadonlyArray<SnapEntity>): SnapResult | null;
+  // O referencePoint (ponto anterior do desenho em andamento) habilita os snaps perpendicular e tangente.
+  findSnap(
+    event: ToolPointerEvent,
+    context: ToolContext,
+    extraEntities?: ReadonlyArray<SnapEntity>,
+    referencePoint?: Point2D
+  ): SnapResult | null;
 }
 
 export interface CommandBus {
