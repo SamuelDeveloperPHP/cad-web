@@ -15,6 +15,7 @@ export * from "./trim";
 export * from "./extend";
 export * from "./arc";
 export * from "./ellipse";
+export * from "./intersections";
 export * from "./chamfer";
 export * from "./array";
 export * from "./arrayPolar";

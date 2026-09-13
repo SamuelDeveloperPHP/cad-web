@@ -57,6 +57,14 @@ export function renderSnapMarker2D(
     context.lineTo(point.x - radius, point.y);
     context.closePath();
     context.stroke();
+  } else if (snapType === "intersection") {
+    // A interseção usa um "X", convenção do AutoCAD.
+    context.beginPath();
+    context.moveTo(point.x - radius, point.y - radius);
+    context.lineTo(point.x + radius, point.y + radius);
+    context.moveTo(point.x + radius, point.y - radius);
+    context.lineTo(point.x - radius, point.y + radius);
+    context.stroke();
   } else {
     context.beginPath();
     context.moveTo(point.x, point.y - radius);
@@ -142,6 +150,10 @@ function getSnapLabel(snapType: SnapType): string {
 
   if (snapType === "quadrant") {
     return "Quadrant";
+  }
+
+  if (snapType === "intersection") {
+    return "Intersection";
   }
 
   return "Nearest";
