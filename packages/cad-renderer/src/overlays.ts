@@ -65,6 +65,23 @@ export function renderSnapMarker2D(
     context.moveTo(point.x + radius, point.y - radius);
     context.lineTo(point.x - radius, point.y + radius);
     context.stroke();
+  } else if (snapType === "perpendicular") {
+    // Perpendicular: símbolo de ângulo reto (convenção do AutoCAD).
+    context.beginPath();
+    context.moveTo(point.x - radius, point.y - radius);
+    context.lineTo(point.x - radius, point.y + radius);
+    context.lineTo(point.x + radius, point.y + radius);
+    context.moveTo(point.x - radius, point.y);
+    context.lineTo(point.x, point.y);
+    context.lineTo(point.x, point.y + radius);
+    context.stroke();
+  } else if (snapType === "tangent") {
+    // Tangente: círculo com uma reta tangente no topo (convenção do AutoCAD).
+    context.beginPath();
+    context.arc(point.x, point.y + radius * 0.35, radius * 0.65, 0, Math.PI * 2);
+    context.moveTo(point.x - radius, point.y - radius * 0.5);
+    context.lineTo(point.x + radius, point.y - radius * 0.5);
+    context.stroke();
   } else {
     context.beginPath();
     context.moveTo(point.x, point.y - radius);
@@ -154,6 +171,14 @@ function getSnapLabel(snapType: SnapType): string {
 
   if (snapType === "intersection") {
     return "Intersection";
+  }
+
+  if (snapType === "perpendicular") {
+    return "Perpendicular";
+  }
+
+  if (snapType === "tangent") {
+    return "Tangent";
   }
 
   return "Nearest";

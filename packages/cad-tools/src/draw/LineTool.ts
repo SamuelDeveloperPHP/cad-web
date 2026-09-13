@@ -27,7 +27,8 @@ export class LineTool implements CadTool {
   }
 
   onPointerDown(event: ToolPointerEvent, context: ToolContext): ToolResult {
-    const snappedPoint = resolveSnappedPoint(event, context);
+    // A partir do segundo ponto, o ponto inicial serve de referência para perpendicular e tangente.
+    const snappedPoint = resolveSnappedPoint(event, context, undefined, this.startPoint ?? undefined);
 
     if (this.startPoint === null) {
       this.startPoint = snappedPoint;
@@ -54,7 +55,7 @@ export class LineTool implements CadTool {
       return TOOL_RESULT_NONE;
     }
 
-    const snappedPoint = resolveSnappedPoint(event, context);
+    const snappedPoint = resolveSnappedPoint(event, context, undefined, this.startPoint);
     this.currentPoint = snappedPoint;
     const preview = {
       type: "rubberBand" as const,
@@ -108,6 +109,10 @@ export class LineTool implements CadTool {
     this.reset(context);
 
     return { type: "command", command };
+  }
+
+  getSnapReferencePoint(): Point2D | null {
+    return this.startPoint;
   }
 
   private reset(context: ToolContext): void {
