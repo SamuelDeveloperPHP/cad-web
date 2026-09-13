@@ -4,14 +4,22 @@ import { rotationMatrix, transformPoint } from "./matrix";
 import type { Point2D } from "./types";
 import { distance, midpoint, normalize, subtractPoints } from "./vector";
 import { arcEndPoint, arcPointAtAngle, arcStartPoint, arcSweepAngle, nearestPointOnArc } from "./arc";
+import {
+  ellipseArcEndpoints,
+  ellipseArcMidpoint,
+  ellipseQuadrantPoints,
+  nearestPointOnEllipse,
+  type EllipseGeometry
+} from "./ellipse";
 
-export type SnapType = "endpoint" | "midpoint" | "center" | "nearest";
+export type SnapType = "endpoint" | "midpoint" | "center" | "quadrant" | "nearest";
 
 export type SnapSettings = Readonly<{
   enabled: boolean;
   endpoint: boolean;
   midpoint: boolean;
   center: boolean;
+  quadrant: boolean;
   nearest: boolean;
   tolerancePx: number;
 }>;
@@ -77,11 +85,23 @@ export type SnapPolylineEntity = Readonly<{
   closed: boolean;
 }>;
 
+export type SnapEllipseEntity = Readonly<{
+  id: string;
+  type: "ellipse";
+  center: Point2D;
+  radiusX: number;
+  radiusY: number;
+  rotation: number;
+  startAngle?: number | undefined;
+  endAngle?: number | undefined;
+}>;
+
 export type SnapEntity =
   | SnapLineEntity
   | SnapRectangleEntity
   | SnapCircleEntity
   | SnapArcEntity
+  | SnapEllipseEntity
   | SnapPolylineEntity;
 
 export const DEFAULT_SNAP_SETTINGS: SnapSettings = {
@@ -89,16 +109,31 @@ export const DEFAULT_SNAP_SETTINGS: SnapSettings = {
   endpoint: true,
   midpoint: true,
   center: true,
+  quadrant: true,
   nearest: true,
   tolerancePx: 12
 };
 
 const SNAP_PRIORITY: Record<SnapType, number> = {
-  endpoint: 4,
-  midpoint: 3,
+  endpoint: 5,
+  midpoint: 4,
+  quadrant: 3,
   center: 2,
   nearest: 1
 };
+
+// Converte uma SnapEllipseEntity para a geometria pura usada pelas funções de elipse.
+function toEllipseGeometry(entity: SnapEllipseEntity): EllipseGeometry {
+  return {
+    type: "ellipse",
+    center: entity.center,
+    radiusX: entity.radiusX,
+    radiusY: entity.radiusY,
+    rotation: entity.rotation,
+    startAngle: entity.startAngle,
+    endAngle: entity.endAngle
+  };
+}
 
 export function getEndpointSnapCandidates(
   entity: SnapEntity,
@@ -123,6 +158,13 @@ export function getEndpointSnapCandidates(
       createSnapCandidate("endpoint", arcStartPoint(entity), entity.id, screenPoint, viewport),
       createSnapCandidate("endpoint", arcEndPoint(entity), entity.id, screenPoint, viewport)
     ];
+  }
+
+  if (entity.type === "ellipse") {
+    // Só o arco de elipse tem extremidades; a elipse fechada não expõe endpoint.
+    return ellipseArcEndpoints(toEllipseGeometry(entity)).map((point) =>
+      createSnapCandidate("endpoint", point, entity.id, screenPoint, viewport)
+    );
   }
 
   if (entity.type === "polyline") {
@@ -159,11 +201,44 @@ export function getMidpointSnapCandidates(
     return [createSnapCandidate("midpoint", arcPointAtAngle(entity.center, entity.radius, midpointAngle), entity.id, screenPoint, viewport)];
   }
 
+  if (entity.type === "ellipse") {
+    // Só o arco de elipse expõe midpoint (metade da varredura).
+    const arcMidpoint = ellipseArcMidpoint(toEllipseGeometry(entity));
+    return arcMidpoint === null
+      ? []
+      : [createSnapCandidate("midpoint", arcMidpoint, entity.id, screenPoint, viewport)];
+  }
+
   if (entity.type === "polyline") {
     // O snap midpoint expoe o ponto medio de cada segmento, incluindo o fechamento quando closed.
     return polylineEntitySegments(entity).map(([start, end]) =>
       createSnapCandidate("midpoint", midpoint(start, end), entity.id, screenPoint, viewport)
     );
+  }
+
+  return [];
+}
+
+export function getQuadrantSnapCandidates(
+  entity: SnapEntity,
+  screenPoint: Point2D,
+  viewport: SnapViewport
+): ReadonlyArray<SnapCandidate> {
+  if (entity.type === "ellipse") {
+    // Os quadrantes são os extremos dos semi-eixos; num arco, só os que caem na varredura.
+    return ellipseQuadrantPoints(toEllipseGeometry(entity)).map((point) =>
+      createSnapCandidate("quadrant", point, entity.id, screenPoint, viewport)
+    );
+  }
+
+  if (entity.type === "circle") {
+    // O círculo expõe os quatro quadrantes (extremos horizontais e verticais).
+    return [
+      { x: entity.center.x + entity.radius, y: entity.center.y },
+      { x: entity.center.x, y: entity.center.y + entity.radius },
+      { x: entity.center.x - entity.radius, y: entity.center.y },
+      { x: entity.center.x, y: entity.center.y - entity.radius }
+    ].map((point) => createSnapCandidate("quadrant", point, entity.id, screenPoint, viewport));
   }
 
   return [];
@@ -184,6 +259,10 @@ export function getCenterSnapCandidates(
   }
 
   if (entity.type === "arc") {
+    return [createSnapCandidate("center", entity.center, entity.id, screenPoint, viewport)];
+  }
+
+  if (entity.type === "ellipse") {
     return [createSnapCandidate("center", entity.center, entity.id, screenPoint, viewport)];
   }
 
@@ -224,6 +303,10 @@ export function getNearestSnapCandidate(
 
   if (entity.type === "arc") {
     return createSnapCandidate("nearest", nearestPointOnArc(rawPoint, entity), entity.id, screenPoint, viewport);
+  }
+
+  if (entity.type === "ellipse") {
+    return createSnapCandidate("nearest", nearestPointOnEllipse(rawPoint, toEllipseGeometry(entity)), entity.id, screenPoint, viewport);
   }
 
   if (entity.type === "polyline") {
@@ -293,6 +376,10 @@ export function findBestSnap(
 
     if (settings.center) {
       candidates.push(...getCenterSnapCandidates(entity, screenPoint, viewport));
+    }
+
+    if (settings.quadrant) {
+      candidates.push(...getQuadrantSnapCandidates(entity, screenPoint, viewport));
     }
 
     if (settings.nearest) {

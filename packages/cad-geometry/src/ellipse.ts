@@ -235,6 +235,111 @@ export function distancePointToEllipse(
 }
 
 /**
+ * Ponto da borda da elipse (ou arco) mais próximo de um ponto dado. Usa a mesma amostragem com
+ * refinamento por busca ternária do cálculo de distância, respeitando o intervalo varrido do arco.
+ */
+export function nearestPointOnEllipse(
+  point: Point2D,
+  ellipse: EllipseGeometry,
+  samples = 90
+): Point2D {
+  const rx = Math.max(ellipse.radiusX, CAD_EPSILON);
+  const ry = Math.max(ellipse.radiusY, CAD_EPSILON);
+  const steps = Math.max(12, Math.floor(samples));
+  const rangeStart = ellipse.startAngle ?? 0;
+  const rangeSweep = ellipse.startAngle === undefined || ellipse.endAngle === undefined
+    ? TWO_PI
+    : normalizeEllipseSweep(ellipse.startAngle, ellipse.endAngle).sweep;
+  const stepSize = rangeSweep / steps;
+
+  let bestParam = rangeStart;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (let index = 0; index <= steps; index += 1) {
+    const param = rangeStart + index * stepSize;
+    const candidateDistance = distance(point, ellipsePointAtParam(ellipse.center, rx, ry, ellipse.rotation, param));
+
+    if (candidateDistance < bestDistance) {
+      bestDistance = candidateDistance;
+      bestParam = param;
+    }
+  }
+
+  let low = Math.max(rangeStart, bestParam - stepSize);
+  let high = Math.min(rangeStart + rangeSweep, bestParam + stepSize);
+
+  for (let iteration = 0; iteration < 24; iteration += 1) {
+    const mid1 = low + (high - low) / 3;
+    const mid2 = high - (high - low) / 3;
+    const d1 = distance(point, ellipsePointAtParam(ellipse.center, rx, ry, ellipse.rotation, mid1));
+    const d2 = distance(point, ellipsePointAtParam(ellipse.center, rx, ry, ellipse.rotation, mid2));
+
+    if (d1 < d2) {
+      high = mid2;
+    } else {
+      low = mid1;
+    }
+  }
+
+  return ellipsePointAtParam(ellipse.center, rx, ry, ellipse.rotation, (low + high) / 2);
+}
+
+/**
+ * Pontos de quadrante da elipse: extremidades dos semi-eixos local (params 0, π/2, π, 3π/2).
+ * Para um arco, retorna apenas os quadrantes que caem dentro da varredura.
+ */
+export function ellipseQuadrantPoints(ellipse: EllipseGeometry): ReadonlyArray<Point2D> {
+  const full = isFullEllipse(ellipse);
+  const start = ellipse.startAngle ?? 0;
+  const sweep = full
+    ? TWO_PI
+    : normalizeEllipseSweep(ellipse.startAngle ?? 0, ellipse.endAngle ?? TWO_PI).sweep;
+  const points: Point2D[] = [];
+
+  for (const axisParam of [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2]) {
+    if (!full) {
+      const relative = (axisParam - start + TWO_PI * 2) % TWO_PI;
+      if (relative > sweep + 1e-9) {
+        continue;
+      }
+    }
+
+    points.push(ellipsePointAtParam(ellipse.center, ellipse.radiusX, ellipse.radiusY, ellipse.rotation, axisParam));
+  }
+
+  return points;
+}
+
+/**
+ * Extremidades (pontos inicial e final) de um arco de elipse. Vazio para a elipse completa.
+ */
+export function ellipseArcEndpoints(ellipse: EllipseGeometry): ReadonlyArray<Point2D> {
+  if (ellipse.startAngle === undefined || ellipse.endAngle === undefined || isFullEllipse(ellipse)) {
+    return [];
+  }
+
+  const { sweep } = normalizeEllipseSweep(ellipse.startAngle, ellipse.endAngle);
+
+  return [
+    ellipsePointAtParam(ellipse.center, ellipse.radiusX, ellipse.radiusY, ellipse.rotation, ellipse.startAngle),
+    ellipsePointAtParam(ellipse.center, ellipse.radiusX, ellipse.radiusY, ellipse.rotation, ellipse.startAngle + sweep)
+  ];
+}
+
+/**
+ * Ponto médio do arco de elipse (metade da varredura). Nulo para a elipse completa.
+ */
+export function ellipseArcMidpoint(ellipse: EllipseGeometry): Point2D | null {
+  if (ellipse.startAngle === undefined || ellipse.endAngle === undefined || isFullEllipse(ellipse)) {
+    return null;
+  }
+
+  const { sweep } = normalizeEllipseSweep(ellipse.startAngle, ellipse.endAngle);
+
+  return ellipsePointAtParam(ellipse.center, ellipse.radiusX, ellipse.radiusY, ellipse.rotation, ellipse.startAngle + sweep / 2);
+}
+
+/**
  * Constrói a geometria da elipse a partir do centro, do fim do eixo maior e de um ponto que
  * define o semi-eixo menor. rotation e radiusX vêm do vetor centro→fim do eixo maior; radiusY é a
  * distância perpendicular do terceiro ponto ao eixo maior.
