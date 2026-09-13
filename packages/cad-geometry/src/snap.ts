@@ -11,8 +11,9 @@ import {
   nearestPointOnEllipse,
   type EllipseGeometry
 } from "./ellipse";
+import { intersectPrimitives, type IntersectPrimitive } from "./intersections";
 
-export type SnapType = "endpoint" | "midpoint" | "center" | "quadrant" | "nearest";
+export type SnapType = "endpoint" | "midpoint" | "center" | "quadrant" | "intersection" | "nearest";
 
 export type SnapSettings = Readonly<{
   enabled: boolean;
@@ -20,6 +21,7 @@ export type SnapSettings = Readonly<{
   midpoint: boolean;
   center: boolean;
   quadrant: boolean;
+  intersection: boolean;
   nearest: boolean;
   tolerancePx: number;
 }>;
@@ -110,12 +112,14 @@ export const DEFAULT_SNAP_SETTINGS: SnapSettings = {
   midpoint: true,
   center: true,
   quadrant: true,
+  intersection: true,
   nearest: true,
   tolerancePx: 12
 };
 
 const SNAP_PRIORITY: Record<SnapType, number> = {
-  endpoint: 5,
+  endpoint: 6,
+  intersection: 5,
   midpoint: 4,
   quadrant: 3,
   center: 2,
@@ -133,6 +137,68 @@ function toEllipseGeometry(entity: SnapEllipseEntity): EllipseGeometry {
     startAngle: entity.startAngle,
     endAngle: entity.endAngle
   };
+}
+
+/**
+ * Reduz uma entidade de snap às primitivas usadas pelo cálculo de interseção: segmentos para
+ * linhas/retângulos/polylines; círculo (com faixa opcional) para círculos e arcos; elipse para
+ * elipses e arcos de elipse.
+ */
+function snapEntityToPrimitives(entity: SnapEntity): ReadonlyArray<IntersectPrimitive> {
+  if (entity.type === "line") {
+    return [{ kind: "segment", a: entity.start, b: entity.end }];
+  }
+
+  if (entity.type === "rectangle") {
+    const corners = getRectangleCorners(entity);
+    return [
+      { kind: "segment", a: corners[0], b: corners[1] },
+      { kind: "segment", a: corners[1], b: corners[2] },
+      { kind: "segment", a: corners[2], b: corners[3] },
+      { kind: "segment", a: corners[3], b: corners[0] }
+    ];
+  }
+
+  if (entity.type === "polyline") {
+    return polylineEntitySegments(entity).map(([a, b]) => ({ kind: "segment", a, b }));
+  }
+
+  if (entity.type === "circle") {
+    return [{ kind: "circle", center: entity.center, radius: entity.radius }];
+  }
+
+  if (entity.type === "arc") {
+    return [{
+      kind: "circle",
+      center: entity.center,
+      radius: entity.radius,
+      arc: { startAngle: entity.startAngle, endAngle: entity.endAngle, clockwise: entity.clockwise }
+    }];
+  }
+
+  return [{ kind: "ellipse", ellipse: toEllipseGeometry(entity) }];
+}
+
+export function getIntersectionSnapCandidates(
+  entityA: SnapEntity,
+  entityB: SnapEntity,
+  screenPoint: Point2D,
+  viewport: SnapViewport
+): ReadonlyArray<SnapCandidate> {
+  const primitivesA = snapEntityToPrimitives(entityA);
+  const primitivesB = snapEntityToPrimitives(entityB);
+  const candidates: SnapCandidate[] = [];
+
+  for (const primitiveA of primitivesA) {
+    for (const primitiveB of primitivesB) {
+      for (const point of intersectPrimitives(primitiveA, primitiveB)) {
+        // O id combina as duas entidades cruzadas, já que a interseção não pertence a uma só.
+        candidates.push(createSnapCandidate("intersection", point, `${entityA.id}×${entityB.id}`, screenPoint, viewport));
+      }
+    }
+  }
+
+  return candidates;
 }
 
 export function getEndpointSnapCandidates(
@@ -387,6 +453,20 @@ export function findBestSnap(
 
       if (nearestCandidate !== null) {
         candidates.push(nearestCandidate);
+      }
+    }
+  }
+
+  if (settings.intersection) {
+    // A interseção é um snap entre pares de entidades; percorre cada par uma única vez.
+    for (let i = 0; i < entities.length; i += 1) {
+      for (let j = i + 1; j < entities.length; j += 1) {
+        const entityA = entities[i];
+        const entityB = entities[j];
+
+        if (entityA !== undefined && entityB !== undefined) {
+          candidates.push(...getIntersectionSnapCandidates(entityA, entityB, screenPoint, viewport));
+        }
       }
     }
   }
