@@ -168,6 +168,7 @@ export function CadRibbon(props: CadRibbonProps) {
             <SnapCheckbox label="Midpoint" checked={props.snapSettings.midpoint} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, midpoint: checked })} />
             <SnapCheckbox label="Center" checked={props.snapSettings.center} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, center: checked })} />
             <SnapCheckbox label="Quadrant" checked={props.snapSettings.quadrant} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, quadrant: checked })} />
+            <SnapCheckbox label="Intersection" checked={props.snapSettings.intersection} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, intersection: checked })} />
             <SnapCheckbox label="Nearest" checked={props.snapSettings.nearest} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, nearest: checked })} />
           </div>
         </details>
