@@ -1128,6 +1128,68 @@ export class ChamferLineLineCommand implements CadCommand {
   }
 }
 
+export class FilletCornerCommand implements CadCommand {
+  readonly type = "FilletCornerCommand";
+  readonly description = "Fillets a corner of a rectangle or polyline.";
+  private readonly createdIds: ReadonlySet<string>;
+
+  constructor(
+    readonly originalEntity: CadEntity,
+    readonly createdEntities: ReadonlyArray<CadEntity>
+  ) {
+    this.createdIds = new Set(createdEntities.map((e) => e.id));
+  }
+
+  get id(): string {
+    return `cmd_fillet_corner_${this.originalEntity.id}_${Date.now()}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    const filtered = document.entities.filter((e) => e.id !== this.originalEntity.id);
+    const existingIds = new Set(filtered.map((e) => e.id));
+    const toInsert = this.createdEntities.filter((e) => !existingIds.has(e.id));
+
+    return { ...document, entities: filtered.concat(toInsert) };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    const filtered = document.entities.filter((e) => !this.createdIds.has(e.id));
+
+    return { ...document, entities: filtered.concat([this.originalEntity]) };
+  }
+}
+
+export class ChamferCornerCommand implements CadCommand {
+  readonly type = "ChamferCornerCommand";
+  readonly description = "Chamfers a corner of a rectangle or polyline.";
+  private readonly createdIds: ReadonlySet<string>;
+
+  constructor(
+    readonly originalEntity: CadEntity,
+    readonly createdEntities: ReadonlyArray<CadEntity>
+  ) {
+    this.createdIds = new Set(createdEntities.map((e) => e.id));
+  }
+
+  get id(): string {
+    return `cmd_chamfer_corner_${this.originalEntity.id}_${Date.now()}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    const filtered = document.entities.filter((e) => e.id !== this.originalEntity.id);
+    const existingIds = new Set(filtered.map((e) => e.id));
+    const toInsert = this.createdEntities.filter((e) => !existingIds.has(e.id));
+
+    return { ...document, entities: filtered.concat(toInsert) };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    const filtered = document.entities.filter((e) => !this.createdIds.has(e.id));
+
+    return { ...document, entities: filtered.concat([this.originalEntity]) };
+  }
+}
+
 function moveEntities(
   document: CadDocument,
   entityIds: ReadonlyArray<EntityId>,
