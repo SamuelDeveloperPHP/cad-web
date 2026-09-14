@@ -309,6 +309,29 @@ describe("cad-geometry object snap", () => {
     expect(result.snapped).toBe(false);
   });
 
+  it("does not crash when a dimension entity is among the candidates", () => {
+    // A cota chega como SnapEntity via cast em runtime; não deve gerar primitiva de interseção/perp/tangente.
+    const line: SnapEntity = { id: "l", type: "line", start: { x: -10, y: 0 }, end: { x: 10, y: 0 } };
+    const dimension = {
+      id: "d",
+      type: "dimension",
+      dimensionType: "linear",
+      definition: { firstPoint: { x: 0, y: 0 }, secondPoint: { x: 10, y: 0 }, dimensionLinePoint: { x: 5, y: 5 }, orientation: "horizontal" }
+    } as unknown as SnapEntity;
+
+    // Com interseção, perpendicular e tangente ativos e um ponto de referência, não pode lançar.
+    expect(() =>
+      findBestSnap(
+        { x: 3, y: 0.1 },
+        { x: 30, y: 1 },
+        [line, dimension],
+        defaultSettings,
+        viewport,
+        { x: 3, y: 8 }
+      )
+    ).not.toThrow();
+  });
+
   it("returns raw point when snap is disabled", () => {
     const rawPoint = { x: 0.4, y: 0.2 };
     const result = findBestSnap(

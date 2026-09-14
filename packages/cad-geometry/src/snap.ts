@@ -191,7 +191,12 @@ function snapEntityToPrimitives(entity: SnapEntity): ReadonlyArray<IntersectPrim
     }];
   }
 
-  return [{ kind: "ellipse", ellipse: toEllipseGeometry(entity) }];
+  if (entity.type === "ellipse") {
+    return [{ kind: "ellipse", ellipse: toEllipseGeometry(entity) }];
+  }
+
+  // Tipos sem primitiva de interseção/perp/tangente (ex.: cotas, que chegam via cast em runtime) não geram candidatos.
+  return [];
 }
 
 export function getIntersectionSnapCandidates(
