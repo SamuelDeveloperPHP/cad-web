@@ -1,5 +1,5 @@
 import type { EllipseEntity } from "@cad-web/cad-core";
-import { ellipseFromAxisPoints, type EllipseGeometry, type Point2D } from "@cad-web/cad-geometry";
+import { ellipseFromAxisPoints, subtractPoints, type EllipseGeometry, type Point2D } from "@cad-web/cad-geometry";
 import { createEntityCommand } from "../commands/CadCommandTypes";
 import type { CadTool } from "../contracts/CadTool";
 import type { ToolContext } from "../contracts/ToolContext";
@@ -7,6 +7,7 @@ import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent
 import type { ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
+import { parseDirectInput, resolveDirectInput } from "./directInput";
 
 type EllipsePhase = "center" | "majorAxis" | "minorAxis";
 
@@ -23,6 +24,7 @@ export class EllipseTool implements CadTool {
   private phase: EllipsePhase = "center";
   private center: Point2D | null = null;
   private majorAxisEnd: Point2D | null = null;
+  private cursorPoint: Point2D | null = null;
 
   activate(context: ToolContext): void {
     this.reset();
@@ -56,6 +58,7 @@ export class EllipseTool implements CadTool {
 
   onPointerMove(event: ToolPointerEvent, context: ToolContext): ToolResult {
     const point = resolveSnappedPoint(event, context);
+    this.cursorPoint = point;
     const geometry = this.buildGeometry(point);
 
     if (geometry === null) {
@@ -85,7 +88,55 @@ export class EllipseTool implements CadTool {
     return TOOL_RESULT_NONE;
   }
 
-  onCommandInput(_input: string, _context: ToolContext): ToolResult {
+  onCommandInput(input: string, context: ToolContext): ToolResult {
+    const parsed = parseDirectInput(input);
+
+    if (parsed.kind === "empty" || parsed.kind === "invalid") {
+      return parsed.kind === "invalid"
+        ? { type: "error", message: "Invalid input. Use a number, x,y, @dx,dy, or @dist<angle." }
+        : TOOL_RESULT_NONE;
+    }
+
+    if (this.phase === "center") {
+      if (parsed.kind === "absolute") {
+        this.center = parsed.point;
+        this.phase = "majorAxis";
+        context.showMessage("Specify end of major axis.");
+        return TOOL_RESULT_NONE;
+      }
+
+      return { type: "error", message: "Specify center as x,y coordinates." };
+    }
+
+    if (this.phase === "majorAxis" && this.center !== null) {
+      const cursorDir = this.cursorPoint !== null
+        ? subtractPoints(this.cursorPoint, this.center)
+        : null;
+      const point = resolveDirectInput(parsed, this.center, cursorDir);
+
+      if (point === null) {
+        return { type: "error", message: "Move the cursor to indicate direction before entering distance." };
+      }
+
+      this.majorAxisEnd = point;
+      this.phase = "minorAxis";
+      context.showMessage("Specify minor axis distance.");
+      return TOOL_RESULT_NONE;
+    }
+
+    if (this.phase === "minorAxis" && this.center !== null && this.majorAxisEnd !== null) {
+      const cursorDir = this.cursorPoint !== null
+        ? subtractPoints(this.cursorPoint, this.center)
+        : null;
+      const point = resolveDirectInput(parsed, this.center, cursorDir);
+
+      if (point === null) {
+        return { type: "error", message: "Move the cursor to indicate direction before entering distance." };
+      }
+
+      return this.confirmEllipse(point, context);
+    }
+
     return TOOL_RESULT_NONE;
   }
 
@@ -150,5 +201,6 @@ export class EllipseTool implements CadTool {
     this.phase = "center";
     this.center = null;
     this.majorAxisEnd = null;
+    this.cursorPoint = null;
   }
 }

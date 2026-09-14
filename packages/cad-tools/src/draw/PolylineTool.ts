@@ -1,11 +1,12 @@
 import type { CadEntity, PolylineEntity } from "@cad-web/cad-core";
-import { isValidPolyline, pointsNearlyEqual, type Point2D, type SnapEntity } from "@cad-web/cad-geometry";
+import { isValidPolyline, pointsNearlyEqual, subtractPoints, type Point2D, type SnapEntity } from "@cad-web/cad-geometry";
 import { createEntityCommand } from "../commands/CadCommandTypes";
 import type { CadTool } from "../contracts/CadTool";
 import type { ToolContext } from "../contracts/ToolContext";
 import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent";
 import { TOOL_RESULT_NONE, type ToolResult } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
+import { parseDirectInput, resolveDirectInput } from "./directInput";
 
 // O modulo descreve a ferramenta interativa Polyline, que cria sequencias de segmentos retos por cliques.
 // O fluxo segue o padrao das demais ferramentas: maquina de estados, preview ghost e geracao de comando apenas na finalizacao.
@@ -147,7 +148,6 @@ export class PolylineTool implements CadTool {
   }
 
   onCommandInput(input: string, context: ToolContext): ToolResult {
-    // O metodo aceita atalhos textuais alem dos eventos de teclado para integrar com a linha de comando.
     const normalized = input.trim().toLowerCase();
 
     if (normalized.length === 0) {
@@ -160,6 +160,53 @@ export class PolylineTool implements CadTool {
 
     if (normalized === "u" || normalized === "undo" || normalized === "desfazer") {
       return this.undoLastVertex(context);
+    }
+
+    if (this.phase === "waiting_first_point") {
+      const parsed = parseDirectInput(input);
+
+      if (parsed.kind === "absolute") {
+        this.points = [parsed.point];
+        this.cursorPoint = parsed.point;
+        this.phase = "drawing_polyline";
+        context.showMessage("[Polyline] Specify next point or Enter to finish");
+        this.refreshPreview(context);
+        return TOOL_RESULT_NONE;
+      }
+
+      return { type: "error", message: "[Polyline] Specify first point as x,y coordinates." };
+    }
+
+    if (this.phase === "drawing_polyline" && this.points.length > 0) {
+      const parsed = parseDirectInput(input);
+
+      if (parsed.kind === "empty") {
+        return this.finalizeAsOpen(context);
+      }
+
+      if (parsed.kind === "invalid") {
+        return { type: "error", message: "[Polyline] Invalid input. Use a number, x,y, @dx,dy, or @dist<angle." };
+      }
+
+      const lastPoint = this.points[this.points.length - 1]!;
+      const cursorDir = this.cursorPoint !== null
+        ? subtractPoints(this.cursorPoint, lastPoint)
+        : null;
+      const point = resolveDirectInput(parsed, lastPoint, cursorDir);
+
+      if (point === null) {
+        return { type: "error", message: "[Polyline] Move the cursor to indicate direction before entering distance." };
+      }
+
+      if (pointsNearlyEqual(lastPoint, point)) {
+        return TOOL_RESULT_NONE;
+      }
+
+      this.points.push(point);
+      this.cursorPoint = point;
+      context.showMessage("[Polyline] Specify next point or Enter to finish (C close, U undo)");
+      this.refreshPreview(context);
+      return TOOL_RESULT_NONE;
     }
 
     return TOOL_RESULT_NONE;
