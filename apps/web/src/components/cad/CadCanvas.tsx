@@ -7,9 +7,11 @@ import {
   renderSnapMarker2D,
   screenToWorld,
   worldToScreen,
-  zoomViewportAtScreenPoint
+  zoomViewportAtScreenPoint,
+  type ScreenSize
 } from "@cad-web/cad-renderer";
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -25,15 +27,53 @@ type CadCanvasProps = Readonly<{
 }>;
 
 export function CadCanvas({ cad }: CadCanvasProps) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  // O render é dividido em dois canvases empilhados: a base estática (grade + documento) e o overlay
+  // dinâmico (seleção, grips, preview e marcador de snap). Assim, mover o mouse ou desenhar um preview
+  // redesenha apenas o overlay, sem repintar todo o documento — o gargalo do zoom aberto com muitas entidades.
+  const baseCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const panStateRef = useRef<Readonly<{ active: boolean; lastScreen: Point2D }> | null>(null);
   // O retângulo do Zoom Window é mantido em estado para desenhar um overlay enquanto o usuário arrasta.
   const [zoomWindowBox, setZoomWindowBox] = useState<Readonly<{ start: Point2D; current: Point2D }> | null>(null);
-  // O ref mantém o store atual acessível dentro do listener nativo de roda, que é registrado apenas uma vez.
+  // O ref mantém o store atual acessível dentro de listeners nativos e callbacks de animação.
   const cadRef = useRef(cad);
   cadRef.current = cad;
-  const [screenSize, setScreenSize] = useState({ width: 1, height: 1 });
+  const [screenSize, setScreenSize] = useState<ScreenSize>({ width: 1, height: 1 });
+  const screenSizeRef = useRef(screenSize);
+  screenSizeRef.current = screenSize;
+
+  // Os identificadores dos frames pendentes permitem coalescer várias mudanças de estado em um único desenho por frame.
+  const baseFrameRef = useRef<number | null>(null);
+  const overlayFrameRef = useRef<number | null>(null);
+
+  const scheduleBaseDraw = useCallback(() => {
+    if (baseFrameRef.current !== null) {
+      return;
+    }
+
+    baseFrameRef.current = requestAnimationFrame(() => {
+      baseFrameRef.current = null;
+      const canvas = baseCanvasRef.current;
+      if (canvas !== null) {
+        drawBaseLayer(canvas, cadRef.current, screenSizeRef.current);
+      }
+    });
+  }, []);
+
+  const scheduleOverlayDraw = useCallback(() => {
+    if (overlayFrameRef.current !== null) {
+      return;
+    }
+
+    overlayFrameRef.current = requestAnimationFrame(() => {
+      overlayFrameRef.current = null;
+      const canvas = overlayCanvasRef.current;
+      if (canvas !== null) {
+        drawOverlayLayer(canvas, cadRef.current, screenSizeRef.current);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -65,6 +105,53 @@ export function CadCanvas({ cad }: CadCanvasProps) {
     cad.setScreenSize(screenSize);
   }, [cad, screenSize]);
 
+  // Redimensionar os canvases (que zera o bitmap e reaplica a escala do DPR) só acontece quando o tamanho muda,
+  // e não a cada frame; em seguida ambos os canvases são redesenhados.
+  useEffect(() => {
+    const base = baseCanvasRef.current;
+    const overlay = overlayCanvasRef.current;
+
+    if (base !== null) {
+      configureCanvasForDevicePixelRatio(base, screenSize);
+    }
+
+    if (overlay !== null) {
+      configureCanvasForDevicePixelRatio(overlay, screenSize);
+    }
+
+    scheduleBaseDraw();
+    scheduleOverlayDraw();
+  }, [screenSize, scheduleBaseDraw, scheduleOverlayDraw]);
+
+  // A base é repintada apenas quando o documento ou o viewport mudam (edição, pan, zoom).
+  useEffect(() => {
+    scheduleBaseDraw();
+  }, [cad.document, cad.viewport, scheduleBaseDraw]);
+
+  // O overlay é repintado a cada interação (seleção, preview, snap) e também quando o documento/viewport mudam,
+  // pois o destaque de seleção e os grips seguem a geometria e o enquadramento.
+  useEffect(() => {
+    scheduleOverlayDraw();
+  }, [
+    cad.document,
+    cad.viewport,
+    cad.selectedEntityIds,
+    cad.preview,
+    cad.snapResult,
+    scheduleOverlayDraw
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (baseFrameRef.current !== null) {
+        cancelAnimationFrame(baseFrameRef.current);
+      }
+      if (overlayFrameRef.current !== null) {
+        cancelAnimationFrame(overlayFrameRef.current);
+      }
+    };
+  }, []);
+
   // Ao sair do modo Zoom Window (por exemplo com Esc ou trocando de ferramenta), o retângulo em andamento é descartado.
   useEffect(() => {
     if (cad.activeTool !== "zoomWindow" && zoomWindowBox !== null) {
@@ -75,7 +162,7 @@ export function CadCanvas({ cad }: CadCanvasProps) {
   // O zoom pela roda usa um listener nativo não passivo; assim o preventDefault é aceito e não gera o aviso
   // "Unable to preventDefault inside passive event listener invocation" que o onWheel do React causa.
   useEffect(() => {
-    const canvas = canvasRef.current;
+    const canvas = overlayCanvasRef.current;
 
     if (canvas === null) {
       return;
@@ -95,26 +182,8 @@ export function CadCanvas({ cad }: CadCanvasProps) {
     return () => canvas.removeEventListener("wheel", handleWheel);
   }, []);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-
-    if (canvas === null) {
-      return;
-    }
-
-    const context = configureCanvasForDevicePixelRatio(canvas, screenSize);
-    context.clearRect(0, 0, screenSize.width, screenSize.height);
-    renderGrid2D(context, cad.viewport, screenSize);
-    const stats = renderDocument2D(context, cad.document, cad.viewport);
-    cadDiagnostics.reportFrame(stats);
-    renderSelectedEntities(context, cad);
-    renderDimensionGrips2D(context, cad.document, cad.selectedEntityIds, cad.viewport);
-    renderPreview(context, cad);
-    renderActiveSnapMarker(context, cad);
-  }, [cad, screenSize]);
-
   const toScreenPoint = (event: ReactMouseEvent<HTMLCanvasElement>): Point2D => {
-    const canvas = canvasRef.current;
+    const canvas = overlayCanvasRef.current;
 
     if (canvas === null) {
       return { x: 0, y: 0 };
@@ -204,9 +273,10 @@ export function CadCanvas({ cad }: CadCanvasProps) {
 
   return (
     <div ref={hostRef} className={`cad-canvas-host ${cad.activeTool === "zoomWindow" ? "zoom-window-mode" : ""}`}>
+      <canvas ref={baseCanvasRef} className="cad-canvas cad-canvas-base" />
       <canvas
-        ref={canvasRef}
-        className="cad-canvas"
+        ref={overlayCanvasRef}
+        className="cad-canvas cad-canvas-overlay"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={(event) => {
@@ -267,9 +337,38 @@ export function CadCanvas({ cad }: CadCanvasProps) {
   );
 }
 
+// A função desenha a camada base: grade e documento completo. É a etapa cara, executada só quando muda documento/viewport.
+function drawBaseLayer(canvas: HTMLCanvasElement, cad: CadStore, screenSize: ScreenSize): void {
+  const context = canvas.getContext("2d");
+
+  if (context === null) {
+    return;
+  }
+
+  context.clearRect(0, 0, screenSize.width, screenSize.height);
+  renderGrid2D(context, cad.viewport, screenSize);
+  const stats = renderDocument2D(context, cad.document, cad.viewport);
+  cadDiagnostics.reportFrame(stats);
+}
+
+// A função desenha a camada de overlay: destaque de seleção, grips de cota, preview e marcador de snap ativo.
+function drawOverlayLayer(canvas: HTMLCanvasElement, cad: CadStore, screenSize: ScreenSize): void {
+  const context = canvas.getContext("2d");
+
+  if (context === null) {
+    return;
+  }
+
+  context.clearRect(0, 0, screenSize.width, screenSize.height);
+  renderSelectedEntities(context, cad);
+  renderDimensionGrips2D(context, cad.document, cad.selectedEntityIds, cad.viewport);
+  renderPreview(context, cad);
+  renderActiveSnapMarker(context, cad);
+}
+
 function renderSelectedEntities(context: CanvasRenderingContext2D, cad: CadStore): void {
   const selectedEntities = cad.document.entities.filter((entity) => cad.selectedEntityIds.includes(entity.id));
-  
+
   if (selectedEntities.length === 0) {
     return;
   }
@@ -376,7 +475,7 @@ function renderGhostEntitiesPreview(
   context.save();
   context.globalAlpha = 0.65;
   context.setLineDash([10, 6]);
-  
+
   renderDocument2D(context, { ...cad.document, entities }, cad.viewport, {
     strokeColor: "#f59e0b",
     lineWidth: 1.5
