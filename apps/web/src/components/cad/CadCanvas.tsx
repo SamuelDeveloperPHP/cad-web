@@ -143,11 +143,16 @@ export function CadCanvas({ cad }: CadCanvasProps) {
 
   useEffect(() => {
     return () => {
+      // Ao cancelar os frames pendentes é essencial zerar os refs: caso contrário, num remonte
+      // (por exemplo o duplo-mount do StrictMode em dev) o agendador veria um id não-nulo e
+      // abortaria o agendamento para sempre, deixando o canvas em branco.
       if (baseFrameRef.current !== null) {
         cancelAnimationFrame(baseFrameRef.current);
+        baseFrameRef.current = null;
       }
       if (overlayFrameRef.current !== null) {
         cancelAnimationFrame(overlayFrameRef.current);
+        overlayFrameRef.current = null;
       }
     };
   }, []);
