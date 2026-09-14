@@ -33,6 +33,12 @@ import {
   loadStoredDocument
 } from "../services/cadDocumentStorage";
 import { loadStoredSnapSettings, storeSnapSettings } from "../services/snapSettingsStorage";
+import {
+  DEFAULT_GUIDE_SETTINGS,
+  loadStoredGuideSettings,
+  storeGuideSettings,
+  type GuideSettings
+} from "../services/guideSettingsStorage";
 import { createWebToolRegistry } from "../tools/toolRegistry";
 
 export type ActiveCadTool = "select" | "line" | "polyline" | "rectangle" | "circle" | "arc" | "ellipse" | "ellipseArc" | "move" | "mirror" | "rotate" | "scale" | "stretch" | "offset" | "trim" | "extend" | "fillet" | "chamfer" | "array" | "arrayPolar" | "arrayPath" | "explode" | "erase" | "pan" | "zoomWindow" | "dimLinear" | "dimAligned" | "dimRadius" | "dimDiameter" | "dimAngular";
@@ -80,6 +86,7 @@ export type CadStore = Readonly<{
   preview: CadPreview | null;
   snapSettings: SnapSettings;
   snapResult: SnapResult | null;
+  guideSettings: GuideSettings;
   canUndo: boolean;
   canRedo: boolean;
   message: string;
@@ -94,6 +101,9 @@ export type CadStore = Readonly<{
   zoomPrevious(): void;
   setMouseWorld(point: Point2D): void;
   setSnapSettings(settings: SnapSettings): void;
+  setGuideSettings(settings: GuideSettings): void;
+  toggleCursorGuides(): void;
+  toggleAxisLines(): void;
   panByScreenDelta(delta: Point2D): void;
   dispatchPointerDown(event: ToolPointerEvent): void;
   dispatchPointerMove(event: ToolPointerEvent): void;
@@ -125,6 +135,7 @@ export function useCadStore(): CadStore {
   const [preview, setPreview] = useState<CadPreview | null>(null);
   const [snapSettings, setSnapSettingsState] = useState<SnapSettings>(() => loadStoredSnapSettings());
   const [snapResult, setSnapResult] = useState<SnapResult | null>(null);
+  const [guideSettings, setGuideSettingsState] = useState<GuideSettings>(() => loadStoredGuideSettings());
   const [message, setMessageState] = useState<string>("");
   const messageTimeoutRef = useRef<number | null>(null);
 
@@ -145,6 +156,18 @@ export function useCadStore(): CadStore {
   const setSnapSettings = useCallback((settings: SnapSettings) => {
     setSnapSettingsState(settings);
     setSnapResult(null);
+  }, []);
+
+  const setGuideSettings = useCallback((settings: GuideSettings) => {
+    setGuideSettingsState(settings);
+  }, []);
+
+  const toggleCursorGuides = useCallback(() => {
+    setGuideSettingsState((current) => ({ ...current, cursorGuides: !current.cursorGuides }));
+  }, []);
+
+  const toggleAxisLines = useCallback(() => {
+    setGuideSettingsState((current) => ({ ...current, axisLines: !current.axisLines }));
   }, []);
 
   // O documento só é regravado após a hidratação, agora de forma assíncrona e com debounce (fora do caminho de interação).
@@ -181,6 +204,10 @@ export function useCadStore(): CadStore {
   useEffect(() => {
     storeSnapSettings(snapSettings);
   }, [snapSettings]);
+
+  useEffect(() => {
+    storeGuideSettings(guideSettings);
+  }, [guideSettings]);
 
   const publishDocument = useCallback((nextDocument: CadDocument) => {
     setDocument(nextDocument);
@@ -616,6 +643,18 @@ export function useCadStore(): CadStore {
         return;
       }
 
+      if (["cursor", "crosshair", "mira", "guides", "guias"].includes(normalizedCommand)) {
+        toggleCursorGuides();
+        showMessage("Mira do cursor alternada.");
+        return;
+      }
+
+      if (["axis", "axes", "eixo", "eixos"].includes(normalizedCommand)) {
+        toggleAxisLines();
+        showMessage("Linhas de eixo alternadas.");
+        return;
+      }
+
       if (resolvedTool?.id === "erase" && activeTool !== "erase") {
         runEraseTool({
           key: "Enter",
@@ -639,7 +678,7 @@ export function useCadStore(): CadStore {
         processToolResult(toolRegistry.resolve(activeTool)?.onCommandInput(command, context) ?? { type: "none" });
       }
     },
-    [activeTool, clearDocument, createToolContext, document.entities.length, processToolResult, redo, runEraseTool, setActiveTool, showMessage, toolRegistry, undo, zoomToExtents, zoomPrevious]
+    [activeTool, clearDocument, createToolContext, document.entities.length, processToolResult, redo, runEraseTool, setActiveTool, showMessage, toggleAxisLines, toggleCursorGuides, toolRegistry, undo, zoomToExtents, zoomPrevious]
   );
 
   return useMemo(
@@ -653,6 +692,7 @@ export function useCadStore(): CadStore {
       preview,
       snapSettings,
       snapResult,
+      guideSettings,
       canUndo: historyAvailability.canUndo,
       canRedo: historyAvailability.canRedo,
       message,
@@ -667,6 +707,9 @@ export function useCadStore(): CadStore {
       zoomPrevious,
       setMouseWorld,
       setSnapSettings,
+      setGuideSettings,
+      toggleCursorGuides,
+      toggleAxisLines,
       panByScreenDelta,
       dispatchPointerDown,
       dispatchPointerMove,
@@ -701,6 +744,10 @@ export function useCadStore(): CadStore {
       setActiveTool,
       snapSettings,
       snapResult,
+      guideSettings,
+      setGuideSettings,
+      toggleCursorGuides,
+      toggleAxisLines,
       message,
       showMessage,
       undo,
