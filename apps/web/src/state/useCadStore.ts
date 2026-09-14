@@ -118,6 +118,19 @@ export type CadStore = Readonly<{
   redo(): void;
 }>;
 
+const DEFAULT_VIEWPORT_SCALE = 8;
+
+// A função devolve um viewport que coloca a origem do mundo (0,0) no centro exato do render view.
+function viewportCenteredOnOrigin(size: ScreenSize, scale: number): Viewport {
+  return {
+    scale,
+    origin: {
+      x: -size.width / (2 * scale),
+      y: -size.height / (2 * scale)
+    }
+  };
+}
+
 export function useCadStore(): CadStore {
   const toolRegistry = useMemo(() => createWebToolRegistry(), []);
   const [document, setDocument] = useState<CadDocument>(() => loadStoredDocument() ?? createInitialDocument());
@@ -126,8 +139,10 @@ export function useCadStore(): CadStore {
   const [persister] = useState(() => createDocumentPersister());
   // A hidratação sinaliza que o documento persistido já foi carregado; antes disso nada é regravado.
   const [hydrated, setHydrated] = useState(false);
-  const [viewport, setViewport] = useState<Viewport>(() => createViewport({ x: -50, y: -30 }, 8));
-  const [screenSize, setScreenSize] = useState<ScreenSize>({ width: 1, height: 1 });
+  const [viewport, setViewport] = useState<Viewport>(() => createViewport({ x: -50, y: -30 }, DEFAULT_VIEWPORT_SCALE));
+  const [screenSize, setScreenSizeState] = useState<ScreenSize>({ width: 1, height: 1 });
+  // A flag garante que a centralização inicial na origem aconteça só uma vez (não desfaz o pan/zoom do usuário depois).
+  const viewportInitializedRef = useRef(false);
   const viewportHistoryRef = useRef<Viewport[]>([]);
   const [activeTool, setActiveToolState] = useState<ActiveCadTool>("select");
   const [mouseWorld, setMouseWorld] = useState<Point2D>({ x: 0, y: 0 });
@@ -168,6 +183,16 @@ export function useCadStore(): CadStore {
 
   const toggleAxisLines = useCallback(() => {
     setGuideSettingsState((current) => ({ ...current, axisLines: !current.axisLines }));
+  }, []);
+
+  const setScreenSize = useCallback((size: ScreenSize) => {
+    setScreenSizeState(size);
+
+    // Na primeira medição real do render view, o viewport é centralizado na origem (0,0).
+    if (!viewportInitializedRef.current && size.width > 1 && size.height > 1) {
+      viewportInitializedRef.current = true;
+      setViewport((current) => viewportCenteredOnOrigin(size, current.scale));
+    }
   }, []);
 
   // O documento só é regravado após a hidratação, agora de forma assíncrona e com debounce (fora do caminho de interação).
@@ -423,8 +448,8 @@ export function useCadStore(): CadStore {
       pushViewportHistory(current);
 
       if (bounds === null) {
-        // Sem entidades, o zoom retorna ao enquadramento padrão do documento novo.
-        return createViewport({ x: -50, y: -30 }, 8);
+        // Sem entidades, o zoom volta ao enquadramento padrão com a origem (0,0) no centro do render view.
+        return viewportCenteredOnOrigin(screenSize, DEFAULT_VIEWPORT_SCALE);
       }
 
       return zoomExtents({ bounds, screenSize, paddingPixels: 48 });
