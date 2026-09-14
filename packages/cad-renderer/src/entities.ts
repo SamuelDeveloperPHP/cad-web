@@ -1,7 +1,12 @@
-import { getDocumentSpatialIndex, resolveDimensionStyle, type CadDocument } from "@cad-web/cad-core";
+import { entityBoundingBox, getDocumentSpatialIndex, resolveDimensionStyle, type CadDocument } from "@cad-web/cad-core";
 import { rotationMatrix, transformPoint, ellipseArcPoints, buildLinearDimensionGeometry, buildAlignedDimensionGeometry, buildRadiusDimensionGeometry, buildDiameterDimensionGeometry, buildAngularDimensionGeometry, type Point2D } from "@cad-web/cad-geometry";
 import { screenToWorld, worldToScreen } from "./viewport";
 import { DEFAULT_RENDER_STYLE, type RenderStyle, type Viewport } from "./types";
+
+// Abaixo deste tamanho em pixels a entidade é colapsada em um ponto (LOD), poupando a montagem da geometria.
+const LOD_DOT_THRESHOLD_PX = 1.5;
+// Abaixo desta altura de fonte em pixels o texto da cota é omitido: ficaria ilegível e a medição/desenho é cara.
+const LOD_DIMENSION_TEXT_MIN_PX = 5;
 
 export type RenderStats = {
   visibleEntities: number;
@@ -45,6 +50,28 @@ export function renderDocument2D(
   for (const entity of visibleEntities) {
     const layer = layerMap.get(entity.layerId || "layer_0");
     if (layer && !layer.visible) continue;
+
+    // LOD: entidades que ocupam menos de ~1.5px são desenhadas como um ponto, sem montar a geometria completa.
+    // Como o envoltório já foi calculado (e cacheado) no culling, esta verificação é praticamente gratuita.
+    const bounds = entityBoundingBox(entity);
+    const screenExtent = Math.max(
+      (bounds.maxX - bounds.minX) * viewport.scale,
+      (bounds.maxY - bounds.minY) * viewport.scale
+    );
+
+    if (screenExtent < LOD_DOT_THRESHOLD_PX) {
+      const centerScreen = worldToScreen(
+        { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 },
+        viewport
+      );
+      context.fillStyle =
+        style.overrideStroke === true
+          ? style.strokeColor
+          : entity.color || layer?.color || style.strokeColor;
+      context.fillRect(centerScreen.x, centerScreen.y, 1, 1);
+      renderedEntities += 1;
+      continue;
+    }
 
     if (style.overrideStroke === true) {
       // O modo de destaque força cor, espessura e tracejado do estilo, ignorando os da entidade.
@@ -307,31 +334,34 @@ export function renderDocument2D(
         context.lineWidth = oldLineWidth;
       }
 
-      // O renderizador desenha o texto da cota.
-      const textPos = worldToScreen(geom.textPosition, viewport);
-      const textVal = entity.textOverride || geom.formattedText;
+      // O renderizador desenha o texto da cota, omitindo-o quando ficaria pequeno demais para ser legível (LOD).
       const fontSizeScreen = defaultStyle.textHeight * viewport.scale;
 
-      context.save();
-      context.translate(textPos.x, textPos.y);
-      context.rotate(geom.textRotation);
+      if (fontSizeScreen >= LOD_DIMENSION_TEXT_MIN_PX) {
+        const textPos = worldToScreen(geom.textPosition, viewport);
+        const textVal = entity.textOverride || geom.formattedText;
 
-      context.font = `${fontSizeScreen}px Arial, sans-serif`;
-      context.textAlign = "center";
-      context.textBaseline = "middle";
+        context.save();
+        context.translate(textPos.x, textPos.y);
+        context.rotate(geom.textRotation);
 
-      // O fundo do texto preserva legibilidade sem ocultar demais o desenho.
-      const textMetrics = context.measureText(textVal);
-      const textWidth = textMetrics.width;
-      const padding = fontSizeScreen * 0.1; // O padding reduzido evita excesso de mascara.
-      
-      context.fillStyle = "rgba(17, 19, 21, 0.85)"; // A opacidade reduzida mantem o fundo discreto.
-      context.fillRect(-textWidth/2 - padding, -fontSizeScreen/2 - padding, textWidth + padding*2, fontSizeScreen + padding*2);
+        context.font = `${fontSizeScreen}px Arial, sans-serif`;
+        context.textAlign = "center";
+        context.textBaseline = "middle";
 
-      context.fillStyle = resolvedStyle.textColor || context.strokeStyle;
-      context.fillText(textVal, 0, 0);
+        // O fundo do texto preserva legibilidade sem ocultar demais o desenho.
+        const textMetrics = context.measureText(textVal);
+        const textWidth = textMetrics.width;
+        const padding = fontSizeScreen * 0.1; // O padding reduzido evita excesso de mascara.
 
-      context.restore();
+        context.fillStyle = "rgba(17, 19, 21, 0.85)"; // A opacidade reduzida mantem o fundo discreto.
+        context.fillRect(-textWidth/2 - padding, -fontSizeScreen/2 - padding, textWidth + padding*2, fontSizeScreen + padding*2);
+
+        context.fillStyle = resolvedStyle.textColor || context.strokeStyle;
+        context.fillText(textVal, 0, 0);
+
+        context.restore();
+      }
     }
     renderedEntities += 1;
   }
