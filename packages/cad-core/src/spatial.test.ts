@@ -106,4 +106,36 @@ describe("spatial index performance benchmark", () => {
     expect(endQuery - startQuery).toBeLessThan(100);
     expect(result.length).toBeGreaterThan(0);
   });
+
+  it("reaproveita o envoltório cacheado para a mesma entidade (identidade)", () => {
+    const line: CadEntity = {
+      type: "line",
+      id: "cache_1",
+      layerId: "0",
+      start: { x: 0, y: 0 },
+      end: { x: 40, y: 30 }
+    };
+
+    const first = entityBoundingBox(line);
+    const second = entityBoundingBox(line);
+
+    // A segunda chamada devolve exatamente a mesma referência: prova de que o cache foi usado.
+    expect(second).toBe(first);
+    expect(first).toEqual({ minX: 0, minY: 0, maxX: 40, maxY: 30 });
+  });
+
+  it("recalcula o envoltório quando a entidade é um novo objeto (imutabilidade)", () => {
+    const before: CadEntity = {
+      type: "line",
+      id: "cache_2",
+      layerId: "0",
+      start: { x: 0, y: 0 },
+      end: { x: 10, y: 10 }
+    };
+    // Mover uma entidade cria um novo objeto; o envoltório deve refletir a nova posição.
+    const after: CadEntity = { ...before, start: { x: 100, y: 100 }, end: { x: 110, y: 110 } };
+
+    expect(entityBoundingBox(before)).toEqual({ minX: 0, minY: 0, maxX: 10, maxY: 10 });
+    expect(entityBoundingBox(after)).toEqual({ minX: 100, minY: 100, maxX: 110, maxY: 110 });
+  });
 });

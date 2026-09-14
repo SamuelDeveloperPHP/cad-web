@@ -40,7 +40,24 @@ export function documentBoundingBox(document: CadDocument): BoundingBox | null {
   return bounds;
 }
 
+// O cache associa cada entidade imutável ao seu envoltório. Como as entidades nunca são mutadas,
+// mover/editar produz um novo objeto e a entrada anterior é naturalmente descartada pelo coletor.
+const boundingBoxCache = new WeakMap<CadEntity, BoundingBox>();
+
+// A função devolve o envoltório da entidade, calculando-o uma única vez por objeto e reaproveitando o cache.
+// O envoltório retornado é compartilhado (imutável por convenção): os chamadores apenas leem, nunca alteram.
 export function entityBoundingBox(entity: CadEntity): BoundingBox {
+  const cached = boundingBoxCache.get(entity);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const box = computeEntityBoundingBox(entity);
+  boundingBoxCache.set(entity, box);
+  return box;
+}
+
+function computeEntityBoundingBox(entity: CadEntity): BoundingBox {
   if (entity.type === "line") {
     return {
       minX: Math.min(entity.start.x, entity.end.x),
