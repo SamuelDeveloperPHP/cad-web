@@ -1,37 +1,33 @@
 import {
+  ChamferCornerCommand,
   ChamferLineLineCommand,
-  getDocumentSpatialIndex,
   type CadEntity,
-  type LineEntity
+  type LineEntity,
+  type PolylineEntity,
+  type RectangleEntity
 } from "@cad-web/cad-core";
-import { computeLineLineChamfer, distancePointToSegment, type Point2D } from "@cad-web/cad-geometry";
+import { computeLineLineChamfer, type Point2D } from "@cad-web/cad-geometry";
 import type { CadTool } from "../contracts/CadTool";
 import type { ToolContext } from "../contracts/ToolContext";
 import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent";
 import { TOOL_RESULT_NONE, type ToolResult } from "../contracts/ToolResult";
-
-// O modulo descreve a ferramenta interativa Chamfer responsavel por criar linhas de chanfro entre dois segmentos.
-// O fluxo segue o padrao das demais ferramentas: maquina de estados, preview ghost e geracao de comando apenas na confirmacao.
+import {
+  areEdgesAdjacent,
+  extractSegments,
+  findNearestSegment,
+  type SegmentHit
+} from "./segmentUtils";
 
 const DEFAULT_SCREEN_TOLERANCE_PIXELS = 8;
 
 type ChamferPhase =
-  // O usuario informa a primeira distancia, podendo digitar uma unica medida ou um par.
   | "specify_distance1"
-  // O usuario informa a segunda distancia em um fluxo opcional explicito.
   | "specify_distance2"
-  // O usuario seleciona a primeira linha proxima ao ramo desejado do canto.
   | "select_first_line"
-  // O usuario seleciona a segunda linha e confirma a operacao.
   | "select_second_line";
 
-type LineHit = Readonly<{
-  entity: LineEntity;
-  locked: boolean;
-}>;
-
 type ChamferSelection = Readonly<{
-  entity: LineEntity;
+  hit: SegmentHit;
   pickPoint: Point2D;
 }>;
 
@@ -52,7 +48,6 @@ export class ChamferTool implements CadTool {
   private firstSelection: ChamferSelection | null = null;
 
   activate(context: ToolContext): void {
-    // O metodo reinicia apenas o estado interativo e preserva as distancias entre execucoes.
     this.firstSelection = null;
     context.clearPreview();
     context.clearSelection();
@@ -69,56 +64,72 @@ export class ChamferTool implements CadTool {
   }
 
   deactivate(context: ToolContext): void {
-    // O metodo limpa preview e selecao, mas mantem as distancias para reativacoes futuras.
     this.firstSelection = null;
     context.clearPreview();
     context.clearSelection();
   }
 
   onPointerDown(event: ToolPointerEvent, context: ToolContext): ToolResult {
-    // O handler ignora cliques secundarios e direciona o evento para a fase ativa da maquina de estados.
     if (event.button !== "primary") {
       return TOOL_RESULT_NONE;
     }
 
     if (this.phase === "specify_distance1" || this.phase === "specify_distance2") {
-      // O ponteiro nao avanca a ferramenta enquanto faltarem distancias; o usuario precisa usar a linha de comando.
       context.showMessage(this.currentDistancePrompt());
       return TOOL_RESULT_NONE;
     }
 
     if (this.phase === "select_first_line") {
-      return this.selectFirstLine(event.worldPoint, context);
+      return this.selectFirstSegment(event.worldPoint, context);
     }
 
-    return this.selectSecondLine(event.worldPoint, context);
+    return this.selectSecondSegment(event.worldPoint, context);
   }
 
   onPointerMove(event: ToolPointerEvent, context: ToolContext): ToolResult {
-    // O metodo gera apenas preview e nao mutaciona o documento, conforme a regra do command pattern.
     if (this.phase !== "select_second_line" || this.firstSelection === null) {
       return TOOL_RESULT_NONE;
     }
 
-    const hit = findNearestLine(context, event.worldPoint, this.getToleranceWorld(context), this.firstSelection.entity.id);
+    const hit = findNearestSegment(context, event.worldPoint, this.getToleranceWorld(context), getExcludeId(this.firstSelection.hit));
 
     if (hit === null || hit.locked) {
-      // O preview some quando o ponteiro nao esta sobre uma linha valida ou esta em layer bloqueada.
       context.clearPreview();
       return TOOL_RESULT_NONE;
     }
 
-    const previewEntities = this.buildChamferEntities(this.firstSelection, hit.entity, event.worldPoint, context, true);
+    const seg1 = getSegmentGeometry(this.firstSelection.hit);
+    const seg2 = getSegmentGeometry(hit);
 
-    if (previewEntities === null) {
-      // O calculo geometrico recusou a configuracao atual e a ferramenta limpa o preview anterior.
+    if (seg1 === null || seg2 === null) {
       context.clearPreview();
       return TOOL_RESULT_NONE;
     }
+
+    const chamferResult = computeLineLineChamfer({
+      line1: seg1,
+      line2: seg2,
+      distance1: this.distance1 ?? 0,
+      distance2: this.distance2 ?? 0,
+      pickPoint1: this.firstSelection.pickPoint,
+      pickPoint2: event.worldPoint,
+      tolerance: this.getToleranceWorld(context) * 0.001
+    });
+
+    if (!chamferResult.ok) {
+      context.clearPreview();
+      return TOOL_RESULT_NONE;
+    }
+
+    const layerId = getLayerId(this.firstSelection.hit);
 
     const preview = {
       type: "ghostEntities" as const,
-      entities: previewEntities
+      entities: [
+        { id: "chamfer_preview_l1", layerId, type: "line" as const, start: chamferResult.line1Result.start, end: chamferResult.line1Result.end },
+        { id: "chamfer_preview_l2", layerId: getLayerId(hit), type: "line" as const, start: chamferResult.line2Result.start, end: chamferResult.line2Result.end },
+        { id: "chamfer_preview_cl", layerId, type: "line" as const, start: chamferResult.chamferLine.start, end: chamferResult.chamferLine.end }
+      ]
     };
 
     context.setPreview(preview);
@@ -127,18 +138,15 @@ export class ChamferTool implements CadTool {
   }
 
   onPointerUp(_event: ToolPointerEvent, _context: ToolContext): ToolResult {
-    // O metodo nao reage ao soltar do botao porque a confirmacao acontece no pointerDown.
     return TOOL_RESULT_NONE;
   }
 
   onKeyDown(event: ToolKeyboardEvent, context: ToolContext): ToolResult {
-    // O handler trata apenas Esc; demais teclas seguem o fluxo padrao da aplicacao.
     if (event.key !== "Escape") {
       return TOOL_RESULT_NONE;
     }
 
     if (this.phase === "select_second_line") {
-      // O Esc limpa a primeira linha e retorna o usuario para a fase inicial de selecao.
       this.firstSelection = null;
       this.phase = "select_first_line";
       context.clearPreview();
@@ -147,7 +155,6 @@ export class ChamferTool implements CadTool {
       return { type: "cancel" };
     }
 
-    // O Esc cancela toda a operacao e respeita as distancias configuradas para a proxima ativacao.
     this.firstSelection = null;
     this.phase = this.distance1 === null || this.distance2 === null ? "specify_distance1" : "select_first_line";
     context.clearPreview();
@@ -158,7 +165,6 @@ export class ChamferTool implements CadTool {
   }
 
   onCommandInput(input: string, context: ToolContext): ToolResult {
-    // O metodo despacha a entrada de texto para o handler correto conforme a fase atual.
     const parsed = parseChamferDistanceInput(input);
 
     if (this.phase === "specify_distance1") {
@@ -169,7 +175,6 @@ export class ChamferTool implements CadTool {
       return this.handleDistance2Input(parsed, context);
     }
 
-    // O metodo permite redefinir as distancias durante a selecao das linhas.
     if (parsed.kind === "pair") {
       this.distance1 = parsed.value1;
       this.distance2 = parsed.value2;
@@ -206,7 +211,6 @@ export class ChamferTool implements CadTool {
     }
 
     if (parsed.kind === "single") {
-      // O valor unico aplica a mesma distancia para ambas as linhas, replicando o atalho do AutoCAD.
       this.distance1 = parsed.value;
       this.distance2 = parsed.value;
       this.firstSelection = null;
@@ -247,15 +251,13 @@ export class ChamferTool implements CadTool {
   }
 
   private currentDistancePrompt(): string {
-    // O metodo retorna a mensagem adequada para a fase de distancias em curso.
     return this.phase === "specify_distance1"
       ? "[Chamfer] Specify first distance"
       : "[Chamfer] Specify second distance or press Enter to use same";
   }
 
-  private selectFirstLine(point: Point2D, context: ToolContext): ToolResult {
-    // O metodo localiza a linha mais proxima do clique e armazena o pickPoint para definir o ramo preservado.
-    const hit = findNearestLine(context, point, this.getToleranceWorld(context));
+  private selectFirstSegment(point: Point2D, context: ToolContext): ToolResult {
+    const hit = findNearestSegment(context, point, this.getToleranceWorld(context));
 
     if (hit === null) {
       context.showMessage("[Chamfer] Select first line");
@@ -263,15 +265,11 @@ export class ChamferTool implements CadTool {
     }
 
     if (hit.locked) {
-      // O respeito a layers bloqueadas evita modificacoes acidentais em entidades protegidas.
       context.showMessage("[Chamfer] Layer is locked");
       return TOOL_RESULT_NONE;
     }
 
-    this.firstSelection = {
-      entity: hit.entity,
-      pickPoint: point
-    };
+    this.firstSelection = { hit, pickPoint: point };
     this.phase = "select_second_line";
     context.selectEntities([hit.entity.id]);
     context.showMessage("[Chamfer] Select second line");
@@ -279,16 +277,23 @@ export class ChamferTool implements CadTool {
     return TOOL_RESULT_NONE;
   }
 
-  private selectSecondLine(point: Point2D, context: ToolContext): ToolResult {
-    // O metodo confirma a operacao chamando o command pattern, sem mutar entidades diretamente.
+  private selectSecondSegment(point: Point2D, context: ToolContext): ToolResult {
     if (this.distance1 === null || this.distance2 === null || this.firstSelection === null) {
-      // O estado degradado retorna o usuario para a fase inicial em vez de produzir um chanfro invalido.
       context.showMessage("[Chamfer] Specify first distance");
       this.phase = "specify_distance1";
       return TOOL_RESULT_NONE;
     }
 
-    const hit = findNearestLine(context, point, this.getToleranceWorld(context), this.firstSelection.entity.id);
+    const excludeId = getExcludeId(this.firstSelection.hit);
+    let hit = findNearestSegment(context, point, this.getToleranceWorld(context), excludeId);
+
+    if (hit === null && this.firstSelection.hit.kind === "edge") {
+      hit = findNearestSegment(context, point, this.getToleranceWorld(context));
+
+      if (hit !== null && hit.kind === "edge" && hit.entity.id === this.firstSelection.hit.entity.id && hit.edgeIndex === this.firstSelection.hit.edgeIndex) {
+        hit = null;
+      }
+    }
 
     if (hit === null) {
       context.showMessage("[Chamfer] Select second line");
@@ -300,87 +305,155 @@ export class ChamferTool implements CadTool {
       return TOOL_RESULT_NONE;
     }
 
-    const chamferEntities = this.buildChamferEntities(this.firstSelection, hit.entity, point, context, false);
+    const first = this.firstSelection;
 
-    if (chamferEntities === null) {
-      // O calculo geometrico ja informou o motivo da rejeicao via showMessage e a ferramenta apenas aguarda nova tentativa.
-      return TOOL_RESULT_NONE;
+    if (first.hit.kind === "edge" && hit.kind === "edge" && first.hit.entity.id === hit.entity.id) {
+      return this.executeCornerChamfer(first, hit, point, context);
     }
 
-    // O comando captura o estado original e o estado atualizado para garantir Undo/Redo determinístico.
-    const [updatedLine1, updatedLine2, chamferLine] = chamferEntities;
-    const command = new ChamferLineLineCommand(this.firstSelection.entity, hit.entity, updatedLine1, updatedLine2, chamferLine);
+    if (first.hit.kind === "line" && hit.kind === "line") {
+      return this.executeLineLineChamfer(first, hit, point, context);
+    }
 
-    context.executeCommand(command);
-    // O fluxo retorna a fase de selecao para que o usuario possa encadear novos chanfros, estilo AutoCAD.
-    this.firstSelection = null;
-    this.phase = "select_first_line";
-    context.clearPreview();
-    context.clearSelection();
-    context.showMessage("[Chamfer] Select first line");
-
-    return { type: "command", command };
+    context.showMessage("[Chamfer] Select two edges of the same entity or two lines");
+    return TOOL_RESULT_NONE;
   }
 
-  private buildChamferEntities(
-    firstSelection: ChamferSelection,
-    secondLine: LineEntity,
+  private executeLineLineChamfer(
+    first: ChamferSelection,
+    secondHit: SegmentHit & { kind: "line" },
     secondPickPoint: Point2D,
-    context: ToolContext,
-    preview: boolean
-  ): [LineEntity, LineEntity, LineEntity] | null {
-    // O metodo unifica a logica usada pelo preview ghost e pela confirmacao, evitando divergencias.
-    if (this.distance1 === null || this.distance2 === null) {
-      return null;
-    }
+    context: ToolContext
+  ): ToolResult {
+    const firstEntity = (first.hit as { kind: "line"; entity: LineEntity }).entity;
+    const secondEntity = secondHit.entity;
 
     const result = computeLineLineChamfer({
-      line1: firstSelection.entity,
-      line2: secondLine,
-      distance1: this.distance1,
-      distance2: this.distance2,
-      pickPoint1: firstSelection.pickPoint,
+      line1: firstEntity,
+      line2: secondEntity,
+      distance1: this.distance1 ?? 0,
+      distance2: this.distance2 ?? 0,
+      pickPoint1: first.pickPoint,
       pickPoint2: secondPickPoint,
-      // O kernel recebe uma tolerancia derivada do zoom para suportar desenhos em escalas distintas.
       tolerance: this.getToleranceWorld(context) * 0.001
     });
 
     if (!result.ok) {
       context.showMessage(toChamferMessage(result.reason));
-      return null;
+      return TOOL_RESULT_NONE;
     }
 
-    // O metodo preserva o id e os atributos da entidade original ao atualizar apenas os endpoints.
-    const updatedLine1: LineEntity = {
-      ...firstSelection.entity,
-      start: result.line1Result.start,
-      end: result.line1Result.end
-    };
-    const updatedLine2: LineEntity = {
-      ...secondLine,
-      start: result.line2Result.start,
-      end: result.line2Result.end
-    };
-    const chamferLine = createChamferLineEntity(
-      firstSelection.entity,
-      secondLine,
-      result.chamferLine.start,
-      result.chamferLine.end,
-      context,
-      preview
-    );
+    const updatedLine1: LineEntity = { ...firstEntity, start: result.line1Result.start, end: result.line1Result.end };
+    const updatedLine2: LineEntity = { ...secondEntity, start: result.line2Result.start, end: result.line2Result.end };
+    const chamferLine = createChamferLineEntity(firstEntity, secondEntity, result.chamferLine.start, result.chamferLine.end, context);
 
-    return [updatedLine1, updatedLine2, chamferLine];
+    const command = new ChamferLineLineCommand(firstEntity, secondEntity, updatedLine1, updatedLine2, chamferLine);
+    context.executeCommand(command);
+    this.resetForNextChamfer(context);
+
+    return { type: "command", command };
+  }
+
+  private executeCornerChamfer(
+    first: ChamferSelection,
+    secondHit: SegmentHit & { kind: "edge" },
+    secondPickPoint: Point2D,
+    context: ToolContext
+  ): ToolResult {
+    const entity = (first.hit as { kind: "edge"; entity: RectangleEntity | PolylineEntity; edgeIndex: number }).entity;
+    const edgeIndex1 = (first.hit as { kind: "edge"; edgeIndex: number }).edgeIndex;
+    const edgeIndex2 = secondHit.edgeIndex;
+
+    const adjacency = areEdgesAdjacent(entity, edgeIndex1, edgeIndex2);
+
+    if (adjacency === null) {
+      context.showMessage("[Chamfer] Selected edges are not adjacent");
+      return TOOL_RESULT_NONE;
+    }
+
+    const segments = extractSegments(entity);
+
+    if (segments === null || segments.length < 2) {
+      return TOOL_RESULT_NONE;
+    }
+
+    const seg1 = segments[adjacency.seg1Index]!;
+    const seg2 = segments[adjacency.seg2Index]!;
+
+    const result = computeLineLineChamfer({
+      line1: { type: "line", start: seg1.start, end: seg1.end },
+      line2: { type: "line", start: seg2.start, end: seg2.end },
+      distance1: this.distance1 ?? 0,
+      distance2: this.distance2 ?? 0,
+      pickPoint1: first.pickPoint,
+      pickPoint2: secondPickPoint,
+      tolerance: this.getToleranceWorld(context) * 0.001
+    });
+
+    if (!result.ok) {
+      context.showMessage(toChamferMessage(result.reason));
+      return TOOL_RESULT_NONE;
+    }
+
+    const createdEntities: CadEntity[] = [];
+    const layerId = entity.layerId || "layer_0";
+    const styleProps = extractStyleProps(entity);
+
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i]!;
+      let start = seg.start;
+      let end = seg.end;
+
+      if (i === adjacency.seg1Index) {
+        start = result.line1Result.start;
+        end = result.line1Result.end;
+      } else if (i === adjacency.seg2Index) {
+        start = result.line2Result.start;
+        end = result.line2Result.end;
+      }
+
+      const lineEntity: LineEntity = {
+        id: generateId("line_chamfer_corner", entity.id, i),
+        layerId,
+        type: "line",
+        start,
+        end,
+        ...styleProps
+      };
+      createdEntities.push(lineEntity);
+    }
+
+    const chamferLineEntity: LineEntity = {
+      id: generateId("line_chamfer_corner", entity.id, segments.length),
+      layerId,
+      type: "line",
+      start: result.chamferLine.start,
+      end: result.chamferLine.end,
+      ...styleProps
+    };
+    createdEntities.push(chamferLineEntity);
+
+    const command = new ChamferCornerCommand(entity, createdEntities);
+    context.executeCommand(command);
+    this.resetForNextChamfer(context);
+
+    return { type: "command", command };
+  }
+
+  private resetForNextChamfer(context: ToolContext): void {
+    this.firstSelection = null;
+    this.phase = "select_first_line";
+    context.clearPreview();
+    context.clearSelection();
+    context.showMessage("[Chamfer] Select first line");
   }
 
   private getToleranceWorld(context: ToolContext): number {
-    // O calculo converte a tolerancia em pixels da tela para unidades de mundo segundo o zoom atual.
     return DEFAULT_SCREEN_TOLERANCE_PIXELS / context.viewport.scale;
   }
 }
 
 export function parseChamferDistanceInput(rawInput: string): ParsedDistanceInput {
-  // O parser aceita distancia unica, par com separador ou par com chaves nomeadas.
   const trimmedInput = rawInput.trim();
 
   if (trimmedInput.length === 0) {
@@ -414,7 +487,6 @@ export function parseChamferDistanceInput(rawInput: string): ParsedDistanceInput
 }
 
 function parseSeparatorPair(input: string): ParsedDistanceInput | null {
-  // O metodo aceita pares simples como "10,5" ou "10x5".
   const match = input.match(/^([-+]?\d*\.?\d+(?:e[-+]?\d+)?)\s*[,x]\s*([-+]?\d*\.?\d+(?:e[-+]?\d+)?)$/i);
 
   if (match === null || match[1] === undefined || match[2] === undefined) {
@@ -432,7 +504,6 @@ function parseSeparatorPair(input: string): ParsedDistanceInput | null {
 }
 
 function parseNamedPair(input: string): ParsedDistanceInput | null {
-  // O metodo aceita pares nomeados como "d1=10 d2=5" ou "distancia1=10 distancia2=5".
   const tokens = input.split(/\s+/).filter((token) => token.length > 0);
 
   if (tokens.length === 0) {
@@ -447,7 +518,6 @@ function parseNamedPair(input: string): ParsedDistanceInput | null {
     const namedMatch = token.match(/^(d1|d2|distance1|distance2|distancia1|distancia2)=([-+]?\d*\.?\d+(?:e[-+]?\d+)?)$/i);
 
     if (namedMatch === null || namedMatch[1] === undefined || namedMatch[2] === undefined) {
-      // O parser exige que cada token seja nomeado para confirmar o formato par.
       return null;
     }
 
@@ -497,18 +567,50 @@ function parseNamedPair(input: string): ParsedDistanceInput | null {
   return { kind: "invalid" };
 }
 
+function getSegmentGeometry(hit: SegmentHit): { type: "line"; start: Point2D; end: Point2D } | null {
+  if (hit.kind === "line") {
+    return { type: "line", start: hit.entity.start, end: hit.entity.end };
+  }
+
+  return { type: "line", start: hit.segment.start, end: hit.segment.end };
+}
+
+function getExcludeId(hit: SegmentHit): string | undefined {
+  return hit.kind === "line" ? hit.entity.id : undefined;
+}
+
+function getLayerId(hit: SegmentHit): string {
+  return hit.entity.layerId || "layer_0";
+}
+
+function extractStyleProps(entity: CadEntity): Record<string, unknown> {
+  const props: Record<string, unknown> = {};
+
+  if ("color" in entity && entity.color !== undefined) {
+    props.color = entity.color;
+  }
+
+  if ("lineThickness" in entity && entity.lineThickness !== undefined) {
+    props.lineThickness = entity.lineThickness;
+  }
+
+  if ("lineType" in entity && entity.lineType !== undefined) {
+    props.lineType = entity.lineType;
+  }
+
+  return props;
+}
+
 function createChamferLineEntity(
   line1: LineEntity,
   line2: LineEntity,
   start: Point2D,
   end: Point2D,
-  context: ToolContext,
-  preview: boolean
+  context: ToolContext
 ): LineEntity {
-  // O metodo herda layer e estilo das linhas originais sempre que coincidem.
   const layerId = line1.layerId === line2.layerId ? line1.layerId : context.document.activeLayerId;
   const baseEntity: LineEntity = {
-    id: preview ? `chamfer_preview_${line1.id}_${line2.id}` : createChamferLineId(line1.id, line2.id),
+    id: generateId("line_chamfer", line1.id, 0),
     layerId,
     type: "line",
     start,
@@ -525,52 +627,15 @@ function createChamferLineEntity(
   };
 }
 
-function createChamferLineId(line1Id: string, line2Id: string): string {
-  // O metodo gera identificadores unicos para a linha do chanfro mesmo em ambientes sem crypto.randomUUID.
+function generateId(prefix: string, entityId: string, index: number): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return `line_chamfer_${line1Id}_${line2Id}_${crypto.randomUUID()}`;
+    return `${prefix}_${entityId}_${index}_${crypto.randomUUID()}`;
   }
 
-  return `line_chamfer_${line1Id}_${line2Id}_${Date.now()}_${Math.floor(Math.random() * 1_000_000)}`;
-}
-
-function findNearestLine(
-  context: ToolContext,
-  point: Point2D,
-  toleranceWorld: number,
-  excludedEntityId?: string
-): LineHit | null {
-  // O metodo consulta o spatial index para evitar percorrer todas as entidades do documento.
-  const candidates = getDocumentSpatialIndex(context.document).query({
-    minX: point.x - toleranceWorld,
-    minY: point.y - toleranceWorld,
-    maxX: point.x + toleranceWorld,
-    maxY: point.y + toleranceWorld
-  });
-  let nearestHit: LineHit | null = null;
-  let nearestDistance = Number.POSITIVE_INFINITY;
-
-  for (const entity of candidates) {
-    if (entity.id === excludedEntityId || entity.type !== "line" || isLayerVisible(context, entity) === false) {
-      continue;
-    }
-
-    const distance = distancePointToSegment(point, entity.start, entity.end);
-
-    if (distance <= toleranceWorld && distance < nearestDistance) {
-      nearestDistance = distance;
-      nearestHit = {
-        entity,
-        locked: isLayerLocked(context, entity)
-      };
-    }
-  }
-
-  return nearestHit;
+  return `${prefix}_${entityId}_${index}_${Date.now()}_${Math.floor(Math.random() * 1_000_000)}`;
 }
 
 function toChamferMessage(reason: string): string {
-  // O mapeamento traduz a razao geometrica para a mensagem amigavel da linha de comando.
   const lowered = reason.toLowerCase();
 
   if (lowered.includes("parallel")) {
@@ -582,16 +647,4 @@ function toChamferMessage(reason: string): string {
   }
 
   return "[Chamfer] Lines are parallel or invalid";
-}
-
-function isLayerVisible(context: ToolContext, entity: CadEntity): boolean {
-  const layer = context.document.layers.find((candidate) => candidate.id === (entity.layerId || "layer_0"));
-
-  return layer?.visible !== false;
-}
-
-function isLayerLocked(context: ToolContext, entity: CadEntity): boolean {
-  const layer = context.document.layers.find((candidate) => candidate.id === (entity.layerId || "layer_0"));
-
-  return layer?.locked === true;
 }
