@@ -34,6 +34,8 @@ function normalizeSnapSettings(value: unknown): SnapSettings {
     center: typeof candidate.center === "boolean" ? candidate.center : DEFAULT_SNAP_SETTINGS.center,
     quadrant: typeof candidate.quadrant === "boolean" ? candidate.quadrant : DEFAULT_SNAP_SETTINGS.quadrant,
     intersection: typeof candidate.intersection === "boolean" ? candidate.intersection : DEFAULT_SNAP_SETTINGS.intersection,
+    perpendicular: typeof candidate.perpendicular === "boolean" ? candidate.perpendicular : DEFAULT_SNAP_SETTINGS.perpendicular,
+    tangent: typeof candidate.tangent === "boolean" ? candidate.tangent : DEFAULT_SNAP_SETTINGS.tangent,
     nearest: typeof candidate.nearest === "boolean" ? candidate.nearest : DEFAULT_SNAP_SETTINGS.nearest,
     tolerancePx:
       typeof candidate.tolerancePx === "number" && Number.isFinite(candidate.tolerancePx)

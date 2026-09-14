@@ -1,4 +1,4 @@
-import type { SnapEntity } from "@cad-web/cad-geometry";
+import type { Point2D, SnapEntity } from "@cad-web/cad-geometry";
 import type { ToolContext } from "./ToolContext";
 import type { ToolKeyboardEvent, ToolPointerEvent } from "./ToolEvent";
 import type { ToolResult } from "./ToolResult";
@@ -20,4 +20,7 @@ export interface CadTool {
 
   // Opcional: entidades de snap da geometria em andamento, para o marcador aparecer antes de confirmar (ex.: fechar polyline).
   getSnapEntities?(): ReadonlyArray<SnapEntity>;
+
+  // Opcional: ponto de referência do desenho em andamento (ponto anterior), que habilita perpendicular e tangente.
+  getSnapReferencePoint?(): Point2D | null;
 }

@@ -262,6 +262,53 @@ describe("cad-geometry object snap", () => {
     expect(result.snapped).toBe(false);
   });
 
+  it("finds a perpendicular snap to a line using the reference point", () => {
+    const line: SnapEntity = { id: "l", type: "line", start: { x: -10, y: 0 }, end: { x: 10, y: 0 } };
+    // Referência em (3,8); o pé da perpendicular na linha é (3,0). O cursor está perto de (3,0).
+    const result = findBestSnap(
+      { x: 3.05, y: 0.05 },
+      { x: 30.5, y: 0.5 },
+      [line],
+      { ...defaultSettings, endpoint: false, midpoint: false },
+      viewport,
+      { x: 3, y: 8 }
+    );
+
+    expect(result.candidate?.type).toBe("perpendicular");
+    expect(result.point.x).toBeCloseTo(3, 6);
+    expect(result.point.y).toBeCloseTo(0, 6);
+  });
+
+  it("finds a tangent snap to a circle using the reference point", () => {
+    const circle: SnapEntity = { id: "c", type: "circle", center: { x: 0, y: 0 }, radius: 5 };
+    // A partir de (10,0), os pontos de tangência são (2.5, ±4.33). Cursor perto do ponto superior.
+    const result = findBestSnap(
+      { x: 2.55, y: 4.3 },
+      { x: 25.5, y: 43 },
+      [circle],
+      { ...defaultSettings, endpoint: false, midpoint: false, quadrant: false, nearest: false },
+      viewport,
+      { x: 10, y: 0 }
+    );
+
+    expect(result.candidate?.type).toBe("tangent");
+    expect(result.point.x).toBeCloseTo(2.5, 4);
+    expect(result.point.y).toBeCloseTo(Math.sqrt(75) / 2, 4);
+  });
+
+  it("offers no perpendicular or tangent without a reference point", () => {
+    const line: SnapEntity = { id: "l", type: "line", start: { x: -10, y: 0 }, end: { x: 10, y: 0 } };
+    const result = findBestSnap(
+      { x: 3.05, y: 0.05 },
+      { x: 30.5, y: 0.5 },
+      [line],
+      { ...defaultSettings, endpoint: false, midpoint: false, nearest: false },
+      viewport
+    );
+
+    expect(result.snapped).toBe(false);
+  });
+
   it("returns raw point when snap is disabled", () => {
     const rawPoint = { x: 0.4, y: 0.2 };
     const result = findBestSnap(
