@@ -8,6 +8,7 @@ Regras específicas por área: `apps/web/AGENTS.md` e `packages/cad-tools/AGENTS
 
 ## Estado do projeto
 
+- Fix recente: Fillet e Chamfer não executavam porque o passo do raio/distância não tinha UI (`requestNumericInput` era no-op). Agora `requestNumericInput` (em `useCadStore.createToolContext`) abre um prompt ao ativar a ferramenta e encaminha o valor à ferramenta ativa. Limitação conhecida: Fillet/Chamfer só operam sobre duas entidades `line` separadas (não em lados de retângulo/polyline).
 - Último MVP entregue: `docs/MVP 3.16 — Mira do cursor e linhas de eixo.md` (mira tracejada amarela que acompanha o mouse + eixos verde/vermelho na origem, desenhados no overlay; botões CURSOR/EIXOS no rodapé e comandos cursor/eixo; preferência em localStorage). Inclui o fix do canvas em branco no StrictMode (rAF reagendado no remonte).
 - MVP anterior: `docs/MVP 3.15 — Performance 2 — Cache de bounding box e LOD.md` (entityBoundingBox cacheado por objeto em WeakMap no cad-core; LOD no renderDocument2D — entidades sub-pixel viram ponto e o texto de cota é omitido quando ilegível; cache ~10x e sem geometria/texto de cota no zoom aberto).
 - MVP anterior: `docs/MVP 3.14 — Performance 1 — Persistência IndexedDB e render em rAF.md` (persistência assíncrona em IndexedDB com debounce, migrando o legado do localStorage; render em duas camadas — base estática + overlay dinâmico — agendado em requestAnimationFrame; só `apps/web`).
