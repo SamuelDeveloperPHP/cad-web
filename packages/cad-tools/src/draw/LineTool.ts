@@ -1,5 +1,5 @@
 import type { LineEntity } from "@cad-web/cad-core";
-import { pointsNearlyEqual, type Point2D } from "@cad-web/cad-geometry";
+import { pointsNearlyEqual, subtractPoints, type Point2D } from "@cad-web/cad-geometry";
 import { createEntityCommand } from "../commands/CadCommandTypes";
 import type { CadTool } from "../contracts/CadTool";
 import type { ToolContext } from "../contracts/ToolContext";
@@ -7,6 +7,7 @@ import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent
 import type { ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
+import { parseDirectInput, resolveDirectInput } from "./directInput";
 
 export class LineTool implements CadTool {
   readonly id = "line";
@@ -91,7 +92,37 @@ export class LineTool implements CadTool {
       return this.confirmCurrentLine(context);
     }
 
-    return TOOL_RESULT_NONE;
+    if (this.startPoint === null) {
+      return TOOL_RESULT_NONE;
+    }
+
+    const parsed = parseDirectInput(input);
+
+    if (parsed.kind === "empty" || parsed.kind === "invalid") {
+      return parsed.kind === "invalid"
+        ? { type: "error", message: "Invalid input. Use a number for distance, x,y for coordinates, @dx,dy for relative, or @dist<angle for polar." }
+        : TOOL_RESULT_NONE;
+    }
+
+    const cursorDir = this.currentPoint !== null
+      ? subtractPoints(this.currentPoint, this.startPoint)
+      : null;
+    const endPoint = resolveDirectInput(parsed, this.startPoint, cursorDir);
+
+    if (endPoint === null) {
+      return { type: "error", message: "Move the cursor to indicate direction before entering distance." };
+    }
+
+    if (pointsNearlyEqual(this.startPoint, endPoint)) {
+      return { type: "error", message: "Line requires two distinct points." };
+    }
+
+    const entity = createLineEntity(this.startPoint, endPoint, context.document.activeLayerId);
+    const command = createEntityCommand(entity);
+    context.executeCommand(command);
+    this.reset(context);
+
+    return { type: "command", command };
   }
 
   private confirmCurrentLine(context: ToolContext): ToolResult {

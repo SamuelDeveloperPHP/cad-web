@@ -90,4 +90,97 @@ describe("LineTool", () => {
     });
     expect(context.commands).toEqual([]);
   });
+
+  it("creates a line by typing direct distance", () => {
+    const tool = new LineTool();
+    const context = createMockToolContext();
+
+    tool.activate(context);
+    tool.onPointerDown(createPointerEvent({ x: 0, y: 0 }), context);
+    tool.onPointerMove(createPointerEvent({ x: 10, y: 0 }), context);
+    const result = tool.onCommandInput("5", context);
+
+    expect(result.type).toBe("command");
+    expect(context.commands).toHaveLength(1);
+    expect(context.commands[0]).toMatchObject({
+      entity: {
+        type: "line",
+        start: { x: 0, y: 0 },
+        end: { x: 5, y: 0 }
+      }
+    });
+  });
+
+  it("creates a line by typing absolute coordinates", () => {
+    const tool = new LineTool();
+    const context = createMockToolContext();
+
+    tool.activate(context);
+    tool.onPointerDown(createPointerEvent({ x: 0, y: 0 }), context);
+    const result = tool.onCommandInput("10,20", context);
+
+    expect(result.type).toBe("command");
+    expect(context.commands[0]).toMatchObject({
+      entity: {
+        type: "line",
+        start: { x: 0, y: 0 },
+        end: { x: 10, y: 20 }
+      }
+    });
+  });
+
+  it("creates a line by typing relative coordinates", () => {
+    const tool = new LineTool();
+    const context = createMockToolContext();
+
+    tool.activate(context);
+    tool.onPointerDown(createPointerEvent({ x: 5, y: 5 }), context);
+    const result = tool.onCommandInput("@10,0", context);
+
+    expect(result.type).toBe("command");
+    expect(context.commands[0]).toMatchObject({
+      entity: {
+        type: "line",
+        start: { x: 5, y: 5 },
+        end: { x: 15, y: 5 }
+      }
+    });
+  });
+
+  it("creates a line by typing polar input", () => {
+    const tool = new LineTool();
+    const context = createMockToolContext();
+
+    tool.activate(context);
+    tool.onPointerDown(createPointerEvent({ x: 0, y: 0 }), context);
+    const result = tool.onCommandInput("@10<90", context);
+
+    expect(result.type).toBe("command");
+    const end = (context.commands[0] as any).entity.end;
+    expect(end.x).toBeCloseTo(0);
+    expect(end.y).toBeCloseTo(10);
+  });
+
+  it("rejects invalid text input", () => {
+    const tool = new LineTool();
+    const context = createMockToolContext();
+
+    tool.activate(context);
+    tool.onPointerDown(createPointerEvent({ x: 0, y: 0 }), context);
+    const result = tool.onCommandInput("abc", context);
+
+    expect(result.type).toBe("error");
+    expect(context.commands).toEqual([]);
+  });
+
+  it("ignores command input before first point is placed", () => {
+    const tool = new LineTool();
+    const context = createMockToolContext();
+
+    tool.activate(context);
+    const result = tool.onCommandInput("10", context);
+
+    expect(result).toEqual({ type: "none" });
+    expect(context.commands).toEqual([]);
+  });
 });
