@@ -141,11 +141,14 @@ export function CadEditor() {
         zoom={cad.viewport.scale}
         entityCount={cad.document.entities.length}
         snapSettings={cad.snapSettings}
+        guideSettings={cad.guideSettings}
         activeLayerName={activeLayerName}
         activeDimStyleName={activeDimStyleName}
         displayUnit={cad.document.displayUnit || cad.document.units}
         documentUnits={cad.document.units}
         onSnapSettingsChange={cad.setSnapSettings}
+        onToggleCursorGuides={cad.toggleCursorGuides}
+        onToggleAxisLines={cad.toggleAxisLines}
         onDisplayUnitChange={(unit) => cad.executeCommand(new ChangeDisplayUnitCommand(unit as DisplayUnitInput))}
         onZoomPercentChange={(percent) => cad.setZoomScale(percent / 100)}
         onZoomExtents={cad.zoomToExtents}

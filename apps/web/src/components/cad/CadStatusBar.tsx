@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Point2D, SnapSettings } from "@cad-web/cad-geometry";
 import type { ActiveCadTool } from "../../state/useCadStore";
+import type { GuideSettings } from "../../services/guideSettingsStorage";
 
 type CadStatusBarProps = Readonly<{
   activeTool: ActiveCadTool;
@@ -8,11 +9,14 @@ type CadStatusBarProps = Readonly<{
   zoom: number;
   entityCount: number;
   snapSettings: SnapSettings;
+  guideSettings: GuideSettings;
   activeLayerName: string;
   activeDimStyleName: string;
   displayUnit: string;
   documentUnits: string;
   onSnapSettingsChange(settings: SnapSettings): void;
+  onToggleCursorGuides(): void;
+  onToggleAxisLines(): void;
   onDisplayUnitChange(unit: string): void;
   onZoomPercentChange(percent: number): void;
   onZoomExtents(): void;
@@ -63,9 +67,12 @@ export function CadStatusBar({
   displayUnit,
   documentUnits,
   entityCount,
+  guideSettings,
   mouseWorld,
   onDisplayUnitChange,
   onSnapSettingsChange,
+  onToggleAxisLines,
+  onToggleCursorGuides,
   onZoomExtents,
   onZoomIn,
   onZoomOut,
@@ -127,6 +134,22 @@ export function CadStatusBar({
         </button>
         <button className="cad-statusbar-btn" type="button" title="Ortho placeholder">
           ORTHO
+        </button>
+        <button
+          className={`cad-statusbar-btn ${guideSettings.cursorGuides ? "active" : ""}`}
+          type="button"
+          onClick={onToggleCursorGuides}
+          title="Mira tracejada que acompanha o cursor (comando: cursor)"
+        >
+          CURSOR
+        </button>
+        <button
+          className={`cad-statusbar-btn ${guideSettings.axisLines ? "active" : ""}`}
+          type="button"
+          onClick={onToggleAxisLines}
+          title="Linhas de eixo X (vermelha) e Y (verde) na origem (comando: eixo)"
+        >
+          EIXOS
         </button>
         <StatusItem label="Modes" value={activeModes} />
       </div>
