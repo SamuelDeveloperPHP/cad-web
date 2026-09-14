@@ -26,10 +26,11 @@ import {
 } from "@cad-web/cad-tools";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  CAD_DOCUMENT_STORAGE_KEY,
+  clearPersistedDocument,
+  createDocumentPersister,
   createInitialDocument,
-  loadStoredDocument,
-  storeDocument
+  loadPersistedDocument,
+  loadStoredDocument
 } from "../services/cadDocumentStorage";
 import { loadStoredSnapSettings, storeSnapSettings } from "../services/snapSettingsStorage";
 import { createWebToolRegistry } from "../tools/toolRegistry";
@@ -111,6 +112,10 @@ export function useCadStore(): CadStore {
   const toolRegistry = useMemo(() => createWebToolRegistry(), []);
   const [document, setDocument] = useState<CadDocument>(() => loadStoredDocument() ?? createInitialDocument());
   const [history] = useState(() => new CommandHistory(document));
+  // O gravador com debounce agrupa rajadas de edições em uma única escrita assíncrona no IndexedDB.
+  const [persister] = useState(() => createDocumentPersister());
+  // A hidratação sinaliza que o documento persistido já foi carregado; antes disso nada é regravado.
+  const [hydrated, setHydrated] = useState(false);
   const [viewport, setViewport] = useState<Viewport>(() => createViewport({ x: -50, y: -30 }, 8));
   const [screenSize, setScreenSize] = useState<ScreenSize>({ width: 1, height: 1 });
   const viewportHistoryRef = useRef<Viewport[]>([]);
@@ -142,9 +147,36 @@ export function useCadStore(): CadStore {
     setSnapResult(null);
   }, []);
 
+  // O documento só é regravado após a hidratação, agora de forma assíncrona e com debounce (fora do caminho de interação).
   useEffect(() => {
-    storeDocument(document);
-  }, [document]);
+    if (!hydrated) {
+      return;
+    }
+
+    persister.schedule(document);
+  }, [document, hydrated, persister]);
+
+  // Ao ocultar a aba ou sair da página, a gravação pendente é descarregada imediatamente para não perder a última edição.
+  useEffect(() => {
+    const flush = () => {
+      void persister.flush();
+    };
+
+    const handleVisibility = () => {
+      if (window.document.visibilityState === "hidden") {
+        flush();
+      }
+    };
+
+    window.addEventListener("pagehide", flush);
+    window.document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      window.document.removeEventListener("visibilitychange", handleVisibility);
+      persister.dispose();
+    };
+  }, [persister]);
 
   useEffect(() => {
     storeSnapSettings(snapSettings);
@@ -157,6 +189,34 @@ export function useCadStore(): CadStore {
       canRedo: history.canRedo
     });
   }, [history]);
+
+  // A hidratação carrega o documento persistido (IndexedDB, com migração do localStorage legado) uma única vez.
+  useEffect(() => {
+    let cancelled = false;
+
+    loadPersistedDocument()
+      .then((loaded) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (loaded !== null) {
+          history.replaceDocument(loaded);
+          publishDocument(loaded);
+        }
+
+        setHydrated(true);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setHydrated(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [history, publishDocument]);
 
   const applyCommand = useCallback(
     (command: CadCommand) => {
@@ -485,7 +545,7 @@ export function useCadStore(): CadStore {
     setSelectedEntityIds([]);
     setPreview(null);
     setSnapResult(null);
-    localStorage.removeItem(CAD_DOCUMENT_STORAGE_KEY);
+    void clearPersistedDocument();
   }, [applyCommand]);
 
   const importDocument = useCallback((nextDocument: CadDocument) => {
