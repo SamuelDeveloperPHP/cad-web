@@ -2,6 +2,7 @@ import type { EllipseEntity } from "@cad-web/cad-core";
 import {
   ellipseArcFromPoints,
   ellipseFromAxisPoints,
+  subtractPoints,
   type EllipseGeometry,
   type Point2D
 } from "@cad-web/cad-geometry";
@@ -12,6 +13,7 @@ import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent
 import type { ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
+import { parseDirectInput, resolveDirectInput } from "./directInput";
 
 type EllipseArcPhase = "center" | "majorAxis" | "minorAxis" | "startAngle" | "endAngle";
 
@@ -30,6 +32,7 @@ export class EllipseArcTool implements CadTool {
   private majorAxisEnd: Point2D | null = null;
   private base: EllipseGeometry | null = null;
   private startPoint: Point2D | null = null;
+  private cursorPoint: Point2D | null = null;
 
   activate(context: ToolContext): void {
     this.reset();
@@ -85,6 +88,7 @@ export class EllipseArcTool implements CadTool {
 
   onPointerMove(event: ToolPointerEvent, context: ToolContext): ToolResult {
     const point = resolveSnappedPoint(event, context);
+    this.cursorPoint = point;
     const geometry = this.buildGeometry(point);
 
     if (geometry === null) {
@@ -114,8 +118,91 @@ export class EllipseArcTool implements CadTool {
     return TOOL_RESULT_NONE;
   }
 
-  onCommandInput(_input: string, _context: ToolContext): ToolResult {
+  onCommandInput(input: string, context: ToolContext): ToolResult {
+    const parsed = parseDirectInput(input);
+
+    if (parsed.kind === "empty" || parsed.kind === "invalid") {
+      return parsed.kind === "invalid"
+        ? { type: "error", message: "Invalid input. Use a number, x,y, @dx,dy, or @dist<angle." }
+        : TOOL_RESULT_NONE;
+    }
+
+    if (this.phase === "center") {
+      if (parsed.kind === "absolute") {
+        this.center = parsed.point;
+        this.phase = "majorAxis";
+        context.showMessage("Specify end of major axis.");
+        return TOOL_RESULT_NONE;
+      }
+
+      return { type: "error", message: "Specify center as x,y coordinates." };
+    }
+
+    const refPoint = this.getReferenceForPhase();
+
+    if (refPoint === null) {
+      return TOOL_RESULT_NONE;
+    }
+
+    const cursorDir = this.cursorPoint !== null
+      ? subtractPoints(this.cursorPoint, refPoint)
+      : null;
+    const point = resolveDirectInput(parsed, refPoint, cursorDir);
+
+    if (point === null) {
+      return { type: "error", message: "Move the cursor to indicate direction before entering distance." };
+    }
+
+    if (this.phase === "majorAxis") {
+      this.majorAxisEnd = point;
+      this.phase = "minorAxis";
+      context.showMessage("Specify minor axis distance.");
+      return TOOL_RESULT_NONE;
+    }
+
+    if (this.phase === "minorAxis") {
+      const base = this.center !== null && this.majorAxisEnd !== null
+        ? ellipseFromAxisPoints(this.center, this.majorAxisEnd, point)
+        : null;
+
+      if (base === null) {
+        return { type: "error", message: "Ellipse axes must be greater than zero." };
+      }
+
+      this.base = base;
+      this.phase = "startAngle";
+      context.showMessage("Specify start angle of arc.");
+      return TOOL_RESULT_NONE;
+    }
+
+    if (this.phase === "startAngle") {
+      this.startPoint = point;
+      this.phase = "endAngle";
+      context.showMessage("Specify end angle of arc.");
+      return TOOL_RESULT_NONE;
+    }
+
+    if (this.phase === "endAngle") {
+      return this.confirmArc(point, context);
+    }
+
     return TOOL_RESULT_NONE;
+  }
+
+  private getReferenceForPhase(): Point2D | null {
+    if (this.phase === "majorAxis" || this.phase === "minorAxis") {
+      return this.center;
+    }
+
+    if (this.phase === "startAngle" && this.base !== null) {
+      return this.base.center;
+    }
+
+    if (this.phase === "endAngle" && this.base !== null) {
+      return this.base.center;
+    }
+
+    return null;
   }
 
   // Constrói a geometria de preview conforme a fase atual, usando o ponto corrente do cursor.
@@ -195,5 +282,6 @@ export class EllipseArcTool implements CadTool {
     this.majorAxisEnd = null;
     this.base = null;
     this.startPoint = null;
+    this.cursorPoint = null;
   }
 }
