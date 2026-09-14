@@ -1,6 +1,8 @@
 import type { Point2D } from "@cad-web/cad-geometry";
 import {
   configureCanvasForDevicePixelRatio,
+  renderAxisLines2D,
+  renderCursorGuides2D,
   renderDocument2D,
   renderDimensionGrips2D,
   renderGrid2D,
@@ -138,6 +140,9 @@ export function CadCanvas({ cad }: CadCanvasProps) {
     cad.selectedEntityIds,
     cad.preview,
     cad.snapResult,
+    // A mira do cursor segue o ponteiro, então o overlay precisa reagir ao movimento do mouse e às preferências de guias.
+    cad.mouseWorld,
+    cad.guideSettings,
     scheduleOverlayDraw
   ]);
 
@@ -365,6 +370,16 @@ function drawOverlayLayer(canvas: HTMLCanvasElement, cad: CadStore, screenSize: 
   }
 
   context.clearRect(0, 0, screenSize.width, screenSize.height);
+
+  // As guias visuais ficam ao fundo do overlay, sob a seleção, o preview e o marcador de snap.
+  if (cad.guideSettings.axisLines) {
+    renderAxisLines2D(context, cad.viewport, screenSize);
+  }
+
+  if (cad.guideSettings.cursorGuides) {
+    renderCursorGuides2D(context, worldToScreen(cad.mouseWorld, cad.viewport), screenSize);
+  }
+
   renderSelectedEntities(context, cad);
   renderDimensionGrips2D(context, cad.document, cad.selectedEntityIds, cad.viewport);
   renderPreview(context, cad);

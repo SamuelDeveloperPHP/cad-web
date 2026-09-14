@@ -24,6 +24,61 @@ export function renderCrosshair2D(
   context.restore();
 }
 
+// A função desenha a mira que acompanha o cursor: linhas tracejadas amarelas de 1px cobrindo toda a área.
+export function renderCursorGuides2D(
+  context: CanvasRenderingContext2D,
+  cursor: Point2D,
+  screenSize: ScreenSize
+): void {
+  context.save();
+  context.strokeStyle = "#eab308";
+  context.lineWidth = 1;
+  context.setLineDash([4, 4]);
+
+  context.beginPath();
+  // A linha vertical e a horizontal cruzam exatamente na posição do cursor.
+  context.moveTo(cursor.x, 0);
+  context.lineTo(cursor.x, screenSize.height);
+  context.moveTo(0, cursor.y);
+  context.lineTo(screenSize.width, cursor.y);
+  context.stroke();
+
+  context.restore();
+}
+
+// A função desenha os eixos do desenho na origem: uma linha verde no eixo Y (mundo x=0) e uma vermelha no eixo X (mundo y=0).
+export function renderAxisLines2D(
+  context: CanvasRenderingContext2D,
+  viewport: Viewport,
+  screenSize: ScreenSize
+): void {
+  const origin = worldToScreen({ x: 0, y: 0 }, viewport);
+
+  context.save();
+  context.lineWidth = 1;
+  context.setLineDash([]);
+
+  // Eixo Y (linha vertical, verde): só é desenhado quando a origem cruza a faixa visível horizontal.
+  if (origin.x >= 0 && origin.x <= screenSize.width) {
+    context.strokeStyle = "#22c55e";
+    context.beginPath();
+    context.moveTo(origin.x, 0);
+    context.lineTo(origin.x, screenSize.height);
+    context.stroke();
+  }
+
+  // Eixo X (linha horizontal, vermelha): só é desenhado quando a origem cruza a faixa visível vertical.
+  if (origin.y >= 0 && origin.y <= screenSize.height) {
+    context.strokeStyle = "#ef4444";
+    context.beginPath();
+    context.moveTo(0, origin.y);
+    context.lineTo(screenSize.width, origin.y);
+    context.stroke();
+  }
+
+  context.restore();
+}
+
 export function renderSnapMarker2D(
   context: CanvasRenderingContext2D,
   point: Point2D,
