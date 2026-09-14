@@ -1,5 +1,5 @@
 import type { ArcGeometry, Point2D } from "@cad-web/cad-geometry";
-import { computeArcFromCenterStartEnd, computeArcFromThreePoints } from "@cad-web/cad-geometry";
+import { computeArcFromCenterStartEnd, computeArcFromThreePoints, subtractPoints } from "@cad-web/cad-geometry";
 import type { ArcEntity } from "@cad-web/cad-core";
 import { createEntityCommand } from "../commands/CadCommandTypes";
 import type { CadTool } from "../contracts/CadTool";
@@ -8,6 +8,7 @@ import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent
 import type { CadPreview, ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
+import { parseDirectInput, resolveDirectInput } from "./directInput";
 
 export type ArcToolMode = "threePoints" | "centerStartEnd";
 
@@ -32,10 +33,12 @@ export class ArcTool implements CadTool {
 
   private mode: ArcToolMode = "threePoints";
   private readonly points: Point2D[] = [];
+  private cursorPoint: Point2D | null = null;
 
   activate(context: ToolContext): void {
     this.mode = "threePoints";
     this.points.length = 0;
+    this.cursorPoint = null;
     this.showStepMessage(context);
   }
 
@@ -62,6 +65,7 @@ export class ArcTool implements CadTool {
     }
 
     const point = resolveSnappedPoint(event, context);
+    this.cursorPoint = point;
     const preview = this.buildPreview(point, context);
 
     context.setPreview(preview);
@@ -90,18 +94,48 @@ export class ArcTool implements CadTool {
 
     const requestedMode = MODE_INPUTS[text];
 
-    if (requestedMode === undefined) {
+    if (requestedMode !== undefined) {
+      if (this.points.length > 0) {
+        return { type: "error", message: "Press Esc before changing the arc mode." };
+      }
+
+      this.mode = requestedMode;
+      this.showStepMessage(context);
+      return { type: "message", message: this.currentPrompt() };
+    }
+
+    if (this.points.length === 0) {
       return { type: "error", message: "Invalid input. Use 'ce' for center mode or '3p' for three points." };
     }
 
-    // A troca de modo só é permitida antes do primeiro ponto para não invalidar pontos já coletados.
-    if (this.points.length > 0) {
-      return { type: "error", message: "Press Esc before changing the arc mode." };
+    const parsed = parseDirectInput(input);
+
+    if (parsed.kind === "empty") {
+      return TOOL_RESULT_NONE;
     }
 
-    this.mode = requestedMode;
-    this.showStepMessage(context);
-    return { type: "message", message: this.currentPrompt() };
+    if (parsed.kind === "invalid") {
+      return { type: "error", message: "Invalid input. Use a number, x,y, @dx,dy, or @dist<angle." };
+    }
+
+    const lastPoint = this.points[this.points.length - 1]!;
+    const cursorDir = this.cursorPoint !== null
+      ? subtractPoints(this.cursorPoint, lastPoint)
+      : null;
+    const point = resolveDirectInput(parsed, lastPoint, cursorDir);
+
+    if (point === null) {
+      return { type: "error", message: "Move the cursor to indicate direction before entering distance." };
+    }
+
+    this.points.push(point);
+
+    if (this.points.length < 3) {
+      this.showStepMessage(context);
+      return TOOL_RESULT_NONE;
+    }
+
+    return this.confirmArc(context);
   }
 
   private buildPreview(cursor: Point2D, context: ToolContext): CadPreview {
@@ -197,6 +231,7 @@ export class ArcTool implements CadTool {
   private reset(context: ToolContext): void {
     this.mode = "threePoints";
     this.points.length = 0;
+    this.cursorPoint = null;
     context.clearPreview();
     this.showStepMessage(context);
   }
