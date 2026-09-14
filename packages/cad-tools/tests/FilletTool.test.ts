@@ -52,14 +52,12 @@ describe("FilletTool", () => {
     const result = tool.onPointerMove(createPointerEvent({ x: 0, y: 6 }), context);
 
     expect(result.type).toBe("preview");
-    expect(context.previews.at(-1)).toMatchObject({
-      type: "ghostEntities",
-      entities: [
-        { id: "line_a" },
-        { id: "line_b" },
-        { type: "arc", id: "fillet_preview_line_a_line_b" }
-      ]
-    });
+    const preview = context.previews.at(-1) as any;
+    expect(preview.type).toBe("ghostEntities");
+    expect(preview.entities).toHaveLength(3);
+    expect(preview.entities[0]).toMatchObject({ type: "line" });
+    expect(preview.entities[1]).toMatchObject({ type: "line" });
+    expect(preview.entities[2]).toMatchObject({ type: "arc" });
   });
 
   it("rejects invalid radius input", () => {
@@ -107,6 +105,97 @@ describe("FilletTool", () => {
 
     expect(result.type).toBe("none");
     expect(context.messages).toContain("[Fillet] Layer is locked");
+  });
+
+  it("fillets a corner of a rectangle exploding into lines and arc", () => {
+    const tool = new FilletTool();
+    const document = createDocument([
+      { id: "rect_a", layerId: "source", type: "rectangle", x: 0, y: 0, width: 20, height: 10 }
+    ]);
+    const context = createMockToolContext({ document });
+
+    tool.activate(context);
+    tool.onCommandInput("r=2", context);
+    tool.onPointerDown(createPointerEvent({ x: 10, y: 0 }), context);
+    const result = tool.onPointerDown(createPointerEvent({ x: 20, y: 5 }), context);
+
+    expect(result.type).toBe("command");
+    expect(context.commands[0]).toMatchObject({ type: "FilletCornerCommand" });
+
+    const nextDocument = context.commands[0].execute(document);
+    const rect = nextDocument.entities.find((e) => e.id === "rect_a");
+    const lines = nextDocument.entities.filter((e) => e.type === "line");
+    const arcs = nextDocument.entities.filter((e) => e.type === "arc");
+
+    expect(rect).toBeUndefined();
+    expect(lines).toHaveLength(4);
+    expect(arcs).toHaveLength(1);
+    expect(arcs[0]).toMatchObject({ type: "arc", radius: 2 });
+  });
+
+  it("undoes corner fillet restoring the original rectangle", () => {
+    const tool = new FilletTool();
+    const document = createDocument([
+      { id: "rect_a", layerId: "source", type: "rectangle", x: 0, y: 0, width: 20, height: 10 }
+    ]);
+    const context = createMockToolContext({ document });
+
+    tool.activate(context);
+    tool.onCommandInput("r=2", context);
+    tool.onPointerDown(createPointerEvent({ x: 10, y: 0 }), context);
+    tool.onPointerDown(createPointerEvent({ x: 20, y: 5 }), context);
+
+    const command = context.commands[0];
+    const afterExecute = command.execute(document);
+    const afterUndo = command.undo(afterExecute);
+    const restored = afterUndo.entities.find((e) => e.id === "rect_a");
+
+    expect(restored).toMatchObject({ type: "rectangle", x: 0, y: 0, width: 20, height: 10 });
+  });
+
+  it("fillets a corner of a closed polyline", () => {
+    const tool = new FilletTool();
+    const document = createDocument([
+      {
+        id: "poly_a", layerId: "source", type: "polyline", closed: true,
+        points: [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 10 }, { x: 0, y: 10 }]
+      }
+    ]);
+    const context = createMockToolContext({ document });
+
+    tool.activate(context);
+    tool.onCommandInput("r=3", context);
+    tool.onPointerDown(createPointerEvent({ x: 10, y: 0 }), context);
+    const result = tool.onPointerDown(createPointerEvent({ x: 20, y: 5 }), context);
+
+    expect(result.type).toBe("command");
+    expect(context.commands[0]).toMatchObject({ type: "FilletCornerCommand" });
+
+    const nextDocument = context.commands[0].execute(document);
+    const poly = nextDocument.entities.find((e) => e.id === "poly_a");
+    const lines = nextDocument.entities.filter((e) => e.type === "line");
+    const arcs = nextDocument.entities.filter((e) => e.type === "arc");
+
+    expect(poly).toBeUndefined();
+    expect(lines).toHaveLength(4);
+    expect(arcs).toHaveLength(1);
+    expect(arcs[0]).toMatchObject({ type: "arc", radius: 3 });
+  });
+
+  it("rejects non-adjacent edges", () => {
+    const tool = new FilletTool();
+    const document = createDocument([
+      { id: "rect_a", layerId: "source", type: "rectangle", x: 0, y: 0, width: 20, height: 10 }
+    ]);
+    const context = createMockToolContext({ document });
+
+    tool.activate(context);
+    tool.onCommandInput("r=2", context);
+    tool.onPointerDown(createPointerEvent({ x: 10, y: 0 }), context);
+    const result = tool.onPointerDown(createPointerEvent({ x: 10, y: 10 }), context);
+
+    expect(result.type).toBe("none");
+    expect(context.messages).toContain("[Fillet] Selected edges are not adjacent");
   });
 
   it("exposes command aliases", () => {
