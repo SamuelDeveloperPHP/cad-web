@@ -573,6 +573,23 @@ button {
   cursor: crosshair;
 }
 
+/* As duas camadas de canvas ficam sobrepostas: a base ao fundo e o overlay dinâmico por cima. */
+.cad-canvas-base,
+.cad-canvas-overlay {
+  position: absolute;
+  inset: 0;
+}
+
+/* A base não recebe eventos de ponteiro; toda a interação acontece pelo overlay que fica no topo. */
+.cad-canvas-base {
+  z-index: 0;
+  pointer-events: none;
+}
+
+.cad-canvas-overlay {
+  z-index: 1;
+}
+
 .cad-right-panel {
   display: flex;
   width: 308px;
