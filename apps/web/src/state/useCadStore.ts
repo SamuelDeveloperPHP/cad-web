@@ -153,6 +153,8 @@ export function useCadStore(): CadStore {
   const [guideSettings, setGuideSettingsState] = useState<GuideSettings>(() => loadStoredGuideSettings());
   const [message, setMessageState] = useState<string>("");
   const messageTimeoutRef = useRef<number | null>(null);
+  // O ref mantém o runCommandLine mais recente acessível dentro do prompt numérico adiado (raio do Fillet, distância do Chamfer).
+  const runCommandLineRef = useRef<((command: string) => void) | null>(null);
 
   const showMessage = useCallback((msg: string) => {
     setMessageState(msg);
@@ -295,7 +297,17 @@ export function useCadStore(): CadStore {
       clearSelection: () => setSelectedEntityIds([]),
       executeCommand: applyCommand,
       showMessage,
-      requestNumericInput: () => undefined,
+      requestNumericInput: (options) => {
+        // O valor numérico (raio do Fillet, distância do Chamfer) é coletado por um prompt e encaminhado à ferramenta ativa.
+        // O prompt é adiado para depois do commit da troca de ferramenta, para o valor ir à ferramenta recém-ativada e não à anterior.
+        const suggested = options.defaultValue !== undefined ? String(options.defaultValue) : "";
+        window.setTimeout(() => {
+          const answer = window.prompt(options.prompt, suggested);
+          if (answer !== null && answer.trim() !== "") {
+            runCommandLineRef.current?.(answer.trim());
+          }
+        }, 0);
+      },
       cancelCurrentTool: () => setPreview(null)
     }),
     [applyCommand, document, selectedEntityIds, snapService, viewport]
@@ -705,6 +717,9 @@ export function useCadStore(): CadStore {
     },
     [activeTool, clearDocument, createToolContext, document.entities.length, processToolResult, redo, runEraseTool, setActiveTool, showMessage, toggleAxisLines, toggleCursorGuides, toolRegistry, undo, zoomToExtents, zoomPrevious]
   );
+
+  // O ref é mantido sempre com o runCommandLine mais recente (fecha sobre a ferramenta ativa atual).
+  runCommandLineRef.current = runCommandLine;
 
   return useMemo(
     () => ({
