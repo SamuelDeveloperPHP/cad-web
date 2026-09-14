@@ -246,6 +246,8 @@ function formatActiveSnaps(settings: SnapSettings): string {
     settings.center ? "Center" : null,
     settings.quadrant ? "Quadrant" : null,
     settings.intersection ? "Intersection" : null,
+    settings.perpendicular ? "Perpendicular" : null,
+    settings.tangent ? "Tangent" : null,
     settings.nearest ? "Nearest" : null
   ].filter((snap): snap is string => snap !== null);
 

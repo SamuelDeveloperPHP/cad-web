@@ -53,7 +53,7 @@ export class PolylineTool implements CadTool {
       return TOOL_RESULT_NONE;
     }
 
-    const point = resolveSnappedPoint(event, context, this.getSnapEntities());
+    const point = resolveSnappedPoint(event, context, this.getSnapEntities(), this.getSnapReferencePoint() ?? undefined);
 
     if (this.phase === "waiting_first_point") {
       this.points = [point];
@@ -83,10 +83,19 @@ export class PolylineTool implements CadTool {
       return TOOL_RESULT_NONE;
     }
 
-    this.cursorPoint = resolveSnappedPoint(event, context, this.getSnapEntities());
+    this.cursorPoint = resolveSnappedPoint(event, context, this.getSnapEntities(), this.getSnapReferencePoint() ?? undefined);
     this.refreshPreview(context);
 
     return TOOL_RESULT_NONE;
+  }
+
+  getSnapReferencePoint(): Point2D | null {
+    // O último vértice confirmado serve de referência para perpendicular e tangente.
+    if (this.phase !== "drawing_polyline" || this.points.length === 0) {
+      return null;
+    }
+
+    return this.points[this.points.length - 1] ?? null;
   }
 
   onPointerUp(_event: ToolPointerEvent, _context: ToolContext): ToolResult {
