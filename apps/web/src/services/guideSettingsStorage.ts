@@ -2,11 +2,13 @@
 export type GuideSettings = Readonly<{
   cursorGuides: boolean;
   axisLines: boolean;
+  dynamicInput: boolean;
 }>;
 
 export const DEFAULT_GUIDE_SETTINGS: GuideSettings = {
   cursorGuides: true,
-  axisLines: true
+  axisLines: true,
+  dynamicInput: true
 };
 
 export const CAD_GUIDE_SETTINGS_STORAGE_KEY = "cad-web.guideSettings";
@@ -43,6 +45,7 @@ function normalizeGuideSettings(value: unknown): GuideSettings {
   return {
     cursorGuides:
       typeof candidate.cursorGuides === "boolean" ? candidate.cursorGuides : DEFAULT_GUIDE_SETTINGS.cursorGuides,
-    axisLines: typeof candidate.axisLines === "boolean" ? candidate.axisLines : DEFAULT_GUIDE_SETTINGS.axisLines
+    axisLines: typeof candidate.axisLines === "boolean" ? candidate.axisLines : DEFAULT_GUIDE_SETTINGS.axisLines,
+    dynamicInput: typeof candidate.dynamicInput === "boolean" ? candidate.dynamicInput : DEFAULT_GUIDE_SETTINGS.dynamicInput
   };
 }

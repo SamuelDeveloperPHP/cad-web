@@ -87,6 +87,7 @@ export type CadStore = Readonly<{
   snapSettings: SnapSettings;
   snapResult: SnapResult | null;
   guideSettings: GuideSettings;
+  activeToolReferencePoint: Point2D | null;
   canUndo: boolean;
   canRedo: boolean;
   message: string;
@@ -104,6 +105,7 @@ export type CadStore = Readonly<{
   setGuideSettings(settings: GuideSettings): void;
   toggleCursorGuides(): void;
   toggleAxisLines(): void;
+  toggleDynamicInput(): void;
   panByScreenDelta(delta: Point2D): void;
   dispatchPointerDown(event: ToolPointerEvent): void;
   dispatchPointerMove(event: ToolPointerEvent): void;
@@ -185,6 +187,10 @@ export function useCadStore(): CadStore {
 
   const toggleAxisLines = useCallback(() => {
     setGuideSettingsState((current) => ({ ...current, axisLines: !current.axisLines }));
+  }, []);
+
+  const toggleDynamicInput = useCallback(() => {
+    setGuideSettingsState((current) => ({ ...current, dynamicInput: !current.dynamicInput }));
   }, []);
 
   const setScreenSize = useCallback((size: ScreenSize) => {
@@ -686,6 +692,12 @@ export function useCadStore(): CadStore {
         return;
       }
 
+      if (["dynput", "dynamicinput", "din", "entradaativa"].includes(normalizedCommand)) {
+        toggleDynamicInput();
+        showMessage("Entrada dinâmica alternada.");
+        return;
+      }
+
       if (["axis", "axes", "eixo", "eixos"].includes(normalizedCommand)) {
         toggleAxisLines();
         showMessage("Linhas de eixo alternadas.");
@@ -715,11 +727,16 @@ export function useCadStore(): CadStore {
         processToolResult(toolRegistry.resolve(activeTool)?.onCommandInput(command, context) ?? { type: "none" });
       }
     },
-    [activeTool, clearDocument, createToolContext, document.entities.length, processToolResult, redo, runEraseTool, setActiveTool, showMessage, toggleAxisLines, toggleCursorGuides, toolRegistry, undo, zoomToExtents, zoomPrevious]
+    [activeTool, clearDocument, createToolContext, document.entities.length, processToolResult, redo, runEraseTool, setActiveTool, showMessage, toggleAxisLines, toggleCursorGuides, toggleDynamicInput, toolRegistry, undo, zoomToExtents, zoomPrevious]
   );
 
   // O ref é mantido sempre com o runCommandLine mais recente (fecha sobre a ferramenta ativa atual).
   runCommandLineRef.current = runCommandLine;
+
+  const activeToolReferencePoint = useMemo(() => {
+    const tool = toolRegistry.resolve(activeTool);
+    return tool?.getSnapReferencePoint?.() ?? null;
+  }, [activeTool, toolRegistry, preview, mouseWorld]);
 
   return useMemo(
     () => ({
@@ -733,6 +750,7 @@ export function useCadStore(): CadStore {
       snapSettings,
       snapResult,
       guideSettings,
+      activeToolReferencePoint,
       canUndo: historyAvailability.canUndo,
       canRedo: historyAvailability.canRedo,
       message,
@@ -750,6 +768,7 @@ export function useCadStore(): CadStore {
       setGuideSettings,
       toggleCursorGuides,
       toggleAxisLines,
+      toggleDynamicInput,
       panByScreenDelta,
       dispatchPointerDown,
       dispatchPointerMove,
@@ -765,6 +784,7 @@ export function useCadStore(): CadStore {
     }),
     [
       activeTool,
+      activeToolReferencePoint,
       cancelInteraction,
       clearDocument,
       dispatchKeyDown,
@@ -788,6 +808,7 @@ export function useCadStore(): CadStore {
       setGuideSettings,
       toggleCursorGuides,
       toggleAxisLines,
+      toggleDynamicInput,
       message,
       showMessage,
       undo,
