@@ -1,6 +1,7 @@
 import type { Point2D } from "@cad-web/cad-geometry";
 import {
   configureCanvasForDevicePixelRatio,
+  renderAngleArc2D,
   renderAxisLines2D,
   renderCursorGuides2D,
   renderDocument2D,
@@ -23,6 +24,7 @@ import {
 import type { CadStore } from "../../state/useCadStore";
 import { createToolPointerEvent } from "../../tools/toolEvents";
 import { cadDiagnostics } from "../../diagnostics/CadDiagnosticsService";
+import { DynamicInputOverlay } from "./DynamicInputOverlay";
 
 type CadCanvasProps = Readonly<{
   cad: CadStore;
@@ -343,6 +345,14 @@ export function CadCanvas({ cad }: CadCanvasProps) {
           }}
         />
       )}
+      {cad.guideSettings.dynamicInput && cad.activeToolReferencePoint !== null && (
+        <DynamicInputOverlay
+          referencePoint={cad.activeToolReferencePoint}
+          cursorWorld={cad.mouseWorld}
+          viewport={cad.viewport}
+          onSubmit={cad.runCommandLine}
+        />
+      )}
     </div>
   );
 }
@@ -384,6 +394,10 @@ function drawOverlayLayer(canvas: HTMLCanvasElement, cad: CadStore, screenSize: 
   renderDimensionGrips2D(context, cad.document, cad.selectedEntityIds, cad.viewport);
   renderPreview(context, cad);
   renderActiveSnapMarker(context, cad);
+
+  if (cad.guideSettings.dynamicInput && cad.activeToolReferencePoint !== null) {
+    renderAngleArc2D(context, cad.activeToolReferencePoint, cad.mouseWorld, cad.viewport);
+  }
 }
 
 function renderSelectedEntities(context: CanvasRenderingContext2D, cad: CadStore): void {

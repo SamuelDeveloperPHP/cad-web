@@ -276,6 +276,10 @@ export class EllipseArcTool implements CadTool {
     return entity;
   }
 
+  getSnapReferencePoint(): Point2D | null {
+    return this.getReferenceForPhase();
+  }
+
   private reset(): void {
     this.phase = "center";
     this.center = null;
