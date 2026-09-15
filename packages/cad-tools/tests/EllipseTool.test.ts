@@ -53,6 +53,37 @@ describe("EllipseTool", () => {
     expect(ghost?.radiusY).toBeCloseTo(12, 6);
   });
 
+  it("uses the typed distance as the exact minor semi-axis regardless of cursor angle", () => {
+    const tool = new EllipseTool();
+    const context = createMockToolContext();
+
+    tool.onPointerDown(createPointerEvent({ x: 0, y: 0 }), context); // centro
+    tool.onPointerDown(createPointerEvent({ x: 40, y: 0 }), context); // eixo maior horizontal
+    // O cursor está numa direção oblíqua (não perpendicular), mas o valor digitado deve valer na íntegra.
+    tool.onPointerMove(createPointerEvent({ x: 20, y: 20 }), context);
+    const result = tool.onCommandInput("15", context);
+
+    expect(result.type).toBe("command");
+    const entity = (context.commands[0] as any).entity as EllipseEntity;
+    expect(entity.radiusX).toBeCloseTo(40, 6);
+    expect(entity.radiusY).toBeCloseTo(15, 6);
+    expect(entity.rotation).toBeCloseTo(0, 6);
+  });
+
+  it("uses the typed polar distance as the exact minor semi-axis", () => {
+    const tool = new EllipseTool();
+    const context = createMockToolContext();
+
+    tool.onPointerDown(createPointerEvent({ x: 0, y: 0 }), context);
+    tool.onPointerDown(createPointerEvent({ x: 40, y: 0 }), context);
+    tool.onPointerMove(createPointerEvent({ x: 10, y: 3 }), context);
+    const result = tool.onCommandInput("@15<80", context);
+
+    expect(result.type).toBe("command");
+    const entity = (context.commands[0] as any).entity as EllipseEntity;
+    expect(entity.radiusY).toBeCloseTo(15, 6);
+  });
+
   it("cancels on Escape without emitting a command", () => {
     const tool = new EllipseTool();
     const context = createMockToolContext();
