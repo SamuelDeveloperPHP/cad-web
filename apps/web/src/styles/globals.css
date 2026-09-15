@@ -936,11 +936,13 @@ button {
   font-weight: 600;
 }
 
-/* Overlay de entrada dinâmica (Dynamic Input) — campos flutuantes perto do cursor. */
+/* Overlay de entrada dinâmica (Dynamic Input) — campos visuais perto do cursor.
+   O container não recebe eventos de ponteiro: o mouse atravessa para o canvas mirar/clicar,
+   e as teclas são capturadas globalmente pelo CadCanvas. */
 .cad-dynamic-input {
   position: absolute;
   z-index: 10;
-  pointer-events: auto;
+  pointer-events: none;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -958,7 +960,10 @@ button {
 }
 
 .cad-dynamic-input-field {
-  width: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 56px;
   padding: 1px 4px;
   border: 1px solid transparent;
   border-radius: 2px;
@@ -968,7 +973,11 @@ button {
   font-size: 11px;
   line-height: 1.3;
   text-align: right;
-  outline: none;
+  white-space: nowrap;
+}
+
+.cad-dynamic-input-field.placeholder {
+  color: #64748b;
 }
 
 .cad-dynamic-input-field.active {
@@ -977,12 +986,27 @@ button {
   color: #ffffff;
 }
 
-.cad-dynamic-input-field:focus {
-  border-color: #3b82f6;
+.cad-dynamic-input-field.active.placeholder {
+  color: #bfdbfe;
 }
 
-.cad-dynamic-input-angle {
-  width: 52px;
+/* Caret piscante indica qual campo receberá o que for digitado. */
+.cad-dynamic-input-caret {
+  display: inline-block;
+  width: 1px;
+  height: 12px;
+  margin-left: 1px;
+  background: currentColor;
+  animation: cad-dyn-caret-blink 1s step-end infinite;
+}
+
+@keyframes cad-dyn-caret-blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  50.01%, 100% {
+    opacity: 0;
+  }
 }
 
 .cad-dynamic-input-separator {
