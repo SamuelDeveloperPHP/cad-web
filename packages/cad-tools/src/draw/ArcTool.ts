@@ -228,6 +228,10 @@ export class ArcTool implements CadTool {
     context.showMessage(this.currentPrompt());
   }
 
+  getSnapReferencePoint(): Point2D | null {
+    return this.points.length > 0 ? this.points[this.points.length - 1]! : null;
+  }
+
   private reset(context: ToolContext): void {
     this.mode = "threePoints";
     this.points.length = 0;

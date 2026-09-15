@@ -207,6 +207,70 @@ export function renderDimensionGrips2D(
   context.restore();
 }
 
+export function renderAngleArc2D(
+  context: CanvasRenderingContext2D,
+  from: Point2D,
+  to: Point2D,
+  viewport: Viewport,
+  options: Readonly<{ arcRadius?: number; showLabel?: boolean }> = {}
+): void {
+  const screenFrom = worldToScreen(from, viewport);
+  const screenTo = worldToScreen(to, viewport);
+  const dx = screenTo.x - screenFrom.x;
+  const dy = screenTo.y - screenFrom.y;
+  const dist = Math.hypot(dx, dy);
+
+  if (dist < 4) {
+    return;
+  }
+
+  const angle = Math.atan2(dy, dx);
+  const arcRadius = Math.min(options.arcRadius ?? 40, dist * 0.6);
+  const startAngle = 0;
+  const endAngle = angle;
+  const showLabel = options.showLabel !== false;
+
+  context.save();
+  context.strokeStyle = "#94a3b8";
+  context.lineWidth = 1;
+  context.setLineDash([3, 3]);
+
+  context.beginPath();
+  if (endAngle >= 0) {
+    context.arc(screenFrom.x, screenFrom.y, arcRadius, startAngle, endAngle);
+  } else {
+    context.arc(screenFrom.x, screenFrom.y, arcRadius, endAngle, startAngle);
+  }
+  context.stroke();
+
+  context.setLineDash([]);
+  context.beginPath();
+  context.moveTo(screenFrom.x, screenFrom.y);
+  context.lineTo(screenFrom.x + arcRadius + 8, screenFrom.y);
+  context.strokeStyle = "#64748b";
+  context.lineWidth = 0.5;
+  context.stroke();
+
+  if (showLabel) {
+    let degrees = (angle * 180) / Math.PI;
+    if (degrees < 0) {
+      degrees += 360;
+    }
+    const labelAngle = angle / 2;
+    const labelRadius = arcRadius + 14;
+    const labelX = screenFrom.x + Math.cos(labelAngle) * labelRadius;
+    const labelY = screenFrom.y + Math.sin(labelAngle) * labelRadius;
+
+    context.font = "11px Inter, ui-sans-serif, system-ui, sans-serif";
+    context.fillStyle = "#94a3b8";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(`${degrees.toFixed(1)}°`, labelX, labelY);
+  }
+
+  context.restore();
+}
+
 function getSnapLabel(snapType: SnapType): string {
   if (snapType === "endpoint") {
     return "Endpoint";

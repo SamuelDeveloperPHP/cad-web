@@ -18,6 +18,10 @@ export class RectangleTool implements CadTool {
   private startPoint: Point2D | null = null;
   private currentPoint: Point2D | null = null;
 
+  getSnapReferencePoint(): Point2D | null {
+    return this.startPoint;
+  }
+
   activate(context: ToolContext): void {
     this.startPoint = null;
     this.currentPoint = null;
