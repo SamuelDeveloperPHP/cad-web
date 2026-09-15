@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { Point2D, SnapSettings } from "@cad-web/cad-geometry";
 import type { ActiveCadTool } from "../../state/useCadStore";
 import type { GuideSettings } from "../../services/guideSettingsStorage";
+import { formatZoomScaleLabel, parseZoomScaleInput } from "../../services/zoomScale";
 
 type CadStatusBarProps = Readonly<{
   activeTool: ActiveCadTool;
@@ -19,7 +20,7 @@ type CadStatusBarProps = Readonly<{
   onToggleAxisLines(): void;
   onToggleDynamicInput(): void;
   onDisplayUnitChange(unit: string): void;
-  onZoomPercentChange(percent: number): void;
+  onZoomScaleChange(scale: number): void;
   onZoomExtents(): void;
   onZoomIn(): void;
   onZoomOut(): void;
@@ -78,7 +79,7 @@ export function CadStatusBar({
   onZoomExtents,
   onZoomIn,
   onZoomOut,
-  onZoomPercentChange,
+  onZoomScaleChange,
   onZoomPrevious,
   onZoomWindow,
   snapSettings,
@@ -95,8 +96,9 @@ export function CadStatusBar({
         <StatusItem label="Y" value={mouseWorld.y.toFixed(3)} monospace />
         <ZoomControl
           zoom={zoom}
+          units={documentUnits}
           zoomWindowActive={zoomWindowActive}
-          onZoomPercentChange={onZoomPercentChange}
+          onZoomScaleChange={onZoomScaleChange}
           onZoomExtents={onZoomExtents}
           onZoomIn={onZoomIn}
           onZoomOut={onZoomOut}
@@ -169,8 +171,9 @@ export function CadStatusBar({
 
 function ZoomControl({
   zoom,
+  units,
   zoomWindowActive,
-  onZoomPercentChange,
+  onZoomScaleChange,
   onZoomExtents,
   onZoomIn,
   onZoomOut,
@@ -178,43 +181,45 @@ function ZoomControl({
   onZoomPrevious
 }: Readonly<{
   zoom: number;
+  units: string;
   zoomWindowActive: boolean;
-  onZoomPercentChange(percent: number): void;
+  onZoomScaleChange(scale: number): void;
   onZoomExtents(): void;
   onZoomIn(): void;
   onZoomOut(): void;
   onZoomWindow(): void;
   onZoomPrevious(): void;
 }>) {
-  const currentPercent = (zoom * 100).toFixed(0);
-  const [draft, setDraft] = useState(currentPercent);
+  // O rótulo é a escala de engenharia (1:N reduz, N:1 amplia) derivada do fator interno px/unidade.
+  const currentLabel = formatZoomScaleLabel(zoom, units);
+  const [draft, setDraft] = useState(currentLabel);
 
-  // O campo acompanha o zoom vindo do store enquanto o usuário não está digitando um novo valor.
+  // O campo acompanha a escala vinda do store enquanto o usuário não está digitando um novo valor.
   useEffect(() => {
-    setDraft(currentPercent);
-  }, [currentPercent]);
+    setDraft(currentLabel);
+  }, [currentLabel]);
 
   const commit = () => {
-    const parsed = Number.parseFloat(draft.replace(",", "."));
+    const nextScale = parseZoomScaleInput(draft, units);
 
-    if (Number.isFinite(parsed) && parsed > 0) {
-      onZoomPercentChange(parsed);
+    if (nextScale !== null) {
+      onZoomScaleChange(nextScale);
     } else {
-      setDraft(currentPercent);
+      setDraft(currentLabel);
     }
   };
 
   return (
-    <span className="cad-statusbar-item cad-statusbar-zoom" title="Zoom (digite a porcentagem e Enter)">
-      <span>Zoom</span>
+    <span className="cad-statusbar-item cad-statusbar-zoom" title="Escala (digite 1:50, 2:1 e Enter)">
+      <span>Escala</span>
       <button className="cad-statusbar-btn cad-statusbar-zoom-step" type="button" onClick={onZoomOut} title="Reduzir zoom">
         −
       </button>
       <input
         className="cad-statusbar-zoom-input"
         value={draft}
-        inputMode="decimal"
-        aria-label="Zoom em porcentagem"
+        inputMode="text"
+        aria-label="Escala do desenho (ex.: 1:50 ou 2:1)"
         onChange={(event) => setDraft(event.currentTarget.value)}
         onFocus={(event) => event.currentTarget.select()}
         onBlur={commit}
@@ -222,12 +227,11 @@ function ZoomControl({
           if (event.key === "Enter") {
             event.currentTarget.blur();
           } else if (event.key === "Escape") {
-            setDraft(currentPercent);
+            setDraft(currentLabel);
             event.currentTarget.blur();
           }
         }}
       />
-      <span className="cad-statusbar-zoom-suffix">%</span>
       <button className="cad-statusbar-btn cad-statusbar-zoom-step" type="button" onClick={onZoomIn} title="Ampliar zoom">
         +
       </button>
