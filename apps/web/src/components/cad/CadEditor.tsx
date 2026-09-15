@@ -151,7 +151,7 @@ export function CadEditor() {
         onToggleAxisLines={cad.toggleAxisLines}
         onToggleDynamicInput={cad.toggleDynamicInput}
         onDisplayUnitChange={(unit) => cad.executeCommand(new ChangeDisplayUnitCommand(unit as DisplayUnitInput))}
-        onZoomPercentChange={(percent) => cad.setZoomScale(percent / 100)}
+        onZoomScaleChange={(scale) => cad.setZoomScale(scale)}
         onZoomExtents={cad.zoomToExtents}
         onZoomIn={cad.zoomIn}
         onZoomOut={cad.zoomOut}
