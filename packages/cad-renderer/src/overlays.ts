@@ -252,7 +252,9 @@ export function renderAngleArc2D(
   context.stroke();
 
   if (showLabel) {
-    let degrees = (angle * 180) / Math.PI;
+    // O rótulo usa a convenção visual do AutoCAD (0° = Leste, 90° = Norte/cima, anti-horário).
+    // Como o Y da tela cresce para baixo, o sinal do ângulo de tela é invertido para exibição.
+    let degrees = (-angle * 180) / Math.PI;
     if (degrees < 0) {
       degrees += 360;
     }
