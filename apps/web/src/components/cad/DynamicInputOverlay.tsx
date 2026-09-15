@@ -18,9 +18,11 @@ export function DynamicInputOverlay({
   onSubmit
 }: DynamicInputOverlayProps) {
   const dx = cursorWorld.x - referencePoint.x;
-  const dy = cursorWorld.y - referencePoint.y;
-  const dist = Math.hypot(dx, dy);
-  let angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+  const dyWorld = cursorWorld.y - referencePoint.y;
+  const dist = Math.hypot(dx, dyWorld);
+  // Convenção AutoCAD: 0° = Leste, 90° = Norte (para cima), sentido anti-horário.
+  // Como o eixo Y do mundo cresce para baixo na tela, o sinal do Y é invertido para medir o ângulo visual.
+  let angleDeg = (Math.atan2(-dyWorld, dx) * 180) / Math.PI;
   if (angleDeg < 0) {
     angleDeg += 360;
   }
@@ -67,7 +69,9 @@ export function DynamicInputOverlay({
           return;
         }
 
-        onSubmit(`@${parsedDist}<${parsedAngle}`);
+        // O ângulo é exibido na convenção visual do AutoCAD (Y para cima); o polar do desenho usa Y do mundo
+        // (para baixo na tela), então o sinal é invertido para o ponto cair exatamente onde o cursor indica.
+        onSubmit(`@${parsedDist}<${-parsedAngle}`);
         setDistanceDraft("");
         setAngleDraft("");
         setHasTypedDistance(false);
