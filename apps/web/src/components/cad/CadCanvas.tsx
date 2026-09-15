@@ -21,10 +21,19 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent
 } from "react";
-import type { ActiveCadTool, CadStore } from "../../state/useCadStore";
+import type { CadStore } from "../../state/useCadStore";
 import { createToolPointerEvent } from "../../tools/toolEvents";
 import { cadDiagnostics } from "../../diagnostics/CadDiagnosticsService";
-import { DynamicInputOverlay, type DynamicInputMode } from "./DynamicInputOverlay";
+import { DynamicInputOverlay } from "./DynamicInputOverlay";
+import {
+  buildDynamicSubmission,
+  computeDynamicMetrics,
+  dynamicFieldCount,
+  dynamicInputModeForTool,
+  type DynamicInputDraft
+} from "./dynamicInput";
+
+const EMPTY_DRAFT: DynamicInputDraft = ["", ""];
 
 type CadCanvasProps = Readonly<{
   cad: CadStore;
@@ -43,6 +52,16 @@ export function CadCanvas({ cad }: CadCanvasProps) {
   // O ref mantém o store atual acessível dentro de listeners nativos e callbacks de animação.
   const cadRef = useRef(cad);
   cadRef.current = cad;
+
+  // A entrada dinâmica captura as teclas globalmente (o usuário digita sem clicar num campo); os rascunhos
+  // dos dois campos e o campo ativo ficam neste estado, espelhado em refs para o listener de teclado.
+  const [dynDraft, setDynDraft] = useState<DynamicInputDraft>(EMPTY_DRAFT);
+  const [dynActiveField, setDynActiveField] = useState<0 | 1>(0);
+  const dynDraftRef = useRef(dynDraft);
+  dynDraftRef.current = dynDraft;
+  const dynActiveFieldRef = useRef(dynActiveField);
+  dynActiveFieldRef.current = dynActiveField;
+
   const [screenSize, setScreenSize] = useState<ScreenSize>({ width: 1, height: 1 });
   const screenSizeRef = useRef(screenSize);
   screenSizeRef.current = screenSize;
@@ -170,6 +189,98 @@ export function CadCanvas({ cad }: CadCanvasProps) {
       setZoomWindowBox(null);
     }
   }, [cad.activeTool, zoomWindowBox]);
+
+  // Sempre que o ponto de referência muda (novo segmento/vértice) ou a entrada dinâmica é desligada, os rascunhos
+  // são limpos para o próximo ponto começar em branco.
+  const dynamicInputActive = cad.guideSettings.dynamicInput && cad.activeToolReferencePoint !== null;
+  useEffect(() => {
+    setDynDraft(EMPTY_DRAFT);
+    setDynActiveField(0);
+  }, [cad.activeToolReferencePoint, dynamicInputActive]);
+
+  // A entrada dinâmica captura as teclas na fase de captura, antes do encaminhamento à ferramenta, para o usuário
+  // digitar distância/ângulo/raio direto sem precisar dar foco em nenhum campo (como no AutoCAD).
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const store = cadRef.current;
+
+      if (!(store.guideSettings.dynamicInput && store.activeToolReferencePoint !== null)) {
+        return;
+      }
+
+      // Se o usuário está digitando num campo real (linha de comando), a entrada dinâmica não intercepta.
+      const target = event.target as HTMLElement | null;
+      if (target !== null && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+
+      // Atalhos com modificadores (Ctrl+Z etc.) passam adiante sem interferência.
+      if (event.ctrlKey || event.metaKey || event.altKey) {
+        return;
+      }
+
+      const mode = dynamicInputModeForTool(store.activeTool);
+      const twoFields = dynamicFieldCount(mode) === 2;
+
+      if (event.key === "Tab") {
+        if (twoFields) {
+          event.preventDefault();
+          event.stopPropagation();
+          setDynActiveField((current) => (current === 0 ? 1 : 0));
+        }
+        return;
+      }
+
+      if (event.key === "Enter") {
+        const reference = store.activeToolReferencePoint;
+        if (reference === null) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        const metrics = computeDynamicMetrics(reference, store.mouseWorld);
+        const submission = buildDynamicSubmission(mode, dynDraftRef.current, metrics);
+
+        if (submission !== null) {
+          store.runCommandLine(submission);
+        }
+
+        setDynDraft(EMPTY_DRAFT);
+        setDynActiveField(0);
+        return;
+      }
+
+      if (event.key === "Escape") {
+        // Com texto digitado, o Esc só limpa; vazio, deixa o Esc encerrar o comando (tratado no CadEditor).
+        if (dynDraftRef.current[0] !== "" || dynDraftRef.current[1] !== "") {
+          event.preventDefault();
+          event.stopPropagation();
+          setDynDraft(EMPTY_DRAFT);
+          setDynActiveField(0);
+        }
+        return;
+      }
+
+      if (event.key === "Backspace") {
+        event.preventDefault();
+        event.stopPropagation();
+        setDynDraft((current) => updateDraftField(current, dynActiveFieldRef.current, (text) => text.slice(0, -1)));
+        return;
+      }
+
+      // Caracteres imprimíveis aceitos nos campos numéricos: dígitos, ponto e sinal de menos.
+      if (event.key.length === 1 && /[0-9.\-]/.test(event.key)) {
+        event.preventDefault();
+        event.stopPropagation();
+        setDynDraft((current) => updateDraftField(current, dynActiveFieldRef.current, (text) => text + event.key));
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+
+    return () => window.removeEventListener("keydown", handleKeyDown, { capture: true });
+  }, []);
 
   // O zoom pela roda usa um listener nativo não passivo; assim o preventDefault é aceito e não gera o aviso
   // "Unable to preventDefault inside passive event listener invocation" que o onWheel do React causa.
@@ -345,31 +456,31 @@ export function CadCanvas({ cad }: CadCanvasProps) {
           }}
         />
       )}
-      {cad.guideSettings.dynamicInput && cad.activeToolReferencePoint !== null && (
+      {dynamicInputActive && cad.activeToolReferencePoint !== null && (
         <DynamicInputOverlay
           mode={dynamicInputModeForTool(cad.activeTool)}
           referencePoint={cad.activeToolReferencePoint}
           cursorWorld={cad.mouseWorld}
           viewport={cad.viewport}
-          onSubmit={cad.runCommandLine}
+          draft={dynDraft}
+          activeField={dynActiveField}
         />
       )}
     </div>
   );
 }
 
-// A função mapeia a ferramenta ativa para o modo de entrada dinâmica: raio (Circle), largura×altura (Rectangle)
-// ou distância×ângulo polar (Line, Polyline, Arc, Ellipse e Ellipse Arc).
-function dynamicInputModeForTool(tool: ActiveCadTool): DynamicInputMode {
-  if (tool === "circle") {
-    return "radius";
+// A função devolve um novo par de rascunhos com o campo indicado transformado pela função dada.
+function updateDraftField(
+  draft: DynamicInputDraft,
+  field: 0 | 1,
+  transform: (text: string) => string
+): DynamicInputDraft {
+  if (field === 0) {
+    return [transform(draft[0]), draft[1]];
   }
 
-  if (tool === "rectangle") {
-    return "cartesian";
-  }
-
-  return "polar";
+  return [draft[0], transform(draft[1])];
 }
 
 // A função desenha a camada base: grade e documento completo. É a etapa cara, executada só quando muda documento/viewport.
