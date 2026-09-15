@@ -125,6 +125,19 @@ export class EllipseTool implements CadTool {
     }
 
     if (this.phase === "minorAxis" && this.center !== null && this.majorAxisEnd !== null) {
+      // Distância ou polar digitados definem o semi-eixo menor exato, perpendicular ao eixo maior,
+      // sem depender do ângulo do cursor (o valor digitado é aplicado na íntegra).
+      const typedDistance = parsed.kind === "distance"
+        ? parsed.value
+        : parsed.kind === "polar"
+          ? parsed.distance
+          : null;
+
+      if (typedDistance !== null) {
+        const minorPoint = perpendicularMinorPoint(this.center, this.majorAxisEnd, typedDistance);
+        return this.confirmEllipse(minorPoint, context);
+      }
+
       const cursorDir = this.cursorPoint !== null
         ? subtractPoints(this.cursorPoint, this.center)
         : null;
@@ -211,4 +224,17 @@ export class EllipseTool implements CadTool {
     this.majorAxisEnd = null;
     this.cursorPoint = null;
   }
+}
+
+// A função devolve um ponto na direção perpendicular ao eixo maior, à distância exata informada,
+// de modo que o semi-eixo menor resultante seja igual ao valor digitado.
+export function perpendicularMinorPoint(center: Point2D, majorAxisEnd: Point2D, distance: number): Point2D {
+  const rotation = Math.atan2(majorAxisEnd.y - center.y, majorAxisEnd.x - center.x);
+  const perpX = -Math.sin(rotation);
+  const perpY = Math.cos(rotation);
+
+  return {
+    x: center.x + perpX * distance,
+    y: center.y + perpY * distance
+  };
 }
