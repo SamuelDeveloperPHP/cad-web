@@ -14,6 +14,7 @@ import type { ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
 import { parseDirectInput, resolveDirectInput } from "./directInput";
+import { perpendicularMinorPoint } from "./EllipseTool";
 
 type EllipseArcPhase = "center" | "majorAxis" | "minorAxis" | "startAngle" | "endAngle";
 
@@ -161,8 +162,18 @@ export class EllipseArcTool implements CadTool {
     }
 
     if (this.phase === "minorAxis") {
+      // Distância ou polar digitados definem o semi-eixo menor exato, perpendicular ao eixo maior.
+      const typedDistance = parsed.kind === "distance"
+        ? parsed.value
+        : parsed.kind === "polar"
+          ? parsed.distance
+          : null;
+      const minorPoint = typedDistance !== null && this.center !== null && this.majorAxisEnd !== null
+        ? perpendicularMinorPoint(this.center, this.majorAxisEnd, typedDistance)
+        : point;
+
       const base = this.center !== null && this.majorAxisEnd !== null
-        ? ellipseFromAxisPoints(this.center, this.majorAxisEnd, point)
+        ? ellipseFromAxisPoints(this.center, this.majorAxisEnd, minorPoint)
         : null;
 
       if (base === null) {
