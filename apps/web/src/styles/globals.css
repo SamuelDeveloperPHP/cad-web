@@ -991,6 +991,14 @@ button {
   user-select: none;
 }
 
+.cad-dynamic-input-label {
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 600;
+  user-select: none;
+  margin-right: 1px;
+}
+
 .cad-dynamic-input-unit {
   color: #94a3b8;
   font-size: 10px;
