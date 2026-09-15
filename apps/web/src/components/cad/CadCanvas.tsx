@@ -232,6 +232,15 @@ export function CadCanvas({ cad }: CadCanvasProps) {
       }
 
       if (event.key === "Enter") {
+        const draft = dynDraftRef.current;
+        const hasText = draft[0] !== "" || draft[1] !== "";
+
+        // Sem texto digitado, o Enter segue para a ferramenta: finaliza a polyline ou confirma a linha no cursor.
+        // Só interceptamos quando há valores digitados para aplicar.
+        if (!hasText) {
+          return;
+        }
+
         const reference = store.activeToolReferencePoint;
         if (reference === null) {
           return;
@@ -240,7 +249,7 @@ export function CadCanvas({ cad }: CadCanvasProps) {
         event.preventDefault();
         event.stopPropagation();
         const metrics = computeDynamicMetrics(reference, store.mouseWorld);
-        const submission = buildDynamicSubmission(mode, dynDraftRef.current, metrics);
+        const submission = buildDynamicSubmission(mode, draft, metrics);
 
         if (submission !== null) {
           store.runCommandLine(submission);
