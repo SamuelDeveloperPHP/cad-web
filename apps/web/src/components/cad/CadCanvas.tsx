@@ -21,10 +21,10 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent
 } from "react";
-import type { CadStore } from "../../state/useCadStore";
+import type { ActiveCadTool, CadStore } from "../../state/useCadStore";
 import { createToolPointerEvent } from "../../tools/toolEvents";
 import { cadDiagnostics } from "../../diagnostics/CadDiagnosticsService";
-import { DynamicInputOverlay } from "./DynamicInputOverlay";
+import { DynamicInputOverlay, type DynamicInputMode } from "./DynamicInputOverlay";
 
 type CadCanvasProps = Readonly<{
   cad: CadStore;
@@ -347,6 +347,7 @@ export function CadCanvas({ cad }: CadCanvasProps) {
       )}
       {cad.guideSettings.dynamicInput && cad.activeToolReferencePoint !== null && (
         <DynamicInputOverlay
+          mode={dynamicInputModeForTool(cad.activeTool)}
           referencePoint={cad.activeToolReferencePoint}
           cursorWorld={cad.mouseWorld}
           viewport={cad.viewport}
@@ -355,6 +356,20 @@ export function CadCanvas({ cad }: CadCanvasProps) {
       )}
     </div>
   );
+}
+
+// A função mapeia a ferramenta ativa para o modo de entrada dinâmica: raio (Circle), largura×altura (Rectangle)
+// ou distância×ângulo polar (Line, Polyline, Arc, Ellipse e Ellipse Arc).
+function dynamicInputModeForTool(tool: ActiveCadTool): DynamicInputMode {
+  if (tool === "circle") {
+    return "radius";
+  }
+
+  if (tool === "rectangle") {
+    return "cartesian";
+  }
+
+  return "polar";
 }
 
 // A função desenha a camada base: grade e documento completo. É a etapa cara, executada só quando muda documento/viewport.
