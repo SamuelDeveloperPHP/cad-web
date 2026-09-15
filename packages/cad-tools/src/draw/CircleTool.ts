@@ -19,6 +19,10 @@ export class CircleTool implements CadTool {
   private centerPoint: Point2D | null = null;
   private currentPoint: Point2D | null = null;
 
+  getSnapReferencePoint(): Point2D | null {
+    return this.centerPoint;
+  }
+
   activate(context: ToolContext): void {
     this.centerPoint = null;
     this.currentPoint = null;

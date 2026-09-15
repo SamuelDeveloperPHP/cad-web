@@ -197,6 +197,14 @@ export class EllipseTool implements CadTool {
     };
   }
 
+  getSnapReferencePoint(): Point2D | null {
+    if (this.phase === "majorAxis" || this.phase === "minorAxis") {
+      return this.center;
+    }
+
+    return null;
+  }
+
   private reset(): void {
     this.phase = "center";
     this.center = null;

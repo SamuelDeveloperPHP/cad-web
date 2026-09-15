@@ -17,6 +17,7 @@ type CadStatusBarProps = Readonly<{
   onSnapSettingsChange(settings: SnapSettings): void;
   onToggleCursorGuides(): void;
   onToggleAxisLines(): void;
+  onToggleDynamicInput(): void;
   onDisplayUnitChange(unit: string): void;
   onZoomPercentChange(percent: number): void;
   onZoomExtents(): void;
@@ -73,6 +74,7 @@ export function CadStatusBar({
   onSnapSettingsChange,
   onToggleAxisLines,
   onToggleCursorGuides,
+  onToggleDynamicInput,
   onZoomExtents,
   onZoomIn,
   onZoomOut,
@@ -150,6 +152,14 @@ export function CadStatusBar({
           title="Linhas de eixo X (vermelha) e Y (verde) na origem (comando: eixo)"
         >
           EIXOS
+        </button>
+        <button
+          className={`cad-statusbar-btn ${guideSettings.dynamicInput ? "active" : ""}`}
+          type="button"
+          onClick={onToggleDynamicInput}
+          title="Entrada dinâmica com distância e ângulo perto do cursor (comando: dynput)"
+        >
+          DYN
         </button>
         <StatusItem label="Modes" value={activeModes} />
       </div>
