@@ -5,7 +5,7 @@ import {
   type CadCommand,
   type CadDocument
 } from "@cad-web/cad-core";
-import { clamp, type Point2D, type SnapResult, type SnapSettings } from "@cad-web/cad-geometry";
+import { clamp, convertUnit, type Point2D, type SnapResult, type SnapSettings } from "@cad-web/cad-geometry";
 import {
   MAX_VIEWPORT_SCALE,
   MIN_VIEWPORT_SCALE,
@@ -122,6 +122,10 @@ export type CadStore = Readonly<{
 
 const DEFAULT_VIEWPORT_SCALE = 8;
 
+// Largura física alvo (em mm) mostrada ao abrir um documento vazio, para o enquadramento inicial não
+// depender de um scale fixo arbitrário e a escala exibida começar próxima de 1:1.
+const TARGET_VIEW_MM = 250;
+
 // A função devolve um viewport que coloca a origem do mundo (0,0) no centro exato do render view.
 function viewportCenteredOnOrigin(size: ScreenSize, scale: number): Viewport {
   return {
@@ -131,6 +135,22 @@ function viewportCenteredOnOrigin(size: ScreenSize, scale: number): Viewport {
       y: -size.height / (2 * scale)
     }
   };
+}
+
+// A função escolhe o enquadramento inicial: com entidades, ajusta aos limites do desenho (extents);
+// vazio, centraliza a origem numa escala que mostra ~TARGET_VIEW_MM de largura física.
+function initialViewport(size: ScreenSize, document: CadDocument): Viewport {
+  const bounds = documentBoundingBox(document);
+
+  if (bounds !== null) {
+    return zoomExtents({ bounds, screenSize: size, paddingPixels: 48 });
+  }
+
+  const mmPerUnit = convertUnit(1, document.units, "mm");
+  const targetUnits = TARGET_VIEW_MM / (mmPerUnit > 0 ? mmPerUnit : 1);
+  const scale = clamp(size.width / targetUnits, MIN_VIEWPORT_SCALE, MAX_VIEWPORT_SCALE);
+
+  return viewportCenteredOnOrigin(size, scale);
 }
 
 export function useCadStore(): CadStore {
@@ -195,12 +215,6 @@ export function useCadStore(): CadStore {
 
   const setScreenSize = useCallback((size: ScreenSize) => {
     setScreenSizeState(size);
-
-    // Na primeira medição real do render view, o viewport é centralizado na origem (0,0).
-    if (!viewportInitializedRef.current && size.width > 1 && size.height > 1) {
-      viewportInitializedRef.current = true;
-      setViewport((current) => viewportCenteredOnOrigin(size, current.scale));
-    }
   }, []);
 
   // O documento só é regravado após a hidratação, agora de forma assíncrona e com debounce (fora do caminho de interação).
@@ -277,6 +291,21 @@ export function useCadStore(): CadStore {
       cancelled = true;
     };
   }, [history, publishDocument]);
+
+  // O enquadramento inicial acontece uma única vez, quando a hidratação terminou e a tela já foi medida:
+  // com desenho persistido ajusta aos limites (extents); vazio, mostra ~TARGET_VIEW_MM de largura física.
+  useEffect(() => {
+    if (viewportInitializedRef.current || !hydrated) {
+      return;
+    }
+
+    if (!(screenSize.width > 1 && screenSize.height > 1)) {
+      return;
+    }
+
+    viewportInitializedRef.current = true;
+    setViewport(initialViewport(screenSize, document));
+  }, [hydrated, screenSize, document]);
 
   const applyCommand = useCallback(
     (command: CadCommand) => {
