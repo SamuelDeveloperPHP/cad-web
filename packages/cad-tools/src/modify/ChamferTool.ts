@@ -165,7 +165,8 @@ export class ChamferTool implements CadTool {
   }
 
   onCommandInput(input: string, context: ToolContext): ToolResult {
-    const parsed = parseChamferDistanceInput(input);
+    // As distâncias são digitadas na unidade de trabalho; a escala converte para a base (mm) num único ponto.
+    const parsed = scaleChamferDistances(parseChamferDistanceInput(input), context.unitScale);
 
     if (this.phase === "specify_distance1") {
       return this.handleDistance1Input(parsed, context);
@@ -451,6 +452,19 @@ export class ChamferTool implements CadTool {
   private getToleranceWorld(context: ToolContext): number {
     return DEFAULT_SCREEN_TOLERANCE_PIXELS / context.viewport.scale;
   }
+}
+
+// A função converte as distâncias digitadas (unidade de trabalho) para a base (mm); empty/invalid passam intactos.
+function scaleChamferDistances(parsed: ParsedDistanceInput, unitScale: number): ParsedDistanceInput {
+  if (parsed.kind === "single") {
+    return { kind: "single", value: parsed.value * unitScale };
+  }
+
+  if (parsed.kind === "pair") {
+    return { kind: "pair", value1: parsed.value1 * unitScale, value2: parsed.value2 * unitScale };
+  }
+
+  return parsed;
 }
 
 export function parseChamferDistanceInput(rawInput: string): ParsedDistanceInput {
