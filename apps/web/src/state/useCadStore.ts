@@ -338,8 +338,11 @@ export function useCadStore(): CadStore {
         // O valor numérico (raio do Fillet, distância do Chamfer) é coletado por um prompt e encaminhado à ferramenta ativa.
         // O prompt é adiado para depois do commit da troca de ferramenta, para o valor ir à ferramenta recém-ativada e não à anterior.
         const suggested = options.defaultValue !== undefined ? String(options.defaultValue) : "";
+        // O prompt indica a unidade de trabalho ativa, já que o valor digitado é interpretado nela.
+        const workingUnit = document.displayUnit || document.units;
+        const promptWithUnit = `${options.prompt} (${workingUnit})`;
         window.setTimeout(() => {
-          const answer = window.prompt(options.prompt, suggested);
+          const answer = window.prompt(promptWithUnit, suggested);
           if (answer !== null && answer.trim() !== "") {
             runCommandLineRef.current?.(answer.trim());
           }

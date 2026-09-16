@@ -34,6 +34,26 @@ describe("ChamferTool", () => {
     expect((chamferLine as any).end.y).toBeCloseTo(3);
   });
 
+  it("converts typed distances by the working unit scale", () => {
+    const tool = new ChamferTool();
+    const document = createDocument([
+      { id: "line_a", layerId: "source", type: "line", start: { x: -10, y: 0 }, end: { x: 0, y: 0 } },
+      { id: "line_b", layerId: "source", type: "line", start: { x: 0, y: 0 }, end: { x: 0, y: 10 } }
+    ]);
+    // unitScale 10 = cm: distância digitada 0.3 cm -> 3 mm (mesmo recorte do teste base).
+    const context = createMockToolContext({ document, unitScale: 10 });
+
+    tool.activate(context);
+    tool.onCommandInput("0.3", context);
+    tool.onPointerDown(createPointerEvent({ x: -6, y: 0 }), context);
+    const result = tool.onPointerDown(createPointerEvent({ x: 0, y: 6 }), context);
+    const nextDocument = context.commands[0].execute(document);
+    const lineA = nextDocument.entities.find((entity) => entity.id === "line_a");
+
+    expect(result.type).toBe("command");
+    expect((lineA as any).end.x).toBeCloseTo(-3);
+  });
+
   it("supports asymmetric distances via comma syntax", () => {
     const tool = new ChamferTool();
     const document = createDocument([

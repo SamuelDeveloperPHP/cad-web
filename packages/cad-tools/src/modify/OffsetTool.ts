@@ -137,7 +137,8 @@ export class OffsetTool implements CadTool {
         return TOOL_RESULT_NONE;
       }
 
-      this.distance = parsed;
+      // A distância é digitada na unidade de trabalho; converte para a base (mm).
+      this.distance = parsed * context.unitScale;
       context.showMessage("[Offset] Select entity to offset");
       return TOOL_RESULT_NONE;
     }
