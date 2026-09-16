@@ -198,6 +198,26 @@ describe("FilletTool", () => {
     expect(context.messages).toContain("[Fillet] Selected edges are not adjacent");
   });
 
+  it("converts the typed radius by the working unit scale", () => {
+    const tool = new FilletTool();
+    const document = createDocument([
+      { id: "line_a", layerId: "source", type: "line", start: { x: -10, y: 0 }, end: { x: 0, y: 0 } },
+      { id: "line_b", layerId: "source", type: "line", start: { x: 0, y: 0 }, end: { x: 0, y: 10 } }
+    ]);
+    // unitScale 10 = trabalhar em cm com base em mm: raio digitado 0.2 cm -> 2 mm.
+    const context = createMockToolContext({ document, unitScale: 10 });
+
+    tool.activate(context);
+    tool.onCommandInput("0.2", context);
+    tool.onPointerDown(createPointerEvent({ x: -6, y: 0 }), context);
+    const result = tool.onPointerDown(createPointerEvent({ x: 0, y: 6 }), context);
+    const nextDocument = context.commands[0].execute(document);
+    const arc = nextDocument.entities.find((entity) => entity.type === "arc");
+
+    expect(result.type).toBe("command");
+    expect((arc as any).radius).toBeCloseTo(2);
+  });
+
   it("exposes command aliases", () => {
     expect(new FilletTool().aliases).toEqual(["f", "fillet"]);
   });

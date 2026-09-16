@@ -41,10 +41,13 @@ Converter **na fronteira texto→geometria**, passando um `unitScale` numérico 
 - `src/draw/directInput.ts`: `resolveDirectInput` recebe `unitScale` e aplica a distâncias/coords (não ao ângulo).
 - `src/draw/LineTool.ts`, `ArcTool.ts`, `EllipseTool.ts`, `EllipseArcTool.ts`, `PolylineTool.ts`: passar `context.unitScale`.
 - `src/draw/CircleTool.ts`, `RectangleTool.ts`: aplicar `unitScale` no `parseRadius`/`parseDimensions`.
+- `src/modify/OffsetTool.ts`: converter a distância digitada (`this.distance = parsed * unitScale`).
+- `src/modify/FilletTool.ts`: converter o raio digitado (`this.radius = radius * unitScale`).
+- `src/modify/ChamferTool.ts`: converter as distâncias digitadas num único ponto (`scaleChamferDistances`).
 
 ### Alterados — `apps/web`
 
-- `src/state/useCadStore.ts`: `createToolContext` calcula `unitScale = convertUnit(1, displayUnit, document.units)`.
+- `src/state/useCadStore.ts`: `createToolContext` calcula `unitScale = convertUnit(1, displayUnit, document.units)`; o `requestNumericInput` mostra a unidade de trabalho no prompt (raio do Fillet / distância do Chamfer).
 - `src/components/cad/dynamicInput.ts`: `computeDynamicMetrics`/`dynamicPlaceholders`/`buildDynamicSubmission` cientes de `unitScale`.
 - `src/components/cad/DynamicInputOverlay.tsx` + `CadCanvas.tsx`: repassar `unitScale` e exibir o sufixo da unidade nos campos.
 - `src/components/cad/CadCommandLine.tsx`: prompts mostrando a unidade de trabalho.
