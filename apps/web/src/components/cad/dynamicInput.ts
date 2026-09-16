@@ -34,10 +34,16 @@ export function dynamicFieldCount(mode: DynamicInputMode): 1 | 2 {
 
 // A função mede a distância, o ângulo (convenção AutoCAD: 0° = Leste, 90° = Norte/cima, anti-horário)
 // e os deltas do ponto de referência até o cursor. O sinal do Y é invertido porque o eixo Y do mundo
-// cresce para baixo na tela.
-export function computeDynamicMetrics(referencePoint: Point2D, cursorWorld: Point2D): DynamicMetrics {
-  const dx = cursorWorld.x - referencePoint.x;
-  const dyWorld = cursorWorld.y - referencePoint.y;
+// cresce para baixo na tela. Os comprimentos são divididos por unitScale para ficarem na unidade de
+// trabalho (o ângulo não depende da unidade); assim o que é exibido e emitido é reconvertido pelo tool.
+export function computeDynamicMetrics(
+  referencePoint: Point2D,
+  cursorWorld: Point2D,
+  unitScale = 1
+): DynamicMetrics {
+  const scale = unitScale > 0 ? unitScale : 1;
+  const dx = (cursorWorld.x - referencePoint.x) / scale;
+  const dyWorld = (cursorWorld.y - referencePoint.y) / scale;
   const dist = Math.hypot(dx, dyWorld);
   let angleDeg = (Math.atan2(-dyWorld, dx) * 180) / Math.PI;
 

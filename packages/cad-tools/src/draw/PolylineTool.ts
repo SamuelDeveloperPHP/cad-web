@@ -166,8 +166,10 @@ export class PolylineTool implements CadTool {
       const parsed = parseDirectInput(input);
 
       if (parsed.kind === "absolute") {
-        this.points = [parsed.point];
-        this.cursorPoint = parsed.point;
+        // A coordenada absoluta é digitada na unidade de trabalho; converte para a base (mm).
+        const firstPoint = { x: parsed.point.x * context.unitScale, y: parsed.point.y * context.unitScale };
+        this.points = [firstPoint];
+        this.cursorPoint = firstPoint;
         this.phase = "drawing_polyline";
         context.showMessage("[Polyline] Specify next point or Enter to finish");
         this.refreshPreview(context);
@@ -192,7 +194,7 @@ export class PolylineTool implements CadTool {
       const cursorDir = this.cursorPoint !== null
         ? subtractPoints(this.cursorPoint, lastPoint)
         : null;
-      const point = resolveDirectInput(parsed, lastPoint, cursorDir);
+      const point = resolveDirectInput(parsed, lastPoint, cursorDir, context.unitScale);
 
       if (point === null) {
         return { type: "error", message: "[Polyline] Move the cursor to indicate direction before entering distance." };

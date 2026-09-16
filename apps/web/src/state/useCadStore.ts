@@ -326,6 +326,8 @@ export function useCadStore(): CadStore {
       orthoMode: false,
       units: document.units,
       precision: 3,
+      // Fator mm por unidade de trabalho: converte o que o usuário digita (na unidade selecionada) para a base.
+      unitScale: convertUnit(1, document.displayUnit || document.units, document.units),
       setPreview,
       clearPreview: () => setPreview(null),
       selectEntities: setSelectedEntityIds,

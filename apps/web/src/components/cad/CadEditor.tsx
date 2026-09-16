@@ -133,7 +133,12 @@ export function CadEditor() {
         <CadRightPanel cad={cad} />
       </div>
 
-      <CadCommandLine activeTool={cad.activeTool} onSubmit={cad.runCommandLine} message={cad.message} />
+      <CadCommandLine
+        activeTool={cad.activeTool}
+        onSubmit={cad.runCommandLine}
+        message={cad.message}
+        workingUnit={cad.document.displayUnit || cad.document.units}
+      />
 
       <CadStatusBar
         activeTool={cad.activeTool}

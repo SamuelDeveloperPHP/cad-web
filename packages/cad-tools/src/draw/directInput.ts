@@ -75,8 +75,11 @@ function parseRelativeOrPolar(text: string): DirectInputResult {
 export function resolveDirectInput(
   result: DirectInputResult,
   referencePoint: Point2D,
-  cursorDirection: Vector2D | null
+  cursorDirection: Vector2D | null,
+  unitScale = 1
 ): Point2D | null {
+  // Os valores digitados estão na unidade de trabalho; unitScale os converte para a unidade base (mm).
+  // O ângulo (polar) nunca é escalado — só comprimentos e coordenadas.
   switch (result.kind) {
     case "distance": {
       if (cursorDirection === null) {
@@ -89,26 +92,29 @@ export function resolveDirectInput(
         return null;
       }
 
+      const distance = result.value * unitScale;
+
       return {
-        x: referencePoint.x + dir.x * result.value,
-        y: referencePoint.y + dir.y * result.value
+        x: referencePoint.x + dir.x * distance,
+        y: referencePoint.y + dir.y * distance
       };
     }
 
     case "absolute":
-      return result.point;
+      return { x: result.point.x * unitScale, y: result.point.y * unitScale };
 
     case "relative":
       return {
-        x: referencePoint.x + result.offset.x,
-        y: referencePoint.y + result.offset.y
+        x: referencePoint.x + result.offset.x * unitScale,
+        y: referencePoint.y + result.offset.y * unitScale
       };
 
     case "polar": {
       const angleRad = (result.angleDeg * Math.PI) / 180;
+      const distance = result.distance * unitScale;
       return {
-        x: referencePoint.x + result.distance * Math.cos(angleRad),
-        y: referencePoint.y + result.distance * Math.sin(angleRad)
+        x: referencePoint.x + distance * Math.cos(angleRad),
+        y: referencePoint.y + distance * Math.sin(angleRad)
       };
     }
 

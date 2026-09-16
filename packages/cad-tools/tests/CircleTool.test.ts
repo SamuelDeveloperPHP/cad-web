@@ -86,6 +86,17 @@ describe("CircleTool", () => {
     });
   });
 
+  it("converts typed radius by the working unit scale (in -> mm)", () => {
+    const tool = new CircleTool();
+    const context = createMockToolContext({ unitScale: 25.4 });
+
+    tool.onPointerDown(createPointerEvent({ x: 0, y: 0 }), context);
+    const result = tool.onCommandInput("2", context);
+
+    expect(result.type).toBe("command");
+    expect((context.commands[0] as any).entity).toMatchObject({ type: "circle", radius: 50.8 });
+  });
+
   it("returns error for invalid precise input", () => {
     const tool = new CircleTool();
     const context = createMockToolContext();

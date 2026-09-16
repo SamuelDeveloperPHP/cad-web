@@ -173,6 +173,22 @@ describe("LineTool", () => {
     expect(context.commands).toEqual([]);
   });
 
+  it("converts typed distance by the working unit scale", () => {
+    const tool = new LineTool();
+    // unitScale 1000 = trabalhar em metros com base em mm.
+    const context = createMockToolContext({ unitScale: 1000 });
+
+    tool.activate(context);
+    tool.onPointerDown(createPointerEvent({ x: 0, y: 0 }), context);
+    tool.onPointerMove(createPointerEvent({ x: 10, y: 0 }), context);
+    const result = tool.onCommandInput("5", context);
+
+    expect(result.type).toBe("command");
+    expect(context.commands[0]).toMatchObject({
+      entity: { type: "line", start: { x: 0, y: 0 }, end: { x: 5000, y: 0 } }
+    });
+  });
+
   it("ignores command input before first point is placed", () => {
     const tool = new LineTool();
     const context = createMockToolContext();
