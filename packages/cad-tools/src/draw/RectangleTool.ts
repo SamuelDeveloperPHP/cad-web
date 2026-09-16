@@ -79,9 +79,10 @@ export class RectangleTool implements CadTool {
       const dimensions = this.parseDimensions(input);
       
       if (dimensions) {
+        // Largura/altura são digitadas na unidade de trabalho; converte para a base (mm).
         const targetPoint: Point2D = {
-          x: this.startPoint.x + dimensions.width,
-          y: this.startPoint.y + dimensions.height
+          x: this.startPoint.x + dimensions.width * context.unitScale,
+          y: this.startPoint.y + dimensions.height * context.unitScale
         };
         return this.confirmRectangle(targetPoint, context);
       } else if (input.trim() !== "") {

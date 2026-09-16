@@ -122,7 +122,7 @@ export class ArcTool implements CadTool {
     const cursorDir = this.cursorPoint !== null
       ? subtractPoints(this.cursorPoint, lastPoint)
       : null;
-    const point = resolveDirectInput(parsed, lastPoint, cursorDir);
+    const point = resolveDirectInput(parsed, lastPoint, cursorDir, context.unitScale);
 
     if (point === null) {
       return { type: "error", message: "Move the cursor to indicate direction before entering distance." };

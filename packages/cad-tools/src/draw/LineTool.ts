@@ -107,7 +107,7 @@ export class LineTool implements CadTool {
     const cursorDir = this.currentPoint !== null
       ? subtractPoints(this.currentPoint, this.startPoint)
       : null;
-    const endPoint = resolveDirectInput(parsed, this.startPoint, cursorDir);
+    const endPoint = resolveDirectInput(parsed, this.startPoint, cursorDir, context.unitScale);
 
     if (endPoint === null) {
       return { type: "error", message: "Move the cursor to indicate direction before entering distance." };
