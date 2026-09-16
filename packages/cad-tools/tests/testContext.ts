@@ -24,6 +24,7 @@ export function createMockToolContext(
     selection: SelectionState;
     viewport: ViewportState;
     snapService: SnapService;
+    unitScale: number;
   }>> = {}
 ): MockToolContext {
   const commands: CadCommand[] = [];
@@ -51,6 +52,7 @@ export function createMockToolContext(
     orthoMode: false,
     units: "mm",
     precision: 3,
+    unitScale: overrides.unitScale ?? 1,
     commands,
     messages,
     numericRequests,

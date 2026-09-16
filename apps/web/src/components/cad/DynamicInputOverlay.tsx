@@ -17,6 +17,8 @@ type DynamicInputOverlayProps = Readonly<{
   viewport: Viewport;
   draft: DynamicInputDraft;
   activeField: 0 | 1;
+  unitScale: number;
+  unitLabel: string;
 }>;
 
 // O overlay é apenas visual: as teclas são capturadas globalmente pelo CadCanvas (como no AutoCAD, o usuário
@@ -27,9 +29,11 @@ export function DynamicInputOverlay({
   cursorWorld,
   viewport,
   draft,
-  activeField
+  activeField,
+  unitScale,
+  unitLabel
 }: DynamicInputOverlayProps) {
-  const metrics = computeDynamicMetrics(referencePoint, cursorWorld);
+  const metrics = computeDynamicMetrics(referencePoint, cursorWorld, unitScale);
   const placeholders = dynamicPlaceholders(mode, metrics);
   const labels = dynamicFieldLabels(mode);
   const twoFields = dynamicFieldCount(mode) === 2;
@@ -56,12 +60,15 @@ export function DynamicInputOverlay({
       <div className="cad-dynamic-input-row">
         {labels.prefix0 !== null && <span className="cad-dynamic-input-label">{labels.prefix0}</span>}
         <DynamicField value={draft[0]} placeholder={placeholders[0]} active={activeField === 0} />
+        {/* O primeiro campo é sempre um comprimento (raio / distância / largura): mostra a unidade de trabalho. */}
+        <span className="cad-dynamic-input-unit">{unitLabel}</span>
 
         {twoFields && (
           <>
             <span className="cad-dynamic-input-separator">{labels.separator}</span>
             <DynamicField value={draft[1]} placeholder={placeholders[1]} active={activeField === 1} />
-            {labels.suffix1 !== null && <span className="cad-dynamic-input-unit">{labels.suffix1}</span>}
+            {/* O segundo campo é ângulo (polar, "°") ou altura (cartesian, unidade de trabalho). */}
+            <span className="cad-dynamic-input-unit">{labels.suffix1 !== null ? labels.suffix1 : unitLabel}</span>
           </>
         )}
       </div>

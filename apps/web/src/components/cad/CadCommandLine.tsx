@@ -6,6 +6,7 @@ type CadCommandLineProps = Readonly<{
   activeTool: ActiveCadTool;
   onSubmit(command: string): void;
   message?: string;
+  workingUnit?: string;
 }>;
 
 const toolPrompts: Record<ActiveCadTool, string> = {
@@ -41,7 +42,7 @@ const toolPrompts: Record<ActiveCadTool, string> = {
   dimAngular: "[DimAngular] Select first line"
 };
 
-export function CadCommandLine({ activeTool, onSubmit, message }: CadCommandLineProps) {
+export function CadCommandLine({ activeTool, onSubmit, message, workingUnit }: CadCommandLineProps) {
   const [value, setValue] = useState("");
   const defaultPrompt = toolPrompts[activeTool] ?? "Command";
   const prompt = message?.startsWith("[") === true ? message : defaultPrompt;
@@ -58,6 +59,7 @@ export function CadCommandLine({ activeTool, onSubmit, message }: CadCommandLine
       <div className="cad-command-line-label">
         <Terminal size={14} />
         <label htmlFor="cad-command">Command</label>
+        {workingUnit && <span className="cad-command-line-unit" title="Unidade de trabalho ativa">{workingUnit}</span>}
       </div>
       <div className="cad-command-line-input-shell">
         <span>{prompt}</span>
