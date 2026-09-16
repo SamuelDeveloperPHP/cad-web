@@ -1,8 +1,18 @@
 import { useEffect, useState } from "react";
-import type { Point2D, SnapSettings } from "@cad-web/cad-geometry";
+import { formatMeasurement, type Point2D, type SnapSettings } from "@cad-web/cad-geometry";
 import type { ActiveCadTool } from "../../state/useCadStore";
 import type { GuideSettings } from "../../services/guideSettingsStorage";
 import { formatZoomScaleLabel, parseZoomScaleInput } from "../../services/zoomScale";
+
+// Casas decimais na leitura de coordenadas por unidade, para manter ~1 µm de resolução sem excesso de dígitos.
+const COORD_DECIMALS: Record<string, number> = {
+  um: 1,
+  mm: 3,
+  cm: 4,
+  m: 4,
+  km: 6,
+  in: 4
+};
 
 type CadStatusBarProps = Readonly<{
   activeTool: ActiveCadTool;
@@ -88,12 +98,17 @@ export function CadStatusBar({
 }: CadStatusBarProps) {
   const activeModes = formatActiveSnaps(snapSettings);
 
+  // A leitura de coordenadas converte da unidade base do documento para a unidade selecionada.
+  const coordDecimals = COORD_DECIMALS[displayUnit] ?? 3;
+  const formatCoord = (value: number): string =>
+    `${formatMeasurement(value, documentUnits, displayUnit, coordDecimals)} ${displayUnit}`;
+
   return (
     <footer className="cad-statusbar">
       <div className="cad-statusbar-group">
         <StatusItem label="Tool" value={toolLabels[activeTool]} strong />
-        <StatusItem label="X" value={mouseWorld.x.toFixed(3)} monospace />
-        <StatusItem label="Y" value={mouseWorld.y.toFixed(3)} monospace />
+        <StatusItem label="X" value={formatCoord(mouseWorld.x)} monospace />
+        <StatusItem label="Y" value={formatCoord(mouseWorld.y)} monospace />
         <ZoomControl
           zoom={zoom}
           units={documentUnits}
