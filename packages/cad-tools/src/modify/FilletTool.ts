@@ -172,7 +172,8 @@ export class FilletTool implements CadTool {
       return { type: "error", message: "[Fillet] Radius too large or invalid" };
     }
 
-    this.radius = radius;
+    // O raio é digitado na unidade de trabalho; converte para a base (mm).
+    this.radius = radius * context.unitScale;
     this.firstSelection = null;
     this.phase = "select_first_line";
     context.clearPreview();
