@@ -128,4 +128,29 @@ describe("resolveDirectInput", () => {
     expect(resolveDirectInput({ kind: "empty" }, origin, null)).toBeNull();
     expect(resolveDirectInput({ kind: "invalid" }, origin, null)).toBeNull();
   });
+
+  describe("unitScale (unidade de trabalho)", () => {
+    it("escala a distância pela unitScale", () => {
+      const result = resolveDirectInput({ kind: "distance", value: 5 }, origin, { x: 1, y: 0 }, 1000);
+      expect(result!.x).toBeCloseTo(5000);
+      expect(result!.y).toBeCloseTo(0);
+    });
+
+    it("escala coordenadas absolutas pela unitScale", () => {
+      const result = resolveDirectInput({ kind: "absolute", point: { x: 10, y: 20 } }, origin, null, 1000);
+      expect(result).toEqual({ x: 10000, y: 20000 });
+    });
+
+    it("escala offset relativo pela unitScale", () => {
+      const result = resolveDirectInput({ kind: "relative", offset: { x: 2, y: 1 } }, origin, null, 25.4);
+      expect(result!.x).toBeCloseTo(50.8);
+      expect(result!.y).toBeCloseTo(25.4);
+    });
+
+    it("escala a distância polar mas preserva o ângulo", () => {
+      const result = resolveDirectInput({ kind: "polar", distance: 10, angleDeg: 90 }, origin, null, 1000);
+      expect(result!.x).toBeCloseTo(0);
+      expect(result!.y).toBeCloseTo(10000);
+    });
+  });
 });

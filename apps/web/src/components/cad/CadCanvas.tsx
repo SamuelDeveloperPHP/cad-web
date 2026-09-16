@@ -1,4 +1,4 @@
-import type { Point2D } from "@cad-web/cad-geometry";
+import { convertUnit, type Point2D } from "@cad-web/cad-geometry";
 import {
   configureCanvasForDevicePixelRatio,
   renderAngleArc2D,
@@ -248,7 +248,8 @@ export function CadCanvas({ cad }: CadCanvasProps) {
 
         event.preventDefault();
         event.stopPropagation();
-        const metrics = computeDynamicMetrics(reference, store.mouseWorld);
+        const unitScale = convertUnit(1, store.document.displayUnit || store.document.units, store.document.units);
+        const metrics = computeDynamicMetrics(reference, store.mouseWorld, unitScale);
         const submission = buildDynamicSubmission(mode, draft, metrics);
 
         if (submission !== null) {
@@ -473,6 +474,8 @@ export function CadCanvas({ cad }: CadCanvasProps) {
           viewport={cad.viewport}
           draft={dynDraft}
           activeField={dynActiveField}
+          unitScale={convertUnit(1, cad.document.displayUnit || cad.document.units, cad.document.units)}
+          unitLabel={cad.document.displayUnit || cad.document.units}
         />
       )}
     </div>

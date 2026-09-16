@@ -1023,6 +1023,19 @@ button {
   margin-right: 1px;
 }
 
+/* Badge com a unidade de trabalho ativa ao lado do rótulo "Command". */
+.cad-command-line-unit {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #7dd3fc;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: lowercase;
+}
+
 .cad-dynamic-input-unit {
   color: #94a3b8;
   font-size: 10px;

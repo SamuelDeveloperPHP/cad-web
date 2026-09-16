@@ -44,6 +44,9 @@ export interface ToolContext {
   readonly orthoMode: boolean;
   readonly units: CadDocument["units"];
   readonly precision: number;
+  // Fator de conversão da unidade de trabalho para a unidade base (mm por unidade de trabalho).
+  // Valores digitados são multiplicados por ele antes de virar geometria; 1 mantém o comportamento antigo.
+  readonly unitScale: number;
 
   setPreview(preview: CadPreview | null): void;
   clearPreview(): void;

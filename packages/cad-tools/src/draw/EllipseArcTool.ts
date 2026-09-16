@@ -130,7 +130,7 @@ export class EllipseArcTool implements CadTool {
 
     if (this.phase === "center") {
       if (parsed.kind === "absolute") {
-        this.center = parsed.point;
+        this.center = { x: parsed.point.x * context.unitScale, y: parsed.point.y * context.unitScale };
         this.phase = "majorAxis";
         context.showMessage("Specify end of major axis.");
         return TOOL_RESULT_NONE;
@@ -148,7 +148,7 @@ export class EllipseArcTool implements CadTool {
     const cursorDir = this.cursorPoint !== null
       ? subtractPoints(this.cursorPoint, refPoint)
       : null;
-    const point = resolveDirectInput(parsed, refPoint, cursorDir);
+    const point = resolveDirectInput(parsed, refPoint, cursorDir, context.unitScale);
 
     if (point === null) {
       return { type: "error", message: "Move the cursor to indicate direction before entering distance." };
@@ -169,7 +169,7 @@ export class EllipseArcTool implements CadTool {
           ? parsed.distance
           : null;
       const minorPoint = typedDistance !== null && this.center !== null && this.majorAxisEnd !== null
-        ? perpendicularMinorPoint(this.center, this.majorAxisEnd, typedDistance)
+        ? perpendicularMinorPoint(this.center, this.majorAxisEnd, typedDistance * context.unitScale)
         : point;
 
       const base = this.center !== null && this.majorAxisEnd !== null

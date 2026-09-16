@@ -85,9 +85,10 @@ export class CircleTool implements CadTool {
   onCommandInput(input: string, context: ToolContext): ToolResult {
     if (this.centerPoint !== null) {
       const radius = this.parseRadius(input);
-      
+
       if (radius !== null && radius > 0) {
-        return this.confirmCircle(radius, context);
+        // O raio é digitado na unidade de trabalho; converte para a base (mm) antes de criar a entidade.
+        return this.confirmCircle(radius * context.unitScale, context);
       } else if (input.trim() !== "") {
         return { type: "error", message: "Invalid input. Use format '50', 'r=50', or 'd=100'." };
       }
