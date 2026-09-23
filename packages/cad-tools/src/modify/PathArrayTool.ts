@@ -7,6 +7,7 @@ import {
   type EntityId
 } from "@cad-web/cad-core";
 import {
+  cachedFlattenBezierChain,
   ensurePathSource,
   getPolylineTransformAtSample,
   samplePathByCount,
@@ -654,7 +655,7 @@ function previewIdFactory(sourceEntity: CadEntity, _sample: PathSample, sequence
 
 function isSupportedPathEntity(entity: CadEntity): boolean {
   // O metodo lista os tipos aceitos como path: polyline, line, circle, arc e ellipse.
-  return entity.type === "polyline" || entity.type === "line" || entity.type === "circle" || entity.type === "arc" || entity.type === "ellipse";
+  return entity.type === "polyline" || entity.type === "line" || entity.type === "circle" || entity.type === "arc" || entity.type === "ellipse" || entity.type === "spline";
 }
 
 function entityToPathSource(entity: CadEntity): PathSource | null {
@@ -669,6 +670,11 @@ function entityToPathSource(entity: CadEntity): PathSource | null {
 
   if (entity.type === "circle") {
     return { type: "circle", center: entity.center, radius: entity.radius };
+  }
+
+  if (entity.type === "spline") {
+    // A spline entra como a polyline de alta precisão da curva (amostragem por comprimento).
+    return { type: "polyline", points: cachedFlattenBezierChain(entity.controlPoints), closed: false };
   }
 
   if (entity.type === "ellipse") {

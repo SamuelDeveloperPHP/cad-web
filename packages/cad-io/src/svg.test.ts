@@ -216,7 +216,7 @@ describe("cad-io SVG", () => {
       <svg>
         <script><line id="bad_script" x1="0" y1="0" x2="1" y2="1" /></script>
         <line id="safe_line" onclick="alert(1)" href="https://example.com" x1="1" y1="2" x2="3" y2="4" />
-        <use id="unsupported" href="#safe_line" />
+        <use id="external" href="https://example.com/drawing.svg#safe_line" />
       </svg>
     `);
 

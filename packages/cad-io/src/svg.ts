@@ -1,4 +1,4 @@
-import { resolveDimensionStyle, type ArcEntity, type CadDocument, type CadEntity, type CircleEntity, type EllipseEntity, type LineEntity, type PolylineEntity, type RectangleEntity, type TextEntity } from "@cad-web/cad-core";
+import { resolveDimensionStyle, type ArcEntity, type CadDocument, type CadEntity, type CircleEntity, type EllipseEntity, type LineEntity, type PolylineEntity, type RectangleEntity, type SplineEntity, type TextEntity } from "@cad-web/cad-core";
 import type { CadJsonExportOptions } from "./json";
 import { CAD_IO_APPLICATION, CAD_IO_SCHEMA_VERSION, validateCadDocument } from "./json";
 
@@ -145,6 +145,10 @@ function serializeEntityToSvg(entity: CadEntity, precision: number, document: an
     return serializeTextToSvg(entity, precision);
   }
 
+  if (entity.type === "spline") {
+    return serializeSplineToSvg(entity, precision);
+  }
+
   return "";
 }
 
@@ -186,6 +190,21 @@ function serializeTextToSvg(entity: TextEntity, precision: number): string {
   return `<g id="${escapeSvgAttribute(entity.id)}" data-entity-type="text" data-layer-id="${escapeSvgAttribute(entity.layerId)}" ${roundTripAttributes} ${styleAttributes} fill="${fill}" stroke="none">${lines.join("")}</g>`;
 }
 
+// A spline é uma cadeia de Béziers cúbicas: vira um <path> com comandos C (exato), fechado com Z.
+function serializeSplineToSvg(entity: SplineEntity, precision: number): string {
+  const chain = entity.controlPoints;
+  const point = (p: { x: number; y: number }) => `${formatNumber(p.x, precision)} ${formatNumber(p.y, precision)}`;
+  const commands = [`M ${point(chain[0]!)}`];
+
+  for (let index = 1; index + 2 < chain.length; index += 3) {
+    commands.push(`C ${point(chain[index]!)} ${point(chain[index + 1]!)} ${point(chain[index + 2]!)}`);
+  }
+
+  if (entity.closed) commands.push("Z");
+
+  return `<path id="${escapeSvgAttribute(entity.id)}" data-layer-id="${escapeSvgAttribute(entity.layerId)}" data-entity-type="spline" d="${commands.join(" ")}" />`;
+}
+
 function serializePolylineToSvg(entity: PolylineEntity, precision: number): string {
   // O exportador escolhe <polygon> para closed=true e <polyline> para abertas, conforme convencao SVG.
   const pointsAttribute = entity.points
@@ -203,7 +222,7 @@ function serializePolylineToSvg(entity: PolylineEntity, precision: number): stri
   ].join(" ");
 }
 
-import { textBoundingBox, textLayout, arcBoundingBox, arcEndPoint, arcStartPoint, arcSweepAngle, ellipseArcBoundingBox, ellipsePointAtParam, normalizeEllipseSweep, buildAlignedDimensionGeometry, buildLinearDimensionGeometry, buildRadiusDimensionGeometry, buildDiameterDimensionGeometry, buildAngularDimensionGeometry } from "@cad-web/cad-geometry";
+import { bezierChainBoundingBox, textBoundingBox, textLayout, arcBoundingBox, arcEndPoint, arcStartPoint, arcSweepAngle, ellipseArcBoundingBox, ellipsePointAtParam, normalizeEllipseSweep, buildAlignedDimensionGeometry, buildLinearDimensionGeometry, buildRadiusDimensionGeometry, buildDiameterDimensionGeometry, buildAngularDimensionGeometry } from "@cad-web/cad-geometry";
 
 function serializeDimensionToSvg(entity: any, precision: number, document: any): string {
   const resolvedStyle = resolveDimensionStyle(document, entity);
@@ -506,6 +525,10 @@ function calculateEntityBounds(entity: CadEntity, document?: CadDocument): SvgBo
 
   if (entity.type === "text") {
     return textBoundingBox(entity);
+  }
+
+  if (entity.type === "spline") {
+    return bezierChainBoundingBox(entity.controlPoints);
   }
 
   return {

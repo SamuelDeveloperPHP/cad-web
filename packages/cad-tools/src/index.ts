@@ -14,6 +14,7 @@ export * from "./draw/LineTool";
 export * from "./draw/PolylineTool";
 export * from "./draw/RectangleTool";
 export * from "./draw/TextTool";
+export * from "./draw/SplineTool";
 export * from "./modify/EraseTool";
 export * from "./modify/MirrorTool";
 export * from "./modify/MoveTool";

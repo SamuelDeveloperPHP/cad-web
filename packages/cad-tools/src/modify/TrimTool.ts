@@ -3,14 +3,20 @@ import {
   ReplaceEntityCommand,
   TrimLineCommand,
   type CadEntity,
-  type LineEntity
+  type LineEntity,
+  type SplineEntity
 } from "@cad-web/cad-core";
 import {
   curveIntersectionParams,
   curveOfEntity,
   curveParamAt,
   entityWithSpan,
+  bezierChainIntersectionParams,
+  bezierSegmentCount,
+  nearestOnBezierChain,
   pathCutDistances,
+  subBezierChain,
+  trimIntervals,
   pathDistanceAtPoint,
   trimPolylinePath,
   trimLineByPrimitives,
@@ -235,6 +241,10 @@ export class TrimTool implements CadTool {
       return planPathTrim(target, primitives, point);
     }
 
+    if (target.type === "spline") {
+      return planSplineTrim(target, primitives, point);
+    }
+
     return planCurveTrim(target, primitives, point);
   }
 
@@ -324,8 +334,52 @@ function styleAndLayer(entity: PathEntity): Record<string, unknown> {
   };
 }
 
+/**
+ * Trim de spline: os cortes são parâmetros da cadeia de Béziers (interseções refinadas na curva) e os
+ * pedaços mantidos são sub-cadeias exatas. A spline aparada fica só com pontos de controle, como no AutoCAD.
+ */
+function planSplineTrim(
+  target: SplineEntity,
+  primitives: Parameters<typeof bezierChainIntersectionParams>[1][],
+  point: Point2D
+): TrimPlan | string {
+  const chain = target.controlPoints;
+  const total = bezierSegmentCount(chain);
+  const raw = primitives.flatMap((primitive) => bezierChainIntersectionParams(chain, primitive));
+  const cuts = uniqueParams(raw, total, target.closed);
+  const intervals = trimIntervals(total, target.closed, cuts, nearestOnBezierChain(chain, point).u);
+
+  if (intervals === null) {
+    return target.closed && cuts.length === 1 ? "[Trim] A closed spline needs two cutting points" : "[Trim] No valid cutting edge found";
+  }
+
+  const piece = ([from, to]: readonly [number, number]) =>
+    from <= to ? subBezierChain(chain, from, to) : [...subBezierChain(chain, from, total), ...subBezierChain(chain, 0, to).slice(1)];
+  const { fitPoints: _fit, ...base } = target;
+  const pieces = intervals.kept
+    .map(piece)
+    .filter((controlPoints) => controlPoints.length >= 4)
+    .map((controlPoints, index) => ({ ...base, id: index === 0 ? target.id : newPieceId(target.id, "trim"), controlPoints, closed: false }) as CadEntity);
+
+  return {
+    command: new ReplaceEntityCommand(target, pieces, "Trims a spline."),
+    removedPreview: { ...base, id: `trim_preview_${target.id}`, controlPoints: piece(intervals.removed), closed: false } as CadEntity
+  };
+}
+
+// Parâmetros de corte ordenados e sem repetição; no domínio aberto as pontas não contam, no fechado 0 ≡ total.
+function uniqueParams(params: ReadonlyArray<number>, total: number, closed: boolean): number[] {
+  const normalized = params
+    .map((u) => (closed && u >= total - 1e-9 ? 0 : u))
+    .filter((u) => closed || (u > 1e-9 && u < total - 1e-9))
+    .sort((a, b) => a - b);
+  const unique: number[] = [];
+  for (const u of normalized) if (unique.length === 0 || u - unique[unique.length - 1]! > 1e-9) unique.push(u);
+  return unique;
+}
+
 function isTrimmable(entity: CadEntity): entity is EditableEntity {
-  return entity.type === "line" || isCurveEntity(entity) || isPathEntity(entity);
+  return entity.type === "line" || isCurveEntity(entity) || isPathEntity(entity) || entity.type === "spline";
 }
 
 function lineFromSegment(original: LineEntity, segment: LineParameterSegment, id: string): LineEntity {

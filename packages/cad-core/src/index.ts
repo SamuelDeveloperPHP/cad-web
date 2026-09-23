@@ -1,4 +1,4 @@
-import { addVector, boundingBoxContainsPoint, reflectAngleAcrossAxis, reflectionMatrix, rotationMatrix, scaleMatrix, transformPoint, type BoundingBox, type DimensionArrowType, type Point2D, type TextHorizontalAlign, type TextVerticalAlign } from "@cad-web/cad-geometry";
+import { addVector, boundingBoxContainsPoint, fitPointsToBezierChain, reflectAngleAcrossAxis, reflectionMatrix, rotationMatrix, scaleMatrix, transformPoint, type BoundingBox, type DimensionArrowType, type Point2D, type TextHorizontalAlign, type TextVerticalAlign } from "@cad-web/cad-geometry";
 import { createDimensionStyleFromPreset, getDimensionStylePresetById } from "./dimensionStylePresets";
 
 export type EntityId = string;
@@ -59,6 +59,17 @@ export type PolylineEntity = BaseEntity & Readonly<{
   // O campo points contem todos os vertices da polyline em ordem; closed determina se fecha do ultimo ao primeiro.
   points: ReadonlyArray<Point2D>;
   closed: boolean;
+}>;
+
+export type SplineEntity = BaseEntity & Readonly<{
+  type: "spline";
+  // Geometria exata: cadeia de Béziers cúbicas [P0, C1, C2, P1, ...] (3n + 1 pontos). Na spline fechada o
+  // último ponto coincide com o primeiro.
+  controlPoints: ReadonlyArray<Point2D>;
+  closed: boolean;
+  // Pontos de ajuste (spline criada por pontos): a curva passa por eles; ausentes em splines importadas
+  // ou aparadas, que ficam só com os pontos de controle, como no AutoCAD.
+  fitPoints?: ReadonlyArray<Point2D>;
 }>;
 
 export type TextEntity = BaseEntity & Readonly<{
@@ -142,7 +153,7 @@ export type DimensionEntity = BaseEntity & Readonly<{
   textOverride?: string;
 }>;
 
-export type CadEntity = LineEntity | RectangleEntity | CircleEntity | ArcEntity | EllipseEntity | PolylineEntity | DimensionEntity | TextEntity;
+export type CadEntity = LineEntity | RectangleEntity | CircleEntity | ArcEntity | EllipseEntity | PolylineEntity | DimensionEntity | TextEntity | SplineEntity;
 
 export type CadLayer = Readonly<{
   id: string;
@@ -1347,6 +1358,10 @@ export function moveEntity(entity: CadEntity, displacement: Point2D): CadEntity 
     return moveDimensionEntity(entity, displacement);
   }
 
+  if (entity.type === "spline") {
+    return transformSpline(entity, (point) => addVector(point, displacement));
+  }
+
   if (entity.type === "text") {
     // O move desloca o ponto de inserção; altura, rotação e alinhamentos não mudam.
     return { ...entity, position: addVector(entity.position, displacement) };
@@ -1476,6 +1491,11 @@ export function rotateEntity(entity: CadEntity, pivot: Point2D, angleRadians: nu
     };
   }
 
+  if (entity.type === "spline") {
+    const matrix = rotationMatrix(angleRadians, pivot);
+    return transformSpline(entity, (point) => transformPoint(point, matrix));
+  }
+
   if (entity.type === "text") {
     // O rotate gira o ponto de inserção pelo pivô e soma o ângulo à linha de base.
     const matrix = rotationMatrix(angleRadians, pivot);
@@ -1564,6 +1584,10 @@ export function scaleEntity(entity: CadEntity, pivot: Point2D, factor: number): 
     };
   }
 
+  if (entity.type === "spline") {
+    return transformSpline(entity, (point) => transformPoint(point, matrix));
+  }
+
   if (entity.type === "text") {
     // O scale move o ponto de inserção e multiplica a altura; a rotação se mantém.
     return {
@@ -1646,6 +1670,11 @@ export function mirrorEntity(entity: CadEntity, axisStart: Point2D, axisEnd: Poi
     return mirrorTextEntity(entity, transformPoint(entity.position, matrix), axisAngle);
   }
 
+  if (entity.type === "spline") {
+    // Béziers são fechadas sob transformações afins: basta refletir os pontos de controle e de ajuste.
+    return transformSpline(entity, (point) => transformPoint(point, matrix));
+  }
+
   if (entity.type === "rectangle") {
     // A reflexão inverte a orientação, então o retângulo é reconstruído usando o canto oposto
     // (base + largura) como nova base, o que mantém largura e altura positivas e a forma refletida correta.
@@ -1670,6 +1699,15 @@ export function mirrorEntity(entity: CadEntity, axisStart: Point2D, axisEnd: Poi
   }
 
   return null;
+}
+
+// Aplica uma transformação de pontos à spline (pontos de controle e, se houver, de ajuste).
+function transformSpline(entity: SplineEntity, map: (point: Point2D) => Point2D): SplineEntity {
+  return {
+    ...entity,
+    controlPoints: entity.controlPoints.map(map),
+    ...(entity.fitPoints !== undefined ? { fitPoints: entity.fitPoints.map(map) } : {})
+  };
 }
 
 /**
@@ -1751,6 +1789,20 @@ export function stretchEntity(entity: CadEntity, window: BoundingBox, displaceme
     // O retângulo só se move quando está totalmente dentro da janela; um canto isolado não é representável.
     return corners.every((corner) => boundingBoxContainsPoint(window, corner))
       ? { ...entity, x: entity.x + displacement.x, y: entity.y + displacement.y }
+      : entity;
+  }
+
+  if (entity.type === "spline") {
+    // Spline por pontos de ajuste: movem-se os pontos de ajuste na janela e a curva é recalculada;
+    // spline só com pontos de controle: movem-se os pontos de controle na janela.
+    if (entity.fitPoints !== undefined && entity.fitPoints.length >= 2) {
+      if (!entity.fitPoints.some((point) => boundingBoxContainsPoint(window, point))) return entity;
+      const fitPoints = entity.fitPoints.map(move);
+      return { ...entity, fitPoints, controlPoints: fitPointsToBezierChain(fitPoints, entity.closed) };
+    }
+
+    return entity.controlPoints.some((point) => boundingBoxContainsPoint(window, point))
+      ? { ...entity, controlPoints: entity.controlPoints.map(move) }
       : entity;
   }
 

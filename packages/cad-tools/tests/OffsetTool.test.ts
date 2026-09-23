@@ -49,7 +49,7 @@ describe("OffsetTool", () => {
 });
 
 describe("OffsetTool with curves", () => {
-  it("offsets an ellipse into a closed polyline and an arc into a larger arc", async () => {
+  it("offsets an ellipse into a closed spline and an arc into a larger arc", async () => {
     const { createEmptyDocument } = await import("@cad-web/cad-core");
     const { OffsetTool } = await import("../src");
     const { createMockToolContext, createPointerEvent } = await import("./testContext");
@@ -70,9 +70,11 @@ describe("OffsetTool with curves", () => {
     tool.onPointerDown(createPointerEvent({ x: 210, y: 0 }), context);
     tool.onPointerDown(createPointerEvent({ x: 300, y: 0 }), context);
 
-    const polyline = (context.commands[0] as any).entity;
-    expect(polyline).toMatchObject({ type: "polyline", closed: true, color: "#ff0000" });
-    expect(polyline.points[0].x).toBeCloseTo(45);
+    // A paralela da elipse vira spline fechada (cadeia de Béziers), como no AutoCAD.
+    const spline = (context.commands[0] as any).entity;
+    expect(spline).toMatchObject({ type: "spline", closed: true, color: "#ff0000" });
+    expect(spline.controlPoints[0].x).toBeCloseTo(45);
+    expect(spline.controlPoints.at(-1)).toEqual(spline.controlPoints[0]);
     expect((context.commands[1] as any).entity).toMatchObject({ type: "arc", radius: 15, startAngle: 0, endAngle: 1 });
   });
 });

@@ -353,6 +353,22 @@ export function renderDocument2D(
       }
     } else if (entity.type === "text") {
       renderTextEntity(context, entity, viewport);
+    } else if (entity.type === "spline") {
+      // A spline é uma cadeia de Béziers cúbicas: o Canvas a desenha de forma exata com bezierCurveTo.
+      const chain = entity.controlPoints;
+      if (chain.length >= 4) {
+        const start = worldToScreen(chain[0]!, viewport);
+        context.beginPath();
+        context.moveTo(start.x, start.y);
+        for (let index = 1; index + 2 < chain.length; index += 3) {
+          const c1 = worldToScreen(chain[index]!, viewport);
+          const c2 = worldToScreen(chain[index + 1]!, viewport);
+          const end = worldToScreen(chain[index + 2]!, viewport);
+          context.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, end.x, end.y);
+        }
+        if (entity.closed) context.closePath();
+        context.stroke();
+      }
     }
     renderedEntities += 1;
   }

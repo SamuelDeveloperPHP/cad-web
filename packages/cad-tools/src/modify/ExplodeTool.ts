@@ -126,7 +126,7 @@ export class ExplodeTool implements CadTool {
 
       // Como no AutoCAD, elipses, círculos, arcos, linhas e textos já são primitivas e não se decompõem.
       const message = unsupportedCount > 0
-        ? "[Explode] Nothing to explode: only rectangles and polylines can be exploded (ellipses, circles, arcs, lines and texts are already primitives)"
+        ? "[Explode] Nothing to explode: only rectangles and polylines can be exploded (splines, ellipses, circles, arcs, lines and texts are already primitives)"
         : "[Explode] Nothing to explode";
       context.showMessage(message);
       return { type: "error", message };

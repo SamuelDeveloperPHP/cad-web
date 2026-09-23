@@ -234,6 +234,10 @@ export class ExtendTool implements CadTool {
       return this.planPolylineExtend(target, point, context, tolerance);
     }
 
+    if (target.type === "spline") {
+      return "[Extend] Splines cannot be extended yet";
+    }
+
     return this.planCurveExtend(target, point, context, tolerance);
   }
 
@@ -322,7 +326,7 @@ export class ExtendTool implements CadTool {
 
 // Linhas, curvas abertas (arco, arco de elipse) e polylines abertas; formas fechadas recebem uma mensagem clara.
 function isExtendable(entity: CadEntity): entity is EditableEntity {
-  return entity.type === "line" || isCurveEntity(entity) || isPathEntity(entity);
+  return entity.type === "line" || isCurveEntity(entity) || isPathEntity(entity) || entity.type === "spline";
 }
 
 // A extensão de uma curva nunca sai da curva completa: basta buscar limites no envoltório dela.

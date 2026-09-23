@@ -23,6 +23,7 @@ const toolPrompts: Record<ActiveCadTool, string> = {
   ellipse: "[Ellipse] Specify center point",
   ellipseArc: "[Ellipse Arc] Specify center point",
   text: "[Text] Specify insertion point",
+  spline: "[Spline] Specify first point",
   move: "[Move] Select objects or specify base point",
   mirror: "[Mirror] Select objects, then specify mirror axis",
   rotate: "[Rotate] Specify pivot point",
