@@ -29,10 +29,12 @@ import {
   hasIntersectGeometry,
   isCurveEntity,
   isEntityLayerUsable,
+  isPathEntity,
   padBox,
   toBoundaryPrimitives,
   type CurveEntity,
-  type EditableEntity
+  type EditableEntity,
+  type PathEntity
 } from "./curveEditUtils";
 
 const DEFAULT_SCREEN_TOLERANCE_PIXELS = 8;
@@ -228,7 +230,48 @@ export class ExtendTool implements CadTool {
       };
     }
 
+    if (isPathEntity(target)) {
+      return this.planPolylineExtend(target, point, context, tolerance);
+    }
+
     return this.planCurveExtend(target, point, context, tolerance);
+  }
+
+  /**
+   * Estende a ponta de uma polyline aberta prolongando o primeiro ou o último segmento até o limite.
+   * Retângulos e polylines fechadas não têm ponta.
+   */
+  private planPolylineExtend(target: PathEntity, point: Point2D, context: ToolContext, tolerance: number): ExtendPlan | string {
+    if (target.type === "rectangle" || target.closed || target.points.length < 2) {
+      return "[Extend] Closed shapes cannot be extended";
+    }
+
+    const points = target.points;
+    const last = points.length - 1;
+    const atStart = distance(point, points[0]!) <= distance(point, points[last]!);
+    // O segmento da ponta, orientado para fora: a extensão acontece na ponta "end" dele.
+    const segment = atStart
+      ? { type: "line" as const, start: points[1]!, end: points[0]! }
+      : { type: "line" as const, start: points[last - 1]!, end: points[last]! };
+    const boundaries = collectBoundaryEntities(
+      context,
+      this.boundaryEdgeIds,
+      this.useAllVisibleBoundaryEdges,
+      extendSearchBox({ ...segment, id: target.id, layerId: target.layerId }, "end", tolerance),
+      target.id
+    );
+    const candidate = lineExtendCandidatesFromPrimitives(segment, toBoundaryPrimitives(boundaries), "end")[0];
+
+    if (candidate === undefined) {
+      return "[Extend] No valid boundary found";
+    }
+
+    const updatedPoints = atStart ? [candidate.point, ...points.slice(1)] : [...points.slice(0, last), candidate.point];
+
+    return {
+      command: new ReplaceEntityCommand(target, [{ ...target, points: updatedPoints }], "Extends a polyline end."),
+      addedPreview: { ...target, id: `extend_preview_${target.id}`, points: [segment.end, candidate.point], closed: false }
+    };
   }
 
   private planCurveExtend(target: CurveEntity, point: Point2D, context: ToolContext, tolerance: number): ExtendPlan | string {
@@ -277,9 +320,9 @@ export class ExtendTool implements CadTool {
   }
 }
 
-// Linhas e curvas abertas (arco, arco de elipse); círculos e elipses fechadas recebem uma mensagem clara.
+// Linhas, curvas abertas (arco, arco de elipse) e polylines abertas; formas fechadas recebem uma mensagem clara.
 function isExtendable(entity: CadEntity): entity is EditableEntity {
-  return entity.type === "line" || isCurveEntity(entity);
+  return entity.type === "line" || isCurveEntity(entity) || isPathEntity(entity);
 }
 
 // A extensão de uma curva nunca sai da curva completa: basta buscar limites no envoltório dela.

@@ -124,3 +124,54 @@ describe("Extend with ellipses and curves", () => {
     expect(context.messages.at(-1)).toBe("[Extend] Closed circles and ellipses cannot be extended");
   });
 });
+
+describe("Trim and Extend of rectangles and polylines", () => {
+  it("trims one side of a rectangle into an open polyline", () => {
+    const rect: CadEntity = { id: "r", layerId: "layer_0", type: "rectangle", x: 0, y: 0, width: 20, height: 10, color: "#00ff00" };
+    const cutter: CadEntity = { id: "v", layerId: "layer_0", type: "line", start: { x: 10, y: -5 }, end: { x: 10, y: 15 } };
+    const { result, next, context, document } = runTrim([rect, cutter], { x: 20, y: 5 });
+    const piece = next!.entities.find((entity) => entity.id === "r") as any;
+
+    expect(result.type).toBe("command");
+    expect(piece).toMatchObject({ type: "polyline", closed: false, color: "#00ff00" });
+    expect(piece.points).toEqual([{ x: 10, y: 10 }, { x: 0, y: 10 }, { x: 0, y: 0 }, { x: 10, y: 0 }]);
+    expect(context.commands[0]!.undo(next!).entities).toEqual(document.entities);
+  });
+
+  it("splits an open polyline at two cuts", () => {
+    const polyline: CadEntity = { id: "p", layerId: "layer_0", type: "polyline", points: [{ x: 0, y: 0 }, { x: 30, y: 0 }, { x: 30, y: 20 }], closed: false };
+    const cutA: CadEntity = { id: "a", layerId: "layer_0", type: "line", start: { x: 10, y: -5 }, end: { x: 10, y: 5 } };
+    const cutB: CadEntity = { id: "b", layerId: "layer_0", type: "circle", center: { x: 30, y: 10 }, radius: 3 };
+    const { next } = runTrim([polyline, cutA, cutB], { x: 30, y: 2 });
+    const pieces = next!.entities.filter((entity) => entity.type === "polyline") as any[];
+
+    expect(pieces).toHaveLength(2);
+    expect(pieces[0].points).toEqual([{ x: 0, y: 0 }, { x: 10, y: 0 }]);
+    expect(pieces[1].points[0].y).toBeCloseTo(7);
+  });
+
+  it("asks for two cuts on a closed polyline", () => {
+    const polyline: CadEntity = { id: "p", layerId: "layer_0", type: "polyline", points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }], closed: true };
+    const cut: CadEntity = { id: "c", layerId: "layer_0", type: "line", start: { x: 10, y: 5 }, end: { x: 30, y: 5 } };
+    const { result, context } = runTrim([polyline, cut], { x: 5, y: 0 });
+
+    expect(result.type).toBe("none");
+    expect(context.messages.at(-1)).toBe("[Trim] A closed shape needs two cutting points");
+  });
+
+  it("extends the last segment of an open polyline to a boundary", () => {
+    const polyline: CadEntity = { id: "p", layerId: "layer_0", type: "polyline", points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 5 }], closed: false };
+    const boundary: CadEntity = { id: "b", layerId: "layer_0", type: "line", start: { x: 0, y: 20 }, end: { x: 30, y: 20 } };
+    const { next } = runExtend([polyline, boundary], { x: 10, y: 4 });
+
+    expect((next!.entities.find((entity) => entity.id === "p") as any).points.at(-1)).toEqual({ x: 10, y: 20 });
+  });
+
+  it("extends the first segment of an open polyline", () => {
+    const polyline: CadEntity = { id: "p", layerId: "layer_0", type: "polyline", points: [{ x: 5, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 5 }], closed: false };
+    const boundary: CadEntity = { id: "b", layerId: "layer_0", type: "line", start: { x: -2, y: -5 }, end: { x: -2, y: 5 } };
+    const { next } = runExtend([polyline, boundary], { x: 6, y: 0 });
+
+    expect((next!.entities.find((entity) => entity.id === "p") as any).points[0]).toEqual({ x: -2, y: 0 });
+  });
+});

@@ -29,3 +29,5 @@ export * from "./visualAngles";
 export * from "./curveTrim";
 export * from "./filletCurve";
 export * from "./svgGeometry";
+export * from "./pathTrim";
+export * from "./spline";

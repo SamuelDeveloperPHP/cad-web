@@ -10,6 +10,9 @@ import {
   curveOfEntity,
   curveParamAt,
   entityWithSpan,
+  pathCutDistances,
+  pathDistanceAtPoint,
+  trimPolylinePath,
   trimLineByPrimitives,
   trimPeriodicCurve,
   type LineParameterSegment,
@@ -26,11 +29,14 @@ import {
   hasIntersectGeometry,
   isCurveEntity,
   isEntityLayerUsable,
+  isPathEntity,
+  pathOfEntity,
   newPieceId,
   padBox,
   toBoundaryPrimitives,
   type CurveEntity,
-  type EditableEntity
+  type EditableEntity,
+  type PathEntity
 } from "./curveEditUtils";
 
 const DEFAULT_SCREEN_TOLERANCE_PIXELS = 8;
@@ -225,6 +231,10 @@ export class TrimTool implements CadTool {
       };
     }
 
+    if (isPathEntity(target)) {
+      return planPathTrim(target, primitives, point);
+    }
+
     return planCurveTrim(target, primitives, point);
   }
 
@@ -266,8 +276,56 @@ function planCurveTrim(
   };
 }
 
+/**
+ * Trim de retângulo ou polyline por trecho: o caminho é cortado nas interseções e o trecho clicado sai.
+ * O retângulo e a polyline fechada viram polyline aberta (dois cortes necessários); a polyline aberta
+ * pode virar duas. Estilo, camada e id (no primeiro pedaço) são preservados.
+ */
+function planPathTrim(
+  target: PathEntity,
+  primitives: Parameters<typeof pathCutDistances>[2],
+  point: Point2D
+): TrimPlan | string {
+  const { points, closed } = pathOfEntity(target);
+  const cuts = pathCutDistances(points, closed, primitives);
+  const result = trimPolylinePath(points, closed, cuts, pathDistanceAtPoint(points, closed, point));
+
+  if (result === null) {
+    return closed && cuts.length === 1 ? "[Trim] A closed shape needs two cutting points" : "[Trim] No valid cutting edge found";
+  }
+
+  const { id: _id, type: _type, ...shared } = styleAndLayer(target);
+  const pieces = result.kept
+    .filter((piece) => piece.length >= 2)
+    .map((piece, index) => ({
+      ...shared,
+      id: index === 0 ? target.id : newPieceId(target.id, "trim"),
+      type: "polyline",
+      points: piece,
+      closed: false
+    }) as CadEntity);
+
+  return {
+    command: new ReplaceEntityCommand(target, pieces, "Trims a polyline."),
+    removedPreview: { ...shared, id: `trim_preview_${target.id}`, type: "polyline", points: result.removed, closed: false } as CadEntity
+  };
+}
+
+// Campos comuns (id, tipo, camada, cor, tipo e espessura de linha) de uma entidade de caminho.
+function styleAndLayer(entity: PathEntity): Record<string, unknown> {
+  const { id, type, layerId, color, lineType, lineThickness } = entity;
+  return {
+    id,
+    type,
+    layerId,
+    ...(color !== undefined ? { color } : {}),
+    ...(lineType !== undefined ? { lineType } : {}),
+    ...(lineThickness !== undefined ? { lineThickness } : {})
+  };
+}
+
 function isTrimmable(entity: CadEntity): entity is EditableEntity {
-  return entity.type === "line" || isCurveEntity(entity);
+  return entity.type === "line" || isCurveEntity(entity) || isPathEntity(entity);
 }
 
 function lineFromSegment(original: LineEntity, segment: LineParameterSegment, id: string): LineEntity {

@@ -13,6 +13,13 @@ import {
 } from "./ellipse";
 import { intersectPrimitives, type IntersectPrimitive } from "./intersections";
 import { perpendicularPointsOnPrimitive, tangentPointsOnPrimitive } from "./perpTangent";
+import {
+  bezierChainIntersectionParams,
+  bezierChainMidpoint,
+  cachedFlattenBezierChain,
+  evaluateBezierChain,
+  nearestOnBezierChain
+} from "./spline";
 
 export type SnapType =
   | "endpoint"
@@ -111,6 +118,14 @@ export type SnapEllipseEntity = Readonly<{
   endAngle?: number | undefined;
 }>;
 
+// Spline como cadeia de Béziers cúbicas (3n + 1 pontos de controle).
+export type SnapSplineEntity = Readonly<{
+  id: string;
+  type: "spline";
+  controlPoints: ReadonlyArray<Point2D>;
+  closed: boolean;
+}>;
+
 // O texto expõe apenas o ponto de inserção (snap Insertion do AutoCAD).
 export type SnapTextEntity = Readonly<{
   id: string;
@@ -119,6 +134,7 @@ export type SnapTextEntity = Readonly<{
 }>;
 
 export type SnapEntity =
+  | SnapSplineEntity
   | SnapTextEntity
   | SnapLineEntity
   | SnapRectangleEntity
@@ -211,6 +227,12 @@ function snapEntityToPrimitives(entity: SnapEntity): ReadonlyArray<IntersectPrim
     return [{ kind: "ellipse", ellipse: toEllipseGeometry(entity) }];
   }
 
+  if (entity.type === "spline") {
+    // A spline vira a polyline de alta precisão (desvio < 1e-7 do tamanho da curva).
+    const points = cachedFlattenBezierChain(entity.controlPoints);
+    return points.slice(1).map((point, index) => ({ kind: "segment" as const, a: points[index]!, b: point }));
+  }
+
   // Tipos sem primitiva de interseção/perp/tangente (ex.: cotas, que chegam via cast em runtime) não geram candidatos.
   return [];
 }
@@ -221,9 +243,24 @@ export function getIntersectionSnapCandidates(
   screenPoint: Point2D,
   viewport: SnapViewport
 ): ReadonlyArray<SnapCandidate> {
+  const candidates: SnapCandidate[] = [];
+
+  // Spline contra outra geometria: a raiz é refinada na própria curva (bisseção), sem erro de corda.
+  if ((entityA.type === "spline") !== (entityB.type === "spline")) {
+    const spline = (entityA.type === "spline" ? entityA : entityB) as SnapSplineEntity;
+    const other = entityA.type === "spline" ? entityB : entityA;
+
+    for (const primitive of snapEntityToPrimitives(other)) {
+      for (const u of bezierChainIntersectionParams(spline.controlPoints, primitive)) {
+        candidates.push(createSnapCandidate("intersection", evaluateBezierChain(spline.controlPoints, u), `${entityA.id}×${entityB.id}`, screenPoint, viewport));
+      }
+    }
+
+    return candidates;
+  }
+
   const primitivesA = snapEntityToPrimitives(entityA);
   const primitivesB = snapEntityToPrimitives(entityB);
-  const candidates: SnapCandidate[] = [];
 
   for (const primitiveA of primitivesA) {
     for (const primitiveB of primitivesB) {
@@ -295,6 +332,16 @@ export function getEndpointSnapCandidates(
     );
   }
 
+  if (entity.type === "spline") {
+    const chain = entity.controlPoints;
+    return entity.closed || chain.length < 4
+      ? []
+      : [
+          createSnapCandidate("endpoint", chain[0]!, entity.id, screenPoint, viewport),
+          createSnapCandidate("endpoint", chain[chain.length - 1]!, entity.id, screenPoint, viewport)
+        ];
+  }
+
   if (entity.type === "polyline") {
     // O snap endpoint expoe todos os vertices da polyline, independentemente de closed.
     return entity.points.map((point) =>
@@ -348,6 +395,13 @@ export function getMidpointSnapCandidates(
     return arcMidpoint === null
       ? []
       : [createSnapCandidate("midpoint", arcMidpoint, entity.id, screenPoint, viewport)];
+  }
+
+  if (entity.type === "spline") {
+    // O ponto médio da spline aberta é o da metade do comprimento.
+    return entity.closed || entity.controlPoints.length < 4
+      ? []
+      : [createSnapCandidate("midpoint", bezierChainMidpoint(entity.controlPoints), entity.id, screenPoint, viewport)];
   }
 
   if (entity.type === "polyline") {
@@ -448,6 +502,12 @@ export function getNearestSnapCandidate(
 
   if (entity.type === "ellipse") {
     return createSnapCandidate("nearest", nearestPointOnEllipse(rawPoint, toEllipseGeometry(entity)), entity.id, screenPoint, viewport);
+  }
+
+  if (entity.type === "spline") {
+    return entity.controlPoints.length < 4
+      ? null
+      : createSnapCandidate("nearest", nearestOnBezierChain(entity.controlPoints, rawPoint).point, entity.id, screenPoint, viewport);
   }
 
   if (entity.type === "polyline") {
