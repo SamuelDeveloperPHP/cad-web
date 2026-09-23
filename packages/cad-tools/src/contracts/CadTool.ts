@@ -21,6 +21,10 @@ export interface CadTool {
   // Opcional: entidades de snap da geometria em andamento, para o marcador aparecer antes de confirmar (ex.: fechar polyline).
   getSnapEntities?(): ReadonlyArray<SnapEntity>;
 
+  // Opcional: quando true, a linha de comando repassa a entrada crua à ferramenta, sem resolver aliases
+  // nem comandos globais (ex.: o conteúdo digitado na ferramenta de texto pode ser "u" ou "zoom").
+  acceptsFreeText?(): boolean;
+
   // Opcional: ponto de referência do desenho em andamento (ponto anterior), que habilita perpendicular e tangente.
   getSnapReferencePoint?(): Point2D | null;
 }

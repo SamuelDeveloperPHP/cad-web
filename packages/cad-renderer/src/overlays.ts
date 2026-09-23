@@ -92,6 +92,11 @@ export function renderSnapMarker2D(
 
   if (snapType === "endpoint") {
     context.strokeRect(point.x - radius, point.y - radius, radius * 2, radius * 2);
+  } else if (snapType === "insertion") {
+    // Inserção: dois quadrados sobrepostos deslocados (convenção do AutoCAD).
+    const half = radius * 0.7;
+    context.strokeRect(point.x - radius, point.y - radius, half * 2, half * 2);
+    context.strokeRect(point.x - radius + half * 0.6, point.y - radius + half * 0.6, half * 2, half * 2);
   } else if (snapType === "midpoint") {
     context.beginPath();
     context.moveTo(point.x, point.y - radius);
@@ -276,6 +281,10 @@ export function renderAngleArc2D(
 function getSnapLabel(snapType: SnapType): string {
   if (snapType === "endpoint") {
     return "Endpoint";
+  }
+
+  if (snapType === "insertion") {
+    return "Insertion";
   }
 
   if (snapType === "midpoint") {

@@ -1,4 +1,4 @@
-import { resolveDimensionStyle, type ArcEntity, type CadDocument, type CadEntity, type CircleEntity, type EllipseEntity, type LineEntity, type PolylineEntity, type RectangleEntity } from "@cad-web/cad-core";
+import { resolveDimensionStyle, type ArcEntity, type CadDocument, type CadEntity, type CircleEntity, type EllipseEntity, type LineEntity, type PolylineEntity, type RectangleEntity, type TextEntity } from "@cad-web/cad-core";
 import type { CadJsonExportOptions } from "./json";
 import { CAD_IO_APPLICATION, CAD_IO_SCHEMA_VERSION, CadIoValidationError, validateCadDocument } from "./json";
 
@@ -147,7 +147,42 @@ function serializeEntityToSvg(entity: CadEntity, precision: number, document: an
     return serializeDimensionToSvg(entity as any, precision, document);
   }
 
+  if (entity.type === "text") {
+    return serializeTextToSvg(entity, precision);
+  }
+
   return "";
+}
+
+/**
+ * Exporta o texto como um grupo com um <text> por linha, cada um ancorado na origem calculada pelo
+ * layout do kernel e girado em torno dela. O SVG usa o mesmo sistema do mundo (Y para baixo),
+ * então a rotação entra sem inverter o sinal.
+ */
+function serializeTextToSvg(entity: TextEntity, precision: number): string {
+  const layout = textLayout(entity);
+  const anchor = entity.horizontalAlign === "center" ? "middle" : entity.horizontalAlign === "right" ? "end" : "start";
+  const rotationDeg = ((entity.rotation ?? 0) * 180) / Math.PI;
+  const fontFamily = entity.fontFamily !== undefined && entity.fontFamily.trim() !== "" ? entity.fontFamily : "Arial, sans-serif";
+  const fill = entity.color !== undefined ? escapeSvgAttribute(entity.color) : "currentColor";
+  const styleAttributes = [
+    `font-size="${formatNumber(entity.height, precision)}"`,
+    `font-family="${escapeSvgAttribute(fontFamily)}"`,
+    entity.bold === true ? `font-weight="bold"` : "",
+    entity.italic === true ? `font-style="italic"` : "",
+    `text-anchor="${anchor}"`
+  ].filter((attribute) => attribute !== "").join(" ");
+
+  const lines = layout.lines
+    .filter((line) => line.content !== "")
+    .map((line) => {
+      const x = formatNumber(line.origin.x, precision);
+      const y = formatNumber(line.origin.y, precision);
+      const transform = Math.abs(rotationDeg) > 1e-9 ? ` transform="rotate(${formatNumber(rotationDeg, precision)} ${x} ${y})"` : "";
+      return `<text x="${x}" y="${y}"${transform}>${escapeSvgAttribute(line.content)}</text>`;
+    });
+
+  return `<g id="${escapeSvgAttribute(entity.id)}" data-entity-type="text" data-layer-id="${escapeSvgAttribute(entity.layerId)}" ${styleAttributes} fill="${fill}" stroke="none">${lines.join("")}</g>`;
 }
 
 function serializePolylineToSvg(entity: PolylineEntity, precision: number): string {
@@ -167,7 +202,7 @@ function serializePolylineToSvg(entity: PolylineEntity, precision: number): stri
   ].join(" ");
 }
 
-import { arcBoundingBox, arcEndPoint, arcStartPoint, arcSweepAngle, ellipseArcBoundingBox, ellipsePointAtParam, normalizeEllipseSweep, buildAlignedDimensionGeometry, buildLinearDimensionGeometry, buildRadiusDimensionGeometry, buildDiameterDimensionGeometry, buildAngularDimensionGeometry } from "@cad-web/cad-geometry";
+import { textBoundingBox, textLayout, arcBoundingBox, arcEndPoint, arcStartPoint, arcSweepAngle, ellipseArcBoundingBox, ellipsePointAtParam, normalizeEllipseSweep, buildAlignedDimensionGeometry, buildLinearDimensionGeometry, buildRadiusDimensionGeometry, buildDiameterDimensionGeometry, buildAngularDimensionGeometry } from "@cad-web/cad-geometry";
 
 function serializeDimensionToSvg(entity: any, precision: number, document: any): string {
   const resolvedStyle = resolveDimensionStyle(document, entity);
@@ -222,32 +257,7 @@ function serializeDimensionToSvg(entity: any, precision: number, document: any):
     lines.push(`<line x1="${formatNumber(geom.leaderLine.start.x, precision)}" y1="${formatNumber(geom.leaderLine.start.y, precision)}" x2="${formatNumber(geom.leaderLine.end.x, precision)}" y2="${formatNumber(geom.leaderLine.end.y, precision)}" />`);
   }
 
-  if (defaultStyle.arrowType === "arrow") {
-    // O exportador gera setas SVG preenchidas.
-    const drawArrow = (p1: {x:number, y:number}, p2: {x:number, y:number}) => {
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
-      const len = Math.hypot(dx, dy);
-      if (len === 0) return "";
-      const nx = dx / len;
-      const ny = dy / len;
-      const aLen = defaultStyle.arrowSize;
-      const aWid = defaultStyle.arrowSize * 0.3;
-      const pnt1 = { x: p1.x + nx * aLen - ny * aWid, y: p1.y + ny * aLen + nx * aWid };
-      const pnt2 = { x: p1.x + nx * aLen + ny * aWid, y: p1.y + ny * aLen - nx * aWid };
-      return `<polygon points="${formatNumber(p1.x, precision)},${formatNumber(p1.y, precision)} ${formatNumber(pnt1.x, precision)},${formatNumber(pnt1.y, precision)} ${formatNumber(pnt2.x, precision)},${formatNumber(pnt2.y, precision)}" />`;
-    };
-    
-    if (entity.dimensionType === "radius") {
-      lines.push(drawArrow(geom.dimensionLine.end, geom.dimensionLine.start));
-    } else if (entity.dimensionType === "angular") {
-      lines.push(drawArrow(geom.arcStart, { x: geom.arcStart.x - Math.sin(geom.startAngle), y: geom.arcStart.y + Math.cos(geom.startAngle) }));
-      lines.push(drawArrow(geom.arcEnd, { x: geom.arcEnd.x + Math.sin(geom.endAngle), y: geom.arcEnd.y - Math.cos(geom.endAngle) }));
-    } else {
-      lines.push(drawArrow(geom.dimensionLine.start, geom.dimensionLine.end));
-      lines.push(drawArrow(geom.dimensionLine.end, geom.dimensionLine.start));
-    }
-  } else {
+  if (defaultStyle.arrowType === "tick") {
     // O exportador desenha marcas arquitetonicas.
     const ts = defaultStyle.arrowSize * 0.5;
     if (entity.dimensionType === "angular") {
@@ -258,6 +268,38 @@ function serializeDimensionToSvg(entity: any, precision: number, document: any):
         lines.push(`<line x1="${formatNumber(geom.dimensionLine.start.x - ts, precision)}" y1="${formatNumber(geom.dimensionLine.start.y + ts, precision)}" x2="${formatNumber(geom.dimensionLine.start.x + ts, precision)}" y2="${formatNumber(geom.dimensionLine.start.y - ts, precision)}" stroke-width="1.5" />`);
       }
       lines.push(`<line x1="${formatNumber(geom.dimensionLine.end.x - ts, precision)}" y1="${formatNumber(geom.dimensionLine.end.y + ts, precision)}" x2="${formatNumber(geom.dimensionLine.end.x + ts, precision)}" y2="${formatNumber(geom.dimensionLine.end.y - ts, precision)}" stroke-width="1.5" />`);
+    }
+  } else if (defaultStyle.arrowType !== "none") {
+    // O exportador gera seta cheia (polygon), seta aberta (polyline) ou ponto (circle).
+    const arrowType = defaultStyle.arrowType;
+    const drawArrow = (p1: {x:number, y:number}, p2: {x:number, y:number}) => {
+      if (arrowType === "dot") {
+        return `<circle cx="${formatNumber(p1.x, precision)}" cy="${formatNumber(p1.y, precision)}" r="${formatNumber(defaultStyle.arrowSize * 0.25, precision)}" fill="currentColor" stroke="none" />`;
+      }
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const len = Math.hypot(dx, dy);
+      if (len === 0) return "";
+      const nx = dx / len;
+      const ny = dy / len;
+      const aLen = defaultStyle.arrowSize;
+      const aWid = defaultStyle.arrowSize * 0.3;
+      const pnt1 = { x: p1.x + nx * aLen - ny * aWid, y: p1.y + ny * aLen + nx * aWid };
+      const pnt2 = { x: p1.x + nx * aLen + ny * aWid, y: p1.y + ny * aLen - nx * aWid };
+      if (arrowType === "open") {
+        return `<polyline points="${formatNumber(pnt1.x, precision)},${formatNumber(pnt1.y, precision)} ${formatNumber(p1.x, precision)},${formatNumber(p1.y, precision)} ${formatNumber(pnt2.x, precision)},${formatNumber(pnt2.y, precision)}" fill="none" />`;
+      }
+      return `<polygon points="${formatNumber(p1.x, precision)},${formatNumber(p1.y, precision)} ${formatNumber(pnt1.x, precision)},${formatNumber(pnt1.y, precision)} ${formatNumber(pnt2.x, precision)},${formatNumber(pnt2.y, precision)}" />`;
+    };
+
+    if (entity.dimensionType === "radius") {
+      lines.push(drawArrow(geom.dimensionLine.end, geom.dimensionLine.start));
+    } else if (entity.dimensionType === "angular") {
+      lines.push(drawArrow(geom.arcStart, { x: geom.arcStart.x - Math.sin(geom.startAngle), y: geom.arcStart.y + Math.cos(geom.startAngle) }));
+      lines.push(drawArrow(geom.arcEnd, { x: geom.arcEnd.x + Math.sin(geom.endAngle), y: geom.arcEnd.y - Math.cos(geom.endAngle) }));
+    } else {
+      lines.push(drawArrow(geom.dimensionLine.start, geom.dimensionLine.end));
+      lines.push(drawArrow(geom.dimensionLine.end, geom.dimensionLine.start));
     }
   }
 
@@ -747,6 +789,10 @@ function calculateEntityBounds(entity: CadEntity, document?: CadDocument): SvgBo
 
   if (entity.type === "polyline") {
     return calculateBoundsFromPoints(entity.points);
+  }
+
+  if (entity.type === "text") {
+    return textBoundingBox(entity);
   }
 
   return {

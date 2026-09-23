@@ -368,6 +368,31 @@ function validateCadEntity(entity: CadEntity | undefined, path: string): void {
     return;
   }
 
+  if (entity.type === "text") {
+    validatePoint(entity.position, `${path}.position`);
+    assertString(entity.content, `${path}.content`);
+    assertPositiveNumber(entity.height, `${path}.height`);
+
+    if (entity.rotation !== undefined) {
+      assertFiniteNumber(entity.rotation, `${path}.rotation`);
+    }
+
+    assertOneOf(entity.horizontalAlign, ["left", "center", "right"], `${path}.horizontalAlign`);
+    assertOneOf(entity.verticalAlign, ["baseline", "bottom", "middle", "top"], `${path}.verticalAlign`);
+
+    if (entity.fontFamily !== undefined) {
+      assertString(entity.fontFamily, `${path}.fontFamily`);
+    }
+
+    for (const flag of ["bold", "italic"] as const) {
+      if (entity[flag] !== undefined && typeof entity[flag] !== "boolean") {
+        throw new CadIoValidationError(`Text ${flag} must be a boolean`, `${path}.${flag}`);
+      }
+    }
+
+    return;
+  }
+
   throw new CadIoValidationError(`CAD entity type '${(entity as any).type}' is not supported by this schema`, `${path}.type`);
 }
 
@@ -383,6 +408,13 @@ function validatePoint(value: unknown, path: string): void {
 function assertString(value: unknown, path: string): asserts value is string {
   if (typeof value !== "string" || value.length === 0) {
     throw new CadIoValidationError("Value must be a non-empty string", path);
+  }
+}
+
+// Campo opcional de enumeração: ausente é válido; presente precisa ser um dos valores permitidos.
+function assertOneOf(value: unknown, allowed: ReadonlyArray<string>, path: string): void {
+  if (value !== undefined && (typeof value !== "string" || !allowed.includes(value))) {
+    throw new CadIoValidationError(`Value must be one of: ${allowed.join(", ")}`, path);
   }
 }
 

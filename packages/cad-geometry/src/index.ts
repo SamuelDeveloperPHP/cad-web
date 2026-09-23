@@ -24,3 +24,4 @@ export * from "./polyline";
 export * from "./pathSource";
 export * from "./pathArray";
 export * from "./explode";
+export * from "./text";

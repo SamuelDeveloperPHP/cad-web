@@ -16,6 +16,7 @@ import { perpendicularPointsOnPrimitive, tangentPointsOnPrimitive } from "./perp
 
 export type SnapType =
   | "endpoint"
+  | "insertion"
   | "midpoint"
   | "center"
   | "quadrant"
@@ -27,6 +28,7 @@ export type SnapType =
 export type SnapSettings = Readonly<{
   enabled: boolean;
   endpoint: boolean;
+  insertion: boolean;
   midpoint: boolean;
   center: boolean;
   quadrant: boolean;
@@ -109,7 +111,15 @@ export type SnapEllipseEntity = Readonly<{
   endAngle?: number | undefined;
 }>;
 
+// O texto expõe apenas o ponto de inserção (snap Insertion do AutoCAD).
+export type SnapTextEntity = Readonly<{
+  id: string;
+  type: "text";
+  position: Point2D;
+}>;
+
 export type SnapEntity =
+  | SnapTextEntity
   | SnapLineEntity
   | SnapRectangleEntity
   | SnapCircleEntity
@@ -120,6 +130,7 @@ export type SnapEntity =
 export const DEFAULT_SNAP_SETTINGS: SnapSettings = {
   enabled: true,
   endpoint: true,
+  insertion: true,
   midpoint: true,
   center: true,
   quadrant: true,
@@ -132,6 +143,7 @@ export const DEFAULT_SNAP_SETTINGS: SnapSettings = {
 
 const SNAP_PRIORITY: Record<SnapType, number> = {
   endpoint: 8,
+  insertion: 8,
   intersection: 7,
   midpoint: 6,
   perpendicular: 5,
@@ -284,6 +296,19 @@ export function getEndpointSnapCandidates(
     return entity.points.map((point) =>
       createSnapCandidate("endpoint", point, entity.id, screenPoint, viewport)
     );
+  }
+
+  return [];
+}
+
+// O ponto de inserção do texto é o seu único ponto de snap (snap Insertion).
+export function getInsertionSnapCandidates(
+  entity: SnapEntity,
+  screenPoint: Point2D,
+  viewport: SnapViewport
+): ReadonlyArray<SnapCandidate> {
+  if (entity.type === "text") {
+    return [createSnapCandidate("insertion", entity.position, entity.id, screenPoint, viewport)];
   }
 
   return [];
@@ -482,6 +507,10 @@ export function findBestSnap(
   for (const entity of entities) {
     if (settings.endpoint) {
       candidates.push(...getEndpointSnapCandidates(entity, screenPoint, viewport));
+    }
+
+    if (settings.insertion) {
+      candidates.push(...getInsertionSnapCandidates(entity, screenPoint, viewport));
     }
 
     if (settings.midpoint) {

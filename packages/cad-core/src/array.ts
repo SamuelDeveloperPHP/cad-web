@@ -91,6 +91,14 @@ export function cloneCadEntityWithOffset(
     };
   }
 
+  if (entity.type === "text") {
+    return {
+      ...entity,
+      id: newId,
+      position: offsetPoint(entity.position, offset)
+    };
+  }
+
   if (entity.type === "polyline") {
     return {
       ...entity,
@@ -309,6 +317,15 @@ export function rotateCadEntityAroundCenter(
     };
   }
 
+  if (entity.type === "text") {
+    return {
+      ...entity,
+      id: newId,
+      position: rotatePointAroundCenter(entity.position, center, angleRadians),
+      rotation: (entity.rotation ?? 0) + angleRadians
+    };
+  }
+
   if (entity.type === "polyline") {
     return {
       ...entity,
@@ -487,8 +504,12 @@ function referencePointForEntity(entity: CadEntity): Point2D {
     return { x: entity.x, y: entity.y };
   }
 
-  if (entity.type === "circle" || entity.type === "arc") {
+  if (entity.type === "circle" || entity.type === "arc" || entity.type === "ellipse") {
     return entity.center;
+  }
+
+  if (entity.type === "text") {
+    return entity.position;
   }
 
   if (entity.type === "polyline") {

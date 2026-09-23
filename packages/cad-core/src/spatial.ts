@@ -7,6 +7,7 @@ import {
   buildLinearDimensionGeometry,
   buildRadiusDimensionGeometry,
   rotationMatrix,
+  textBoundingBox,
   transformPoint,
   type BoundingBox,
   type Point2D
@@ -122,6 +123,11 @@ function computeEntityBoundingBox(entity: CadEntity): BoundingBox {
 
   if (entity.type === "polyline") {
     return polylineBoundingBox(entity.points);
+  }
+
+  if (entity.type === "text") {
+    // O envoltório do texto usa o layout estimado (largura média por caractere) já rotacionado.
+    return textBoundingBox(entity);
   }
 
   // O fallback mantem entidades desconhecidas consultaveis sem quebrar o indice.

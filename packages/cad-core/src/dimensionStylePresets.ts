@@ -1,3 +1,4 @@
+import type { DimensionArrowType } from "@cad-web/cad-geometry";
 import type { DimensionStyle } from "./index";
 
 export type DimensionStylePreset = Readonly<{
@@ -10,7 +11,7 @@ export type DimensionStylePreset = Readonly<{
   extensionOvershoot: number;
   precision: number;
   unitSuffix: string;
-  arrowType: "tick" | "arrow";
+  arrowType: DimensionArrowType;
   color?: string;
   textColor?: string;
   lineColor?: string;
