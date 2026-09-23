@@ -137,9 +137,9 @@ describe("Spline grips", () => {
     expect(context.commands).toHaveLength(0);
 
     tool.onPointerDown(createPointerEvent(handle), context);
-    tool.onPointerUp(createPointerEvent({ x: handle.x, y: handle.y + 3 }), context);
+    tool.onPointerUp(createPointerEvent({ x: handle.x, y: handle.y + 5 }), context);
     const edited = context.commands[0]!.execute(document).entities[0] as SplineEntity;
-    expect(edited.controlPoints[1]).toEqual({ x: handle.x, y: handle.y + 3 });
+    expect(edited.controlPoints[1]).toEqual({ x: handle.x, y: handle.y + 5 });
     expect(edited.controlPoints[0]).toEqual(controlOnly.controlPoints[0]);
   });
 
