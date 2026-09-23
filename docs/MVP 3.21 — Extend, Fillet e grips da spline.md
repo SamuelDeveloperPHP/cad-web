@@ -36,14 +36,14 @@ Completar a edição da spline (MVP 3.20): **Extend**, **Fillet** e **edição p
 
 - `packages/cad-geometry`: `splineExtend.ts` (`extendBezierChain`, `bezierChainExtensionSearchBox`, `reverseBezierChain`), `filletSpline.ts` (`computeSplineFillet`, `FilletOperand`), `splineGrips.ts` (`getSplineGripPoints`, `updateSplineByGrip`, `splineControlFrame`). Testes: `splineEdit.test.ts`.
 - `packages/cad-tools`: `ExtendTool` (spline), `FilletTool` (spline × linha/curva/spline), `SelectTool` (grips genéricos: cota e spline; `gripEntitiesOfSelection`). Testes: `tests/SplineEdit.test.ts`.
-- `packages/cad-renderer`: `renderSplineGrips2D` (grips e armação de controle; só lê a geometria).
+- `packages/cad-renderer`: `renderSplineGrips2D` (grips e armação de controle; só lê a geometria; generalizado em `renderEntityGrips2D` no MVP 3.22).
 - `apps/web`: grips da spline no overlay (só na ferramenta Select) e conversão Fit → Control vertices no painel.
 
 ## Fora de escopo (futuro)
 
-- Inserir/remover pontos de ajuste pelo grip (menu do grip do AutoCAD) e tangentes nas pontas.
+- ~~Inserir/remover pontos de ajuste pelo grip~~ (MVP 3.22); tangentes nas pontas.
 - Extend de spline fechada e Fillet com polyline/retângulo (arestas) × spline.
-- Grips das demais entidades (linha, círculo, polyline…).
+- ~~Grips das demais entidades (linha, círculo, polyline…)~~ (MVP 3.22).
 
 ## Testes
 

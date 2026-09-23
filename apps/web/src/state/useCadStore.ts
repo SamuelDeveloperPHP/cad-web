@@ -603,6 +603,15 @@ export function useCadStore(): CadStore {
         return;
       }
 
+      // A ferramenta ativa pode reivindicar teclas antes dos atalhos globais (ex.: Delete remove o vértice
+      // do grip ativo em vez de apagar a entidade selecionada).
+      const claimingTool = activeTool !== "pan" ? toolRegistry.resolve(activeTool) : null;
+
+      if (claimingTool?.claimsKeyDown?.(event) === true) {
+        dispatchToActiveTool((toolId, context) => toolRegistry.resolve(toolId)?.onKeyDown(event, context) ?? { type: "none" });
+        return;
+      }
+
       if (event.key === "Delete") {
         runEraseTool(event);
         return;

@@ -34,3 +34,4 @@ export * from "./spline";
 export * from "./splineExtend";
 export * from "./filletSpline";
 export * from "./splineGrips";
+export * from "./entityGrips";
