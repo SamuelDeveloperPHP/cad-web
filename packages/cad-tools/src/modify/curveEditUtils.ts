@@ -4,7 +4,9 @@ import {
   type CadEntity,
   type CircleEntity,
   type EllipseEntity,
-  type LineEntity
+  type LineEntity,
+  type PolylineEntity,
+  type RectangleEntity
 } from "@cad-web/cad-core";
 import {
   distance,
@@ -12,6 +14,7 @@ import {
   distancePointToEllipse,
   distancePointToSegment,
   entityIntersectPrimitives,
+  getRectangleCorners,
   type BoundaryPrimitive,
   type BoundingBox,
   type Point2D,
@@ -26,7 +29,8 @@ import type { ToolContext } from "../contracts/ToolContext";
  */
 
 export type CurveEntity = CircleEntity | ArcEntity | EllipseEntity;
-export type EditableEntity = LineEntity | CurveEntity;
+export type PathEntity = RectangleEntity | PolylineEntity;
+export type EditableEntity = LineEntity | CurveEntity | PathEntity;
 
 export type EditableHit = Readonly<{ entity: EditableEntity; locked: boolean; distance: number }>;
 
@@ -34,12 +38,38 @@ export function isCurveEntity(entity: CadEntity): entity is CurveEntity {
   return entity.type === "circle" || entity.type === "arc" || entity.type === "ellipse";
 }
 
+export function isPathEntity(entity: CadEntity): entity is PathEntity {
+  return entity.type === "rectangle" || entity.type === "polyline";
+}
+
+// Vértices e fechamento de retângulos e polylines, para tratá-los como caminho poligonal.
+export function pathOfEntity(entity: PathEntity): Readonly<{ points: ReadonlyArray<Point2D>; closed: boolean }> {
+  if (entity.type === "polyline") {
+    return { points: entity.points, closed: entity.closed };
+  }
+
+  return {
+    points: getRectangleCorners({ x: entity.x, y: entity.y, width: entity.width, height: entity.height, ...(entity.rotation !== undefined ? { rotation: entity.rotation } : {}) }),
+    closed: true
+  };
+}
+
 // Distância do ponto à entidade editável (a mesma usada pela seleção).
 export function distanceToEditable(point: Point2D, entity: EditableEntity): number {
   if (entity.type === "line") return distancePointToSegment(point, entity.start, entity.end);
   if (entity.type === "circle") return Math.abs(distance(point, entity.center) - entity.radius);
   if (entity.type === "arc") return distancePointToArc(point, entity);
-  return distancePointToEllipse(point, { ...entity, type: "ellipse" });
+  if (entity.type === "ellipse") return distancePointToEllipse(point, { ...entity, type: "ellipse" });
+
+  const { points, closed } = pathOfEntity(entity);
+  const vertices = closed ? [...points, points[0]!] : points;
+  let nearest = Number.POSITIVE_INFINITY;
+
+  for (let index = 1; index < vertices.length; index += 1) {
+    nearest = Math.min(nearest, distancePointToSegment(point, vertices[index - 1]!, vertices[index]!));
+  }
+
+  return nearest;
 }
 
 export function findNearestEditable(
