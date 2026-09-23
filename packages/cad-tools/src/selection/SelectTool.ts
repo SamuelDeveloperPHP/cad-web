@@ -1,5 +1,5 @@
-import { UpdateEntityCommand, type DimensionEntity, type EntityId } from "@cad-web/cad-core";
-import { getDimensionGripPoints, updateDimensionByGrip, type Point2D } from "@cad-web/cad-geometry";
+import { UpdateEntityCommand, type CadEntity, type DimensionEntity, type EntityId, type SplineEntity } from "@cad-web/cad-core";
+import { getDimensionGripPoints, getSplineGripPoints, updateDimensionByGrip, updateSplineByGrip, type Point2D } from "@cad-web/cad-geometry";
 import type { CadTool } from "../contracts/CadTool";
 import type { ToolContext } from "../contracts/ToolContext";
 import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent";
@@ -11,6 +11,8 @@ import { boxSelectionMode, entitiesInSelectionBox } from "./boxSelection";
 
 const DEFAULT_SCREEN_TOLERANCE_PIXELS = 8;
 const DIMENSION_GRIP_TOLERANCE_PIXELS = 10;
+// Acima disso os grips das splines selecionadas não são mostrados (seleções grandes ficam leves).
+export const MAX_SPLINE_GRIP_ENTITIES = 50;
 const BOX_DRAG_THRESHOLD_PIXELS = 4;
 
 type PendingSelection = Readonly<{
@@ -20,14 +22,17 @@ type PendingSelection = Readonly<{
   boxing: boolean;
 }>;
 
-type DimensionGripHit = Readonly<{
-  entity: DimensionEntity;
+// Entidades com grips editáveis: cotas (seleção única) e splines (pontos de ajuste ou de controle).
+type GripEntity = DimensionEntity | SplineEntity;
+
+type GripHit = Readonly<{
+  entity: GripEntity;
   gripId: string;
   locked: boolean;
 }>;
 
-type DimensionGripDragState = Readonly<{
-  originalEntity: DimensionEntity;
+type GripDragState = Readonly<{
+  originalEntity: GripEntity;
   gripId: string;
 }>;
 
@@ -36,7 +41,7 @@ export class SelectTool implements CadTool {
   readonly name = "Select";
   readonly aliases = ["sel", "select"];
 
-  private gripDrag: DimensionGripDragState | null = null;
+  private gripDrag: GripDragState | null = null;
   private pending: PendingSelection | null = null;
 
   activate(context: ToolContext): void {
@@ -50,7 +55,7 @@ export class SelectTool implements CadTool {
   }
 
   onPointerDown(event: ToolPointerEvent, context: ToolContext): ToolResult {
-    const gripHit = findDimensionGripHit(context, event);
+    const gripHit = findGripHit(context, event);
 
     if (gripHit !== null) {
       if (gripHit.locked) {
@@ -69,7 +74,9 @@ export class SelectTool implements CadTool {
       };
 
       context.setPreview(preview);
-      context.showMessage("[Grip] Drag dimension grip. Release to update dimension. Press Esc to cancel.");
+      context.showMessage(gripHit.entity.type === "spline"
+        ? "[Grip] Drag spline grip. Release to update the spline. Press Esc to cancel."
+        : "[Grip] Drag dimension grip. Release to update dimension. Press Esc to cancel.");
 
       return { type: "preview", preview };
     }
@@ -92,11 +99,7 @@ export class SelectTool implements CadTool {
 
   onPointerMove(event: ToolPointerEvent, context: ToolContext): ToolResult {
     if (this.gripDrag !== null) {
-      const updatedEntity = updateDimensionByGrip(
-        this.gripDrag.originalEntity as any,
-        this.gripDrag.gripId,
-        resolveSnappedPoint(event, context)
-      ) as DimensionEntity;
+      const updatedEntity = applyGrip(this.gripDrag, resolveSnappedPoint(event, context));
       const preview = {
         type: "ghostEntities" as const,
         entities: [updatedEntity]
@@ -139,18 +142,26 @@ export class SelectTool implements CadTool {
 
   onPointerUp(event: ToolPointerEvent, context: ToolContext): ToolResult {
     if (this.gripDrag !== null) {
-      const updatedEntity = updateDimensionByGrip(
-        this.gripDrag.originalEntity as any,
-        this.gripDrag.gripId,
-        resolveSnappedPoint(event, context)
-      ) as DimensionEntity;
+      const updatedEntity = applyGrip(this.gripDrag, resolveSnappedPoint(event, context));
+      const previousSelection = context.selection.entityIds;
 
-      context.executeCommand(new UpdateEntityCommand(updatedEntity.id, {
-        definition: updatedEntity.definition
-      } as Partial<DimensionEntity>));
-      context.selectEntities([updatedEntity.id]);
+      if (updatedEntity.type === "spline") {
+        context.executeCommand(new UpdateEntityCommand(updatedEntity.id, {
+          controlPoints: updatedEntity.controlPoints,
+          ...(updatedEntity.fitPoints !== undefined ? { fitPoints: updatedEntity.fitPoints } : {})
+        } as Partial<CadEntity>));
+        // A seleção continua a mesma (os grips das outras splines selecionadas seguem visíveis).
+        context.selectEntities(previousSelection.includes(updatedEntity.id) ? previousSelection : [updatedEntity.id]);
+        context.showMessage("[Grip] Spline updated.");
+      } else {
+        context.executeCommand(new UpdateEntityCommand(updatedEntity.id, {
+          definition: updatedEntity.definition
+        } as Partial<DimensionEntity>));
+        context.selectEntities([updatedEntity.id]);
+        context.showMessage("[Grip] Dimension updated.");
+      }
+
       context.clearPreview();
-      context.showMessage("[Grip] Dimension updated.");
       this.gripDrag = null;
 
       return { type: "complete" };
@@ -208,45 +219,53 @@ export class SelectTool implements CadTool {
   }
 }
 
-function findDimensionGripHit(context: ToolContext, event: ToolPointerEvent): DimensionGripHit | null {
-  if (context.selection.entityIds.length !== 1) {
-    return null;
+function applyGrip(drag: GripDragState, point: Point2D): GripEntity {
+  if (drag.originalEntity.type === "spline") {
+    const update = updateSplineByGrip(drag.originalEntity, drag.gripId, point);
+    return update === null ? drag.originalEntity : { ...drag.originalEntity, ...update } as SplineEntity;
   }
 
-  const entity = context.document.entities.find((candidate) => candidate.id === context.selection.entityIds[0]);
+  return updateDimensionByGrip(drag.originalEntity as any, drag.gripId, point) as DimensionEntity;
+}
 
-  if (entity?.type !== "dimension") {
-    return null;
+// Entidades selecionadas cujos grips estão visíveis: a cota da seleção única e as splines selecionadas.
+export function gripEntitiesOfSelection(document: ToolContext["document"], selectedIds: ReadonlyArray<EntityId>): ReadonlyArray<GripEntity> {
+  const selected = new Set(selectedIds);
+  const entities = document.entities.filter((entity) => selected.has(entity.id));
+
+  if (entities.length === 1 && entities[0]!.type === "dimension") {
+    return [entities[0] as DimensionEntity];
   }
 
-  const layer = context.document.layers.find((candidate) => candidate.id === entity.layerId);
+  const splines = entities.filter((entity): entity is SplineEntity => entity.type === "spline");
+  return splines.length <= MAX_SPLINE_GRIP_ENTITIES ? splines : [];
+}
 
-  if (layer?.visible === false) {
-    return null;
-  }
-
-  let nearestGripId: string | null = null;
+function findGripHit(context: ToolContext, event: ToolPointerEvent): GripHit | null {
+  let nearest: GripHit | null = null;
   let nearestDistance = Number.POSITIVE_INFINITY;
 
-  for (const grip of getDimensionGripPoints(entity as any)) {
-    const gripScreenPoint = worldToScreenPoint(grip.point, context.viewport);
-    const gripDistance = distanceBetweenScreenPoints(event.screenPoint, gripScreenPoint);
+  for (const entity of gripEntitiesOfSelection(context.document, context.selection.entityIds)) {
+    const layer = context.document.layers.find((candidate) => candidate.id === entity.layerId);
 
-    if (gripDistance <= DIMENSION_GRIP_TOLERANCE_PIXELS && gripDistance < nearestDistance) {
-      nearestGripId = grip.id;
-      nearestDistance = gripDistance;
+    if (layer?.visible === false) {
+      continue;
+    }
+
+    const grips = entity.type === "spline" ? getSplineGripPoints(entity) : getDimensionGripPoints(entity as any);
+
+    for (const grip of grips) {
+      const gripScreenPoint = worldToScreenPoint(grip.point, context.viewport);
+      const gripDistance = distanceBetweenScreenPoints(event.screenPoint, gripScreenPoint);
+
+      if (gripDistance <= DIMENSION_GRIP_TOLERANCE_PIXELS && gripDistance < nearestDistance) {
+        nearest = { entity, gripId: grip.id, locked: layer?.locked === true };
+        nearestDistance = gripDistance;
+      }
     }
   }
 
-  if (nearestGripId === null) {
-    return null;
-  }
-
-  return {
-    entity,
-    gripId: nearestGripId,
-    locked: layer?.locked === true
-  };
+  return nearest;
 }
 
 function worldToScreenPoint(point: Point2D, viewport: ToolContext["viewport"]): Point2D {

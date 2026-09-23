@@ -2,17 +2,23 @@ import {
   ExtendLineCommand,
   ReplaceEntityCommand,
   type CadEntity,
-  type LineEntity
+  type LineEntity,
+  type SplineEntity
 } from "@cad-web/cad-core";
 import {
+  bezierChainExtensionSearchBox,
   buildExtendPreview,
   curveIntersectionParams,
   curveOfEntity,
   distance,
   ellipseBoundingBox,
   entityWithSpan,
+  extendBezierChain,
   extendPeriodicCurve,
   lineExtendCandidatesFromPrimitives,
+  nearestOnBezierChain,
+  bezierChainLength,
+  bezierChainParamAtLength,
   spanEndpoints,
   type BoundingBox,
   type ExtendEndpoint,
@@ -48,7 +54,7 @@ type ExtendPlan = Readonly<{
 }>;
 
 /**
- * Ferramenta Extend: estende linhas, arcos e arcos de elipse até o limite mais próximo, pela ponta
+ * Ferramenta Extend: estende linhas, arcos, arcos de elipse, polylines e splines abertas até o limite mais próximo, pela ponta
  * mais próxima do clique (como no AutoCAD, basta clicar na metade do objeto perto da ponta).
  * Qualquer entidade com geometria (linha, retângulo, polyline, círculo, arco, elipse) serve de limite.
  */
@@ -235,7 +241,7 @@ export class ExtendTool implements CadTool {
     }
 
     if (target.type === "spline") {
-      return "[Extend] Splines cannot be extended yet";
+      return this.planSplineExtend(target, point, context, tolerance);
     }
 
     return this.planCurveExtend(target, point, context, tolerance);
@@ -275,6 +281,42 @@ export class ExtendTool implements CadTool {
     return {
       command: new ReplaceEntityCommand(target, [{ ...target, points: updatedPoints }], "Extends a polyline end."),
       addedPreview: { ...target, id: `extend_preview_${target.id}`, points: [segment.end, candidate.point], closed: false }
+    };
+  }
+
+  /**
+   * Estende a ponta da spline aberta mais próxima do clique (pela metade do comprimento): continuação
+   * natural do último segmento ou, se ela não alcança o limite, reta pela tangente. A spline estendida fica
+   * só com pontos de controle, como no AutoCAD.
+   */
+  private planSplineExtend(target: SplineEntity, point: Point2D, context: ToolContext, tolerance: number): ExtendPlan | string {
+    if (target.closed) {
+      return "[Extend] Closed splines cannot be extended";
+    }
+
+    const chain = target.controlPoints;
+    const clickU = nearestOnBezierChain(chain, point).u;
+    const middleU = bezierChainParamAtLength(chain, bezierChainLength(chain) / 2);
+    const endpoint: ExtendEndpoint = clickU <= middleU ? "start" : "end";
+    const boundaries = collectBoundaryEntities(
+      context,
+      this.boundaryEdgeIds,
+      this.useAllVisibleBoundaryEdges,
+      padBox(bezierChainExtensionSearchBox(chain, endpoint, MAX_EXTEND_SEARCH_WORLD), tolerance),
+      target.id
+    );
+    const extension = extendBezierChain(chain, endpoint, toBoundaryPrimitives(boundaries).map((boundary) => boundary.primitive));
+
+    if (extension === null) {
+      return "[Extend] No valid boundary found";
+    }
+
+    const { fitPoints: _fitPoints, ...rest } = target;
+    const updated: SplineEntity = { ...rest, controlPoints: extension.chain };
+
+    return {
+      command: new ReplaceEntityCommand(target, [updated], "Extends a spline end."),
+      addedPreview: { ...rest, id: `extend_preview_${target.id}`, closed: false, controlPoints: extension.added }
     };
   }
 
@@ -324,7 +366,7 @@ export class ExtendTool implements CadTool {
   }
 }
 
-// Linhas, curvas abertas (arco, arco de elipse) e polylines abertas; formas fechadas recebem uma mensagem clara.
+// Linhas, curvas abertas (arco, arco de elipse), polylines e splines abertas; formas fechadas recebem uma mensagem clara.
 function isExtendable(entity: CadEntity): entity is EditableEntity {
   return entity.type === "line" || isCurveEntity(entity) || isPathEntity(entity) || entity.type === "spline";
 }

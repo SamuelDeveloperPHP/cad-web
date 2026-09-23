@@ -31,3 +31,6 @@ export * from "./filletCurve";
 export * from "./svgGeometry";
 export * from "./pathTrim";
 export * from "./spline";
+export * from "./splineExtend";
+export * from "./filletSpline";
+export * from "./splineGrips";

@@ -1,5 +1,5 @@
-import { getDimensionGripPoints, type Point2D, type SnapType } from "@cad-web/cad-geometry";
-import { resolveDimensionStyle, type CadDocument, type DimensionEntity, type EntityId } from "@cad-web/cad-core";
+import { getDimensionGripPoints, getSplineGripPoints, splineControlFrame, type Point2D, type SnapType } from "@cad-web/cad-geometry";
+import { resolveDimensionStyle, type CadDocument, type DimensionEntity, type EntityId, type SplineEntity } from "@cad-web/cad-core";
 import type { Viewport } from "./types";
 import { worldToScreen } from "./viewport";
 import type { ScreenSize } from "./types";
@@ -207,6 +207,89 @@ export function renderDimensionGrips2D(
     context.strokeStyle = isHovered ? "#e0f2fe" : "#60a5fa";
     context.fillRect(screenPoint.x - half, screenPoint.y - half, size, size);
     context.strokeRect(screenPoint.x - half, screenPoint.y - half, size, size);
+  }
+
+  context.restore();
+}
+
+export type SplineGripOverlayOptions = Readonly<{
+  sizePx?: number;
+  // Acima disso os grips não são desenhados (seleções grandes ficam leves).
+  maxEntities?: number;
+}>;
+
+/**
+ * Grips das splines selecionadas: pontos de ajuste (quadrados) ou vértices de controle da cadeia de
+ * Béziers (quadrados nos vértices da curva, círculos nas alças) com a armação tracejada vértice → alça.
+ * Só lê a geometria.
+ */
+export function renderSplineGrips2D(
+  context: CanvasRenderingContext2D,
+  document: CadDocument,
+  selectedEntityIds: ReadonlyArray<EntityId>,
+  viewport: Viewport,
+  options: SplineGripOverlayOptions = {}
+): void {
+  if (selectedEntityIds.length === 0) {
+    return;
+  }
+
+  const selected = new Set(selectedEntityIds);
+  const splines = document.entities.filter((entity): entity is SplineEntity => entity.type === "spline" && selected.has(entity.id));
+
+  if (splines.length === 0 || splines.length > (options.maxEntities ?? 50)) {
+    return;
+  }
+
+  const size = options.sizePx ?? 8;
+  const half = size / 2;
+
+  context.save();
+  context.lineWidth = 1;
+
+  for (const spline of splines) {
+    const layer = document.layers.find((candidate) => candidate.id === spline.layerId);
+
+    if (layer?.visible === false || layer?.locked === true) {
+      continue;
+    }
+
+    const frame = splineControlFrame(spline);
+
+    if (frame.length > 0) {
+      context.strokeStyle = "rgba(148, 163, 184, 0.75)";
+      context.setLineDash([4, 3]);
+      context.beginPath();
+
+      for (const [from, to] of frame) {
+        const a = worldToScreen(from, viewport);
+        const b = worldToScreen(to, viewport);
+        context.moveTo(a.x, a.y);
+        context.lineTo(b.x, b.y);
+      }
+
+      context.stroke();
+    }
+
+    context.setLineDash([]);
+    context.lineWidth = 1.25;
+    context.fillStyle = "#0f172a";
+    context.strokeStyle = "#60a5fa";
+
+    for (const grip of getSplineGripPoints(spline)) {
+      const point = worldToScreen(grip.point, viewport);
+
+      if (grip.kind === "control" && grip.index % 3 !== 0) {
+        context.beginPath();
+        context.arc(point.x, point.y, half * 0.8, 0, Math.PI * 2);
+        context.fill();
+        context.stroke();
+        continue;
+      }
+
+      context.fillRect(point.x - half, point.y - half, size, size);
+      context.strokeRect(point.x - half, point.y - half, size, size);
+    }
   }
 
   context.restore();

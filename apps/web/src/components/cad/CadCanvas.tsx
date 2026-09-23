@@ -8,6 +8,7 @@ import {
   renderDimensionGrips2D,
   renderGrid2D,
   renderSnapMarker2D,
+  renderSplineGrips2D,
   screenToWorld,
   worldToScreen,
   zoomViewportAtScreenPoint,
@@ -530,6 +531,10 @@ function drawOverlayLayer(canvas: HTMLCanvasElement, cad: CadStore, screenSize: 
 
   renderSelectedEntities(context, cad);
   renderDimensionGrips2D(context, cad.document, cad.selectedEntityIds, cad.viewport);
+  // Os grips da spline só são arrastáveis na ferramenta Select; nas demais ferramentas eles não aparecem.
+  if (cad.activeTool === "select") {
+    renderSplineGrips2D(context, cad.document, cad.selectedEntityIds, cad.viewport);
+  }
   renderPreview(context, cad);
   renderActiveSnapMarker(context, cad);
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { UpdateEntityCommand, UpdateEntitiesBatchCommand, resolveDimensionStyle, type ArcEntity, type CadEntity, type EllipseEntity, type SplineEntity, type TextEntity } from "@cad-web/cad-core";
+import { ReplaceEntityCommand, UpdateEntityCommand, UpdateEntitiesBatchCommand, resolveDimensionStyle, type ArcEntity, type CadEntity, type EllipseEntity, type SplineEntity, type TextEntity } from "@cad-web/cad-core";
 import { lineLength, rectangleArea, rectanglePerimeter, circleArea, circleCircumference, formatMeasurement, buildAngularDimensionGeometry, getPolylineLength, DIMENSION_ARROW_TYPES, arcAnglesFromVisual, arcVisualAngles, ellipseArcVisualAngles, ellipseArcParamsFromVisual, ellipseArcLength, normalizeEllipseAxes, bezierChainLength, fitPointsToBezierChain, visualDegreesToWorldRadians, worldRadiansToVisualDegrees, type DimensionArrowType } from "@cad-web/cad-geometry";
 import { workingLengthFormat } from "../../services/workingUnits";
 
@@ -451,7 +451,22 @@ export function CadPropertiesPanel({ cad }: { cad: CadStore }) {
         const canRefit = spline.fitPoints !== undefined && spline.fitPoints.length >= (spline.closed ? 2 : 3);
         return (
           <>
-            <PropertyRow label="Method"><PropertyInput value={spline.fitPoints !== undefined ? "Fit points" : "Control vertices"} readOnly /></PropertyRow>
+            <PropertyRow label="Method">
+              {/* Como no AutoCAD, a spline por pontos de ajuste pode virar por vértices de controle (grips nas alças); o inverso não existe. */}
+              <select
+                value={spline.fitPoints !== undefined ? "fit" : "cv"}
+                disabled={isLocked || spline.fitPoints === undefined}
+                style={selectStyle(isLocked || spline.fitPoints === undefined)}
+                onChange={e => {
+                  if (e.target.value !== "cv") return;
+                  const { fitPoints: _fitPoints, ...controlOnly } = spline;
+                  cad.executeCommand(new ReplaceEntityCommand(spline, [controlOnly], "Converts a spline to control vertices."));
+                }}
+              >
+                <option value="fit">Fit points</option>
+                <option value="cv">Control vertices</option>
+              </select>
+            </PropertyRow>
             <PropertyRow label="Degree"><PropertyInput value="3" readOnly /></PropertyRow>
             <PropertyRow label="Closed">
               {/* Fechar/abrir recalcula a curva pelos pontos de ajuste; sem eles (spline importada/aparada) é só leitura. */}
