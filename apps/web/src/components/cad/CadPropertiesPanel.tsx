@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { UpdateEntityCommand, UpdateEntitiesBatchCommand, resolveDimensionStyle, type ArcEntity, type CadEntity, type EllipseEntity, type TextEntity } from "@cad-web/cad-core";
-import { lineLength, rectangleArea, rectanglePerimeter, circleArea, circleCircumference, formatMeasurement, buildAngularDimensionGeometry, getPolylineLength, DIMENSION_ARROW_TYPES, arcAnglesFromVisual, arcVisualAngles, ellipseArcVisualAngles, visualDegreesToWorldRadians, worldRadiansToVisualDegrees, type DimensionArrowType } from "@cad-web/cad-geometry";
+import { lineLength, rectangleArea, rectanglePerimeter, circleArea, circleCircumference, formatMeasurement, buildAngularDimensionGeometry, getPolylineLength, DIMENSION_ARROW_TYPES, arcAnglesFromVisual, arcVisualAngles, ellipseArcVisualAngles, ellipseArcParamsFromVisual, ellipseArcLength, normalizeEllipseAxes, visualDegreesToWorldRadians, worldRadiansToVisualDegrees, type DimensionArrowType } from "@cad-web/cad-geometry";
 import { workingLengthFormat } from "../../services/workingUnits";
 
 // Rótulos dos terminadores de cota exibidos no seletor de setas.
@@ -398,34 +398,49 @@ export function CadPropertiesPanel({ cad }: { cad: CadStore }) {
       })()}
 
       {entity.type === "ellipse" && (() => {
-        const ellipse = entity as EllipseEntity;
+        const ellipse = normalizeEllipseAxes(entity as EllipseEntity);
         const isArc = ellipse.startAngle !== undefined && ellipse.endAngle !== undefined;
         const arcAngles = isArc
           ? ellipseArcVisualAngles({ radiusX: ellipse.radiusX, radiusY: ellipse.radiusY, startAngle: ellipse.startAngle!, endAngle: ellipse.endAngle! })
           : null;
-        const major = Math.max(ellipse.radiusX, ellipse.radiusY);
-        const minor = Math.min(ellipse.radiusX, ellipse.radiusY);
+        // Toda edição grava a geometria normalizada (eixo maior no X local), como o AutoCAD mantém a elipse.
+        const update = (patch: Partial<EllipseEntity>) => {
+          const next = normalizeEllipseAxes({ ...ellipse, ...patch });
+          handleUpdateSingle(ellipse.id, {
+            center: next.center,
+            radiusX: next.radiusX,
+            radiusY: next.radiusY,
+            rotation: next.rotation,
+            ...(next.startAngle !== undefined && next.endAngle !== undefined ? { startAngle: next.startAngle, endAngle: next.endAngle } : {})
+          } as any);
+        };
+        const updateArcAngles = (visualStart: number, visualEnd: number) =>
+          update(ellipseArcParamsFromVisual(ellipse.radiusX, ellipse.radiusY, visualStart, visualEnd));
+        const length = ellipseArcLength({ ...ellipse, type: "ellipse" });
         return (
           <>
             <PropertyRow label="Kind"><PropertyInput value={isArc ? "Elliptical arc" : "Ellipse"} readOnly /></PropertyRow>
-            <PropertyRow label={unitLabel("Center X")}><PropertyInput value={len.format(ellipse.center.x)} readOnly={isLocked} type="number" onChange={val => handleUpdateSingle(ellipse.id, { center: { ...ellipse.center, x: len.parse(val, ellipse.center.x) } } as any)} /></PropertyRow>
-            <PropertyRow label={unitLabel("Center Y")}><PropertyInput value={len.format(ellipse.center.y)} readOnly={isLocked} type="number" onChange={val => handleUpdateSingle(ellipse.id, { center: { ...ellipse.center, y: len.parse(val, ellipse.center.y) } } as any)} /></PropertyRow>
-            {/* Radius X segue a direção da rotação (1º eixo); Radius Y é o eixo perpendicular. */}
-            <PropertyRow label={unitLabel("Radius X")}><PropertyInput value={len.format(ellipse.radiusX)} readOnly={isLocked} type="number" onChange={val => { const r = len.parse(val, ellipse.radiusX); if (r > 0) handleUpdateSingle(ellipse.id, { radiusX: r } as any); }} /></PropertyRow>
-            <PropertyRow label={unitLabel("Radius Y")}><PropertyInput value={len.format(ellipse.radiusY)} readOnly={isLocked} type="number" onChange={val => { const r = len.parse(val, ellipse.radiusY); if (r > 0) handleUpdateSingle(ellipse.id, { radiusY: r } as any); }} /></PropertyRow>
-            <PropertyRow label="Rotation (°)"><PropertyInput value={worldRadiansToVisualDegrees(ellipse.rotation).toFixed(2)} readOnly={isLocked} type="number" onChange={val => handleUpdateSingle(ellipse.id, { rotation: visualDegreesToWorldRadians(parseNumber(val, worldRadiansToVisualDegrees(ellipse.rotation))) } as any)} /></PropertyRow>
-            <PropertyRow label={unitLabel("Major Radius")}><PropertyInput value={len.format(major)} readOnly /></PropertyRow>
-            <PropertyRow label={unitLabel("Minor Radius")}><PropertyInput value={len.format(minor)} readOnly /></PropertyRow>
-            <PropertyRow label="Radius Ratio"><PropertyInput value={(minor / major).toFixed(4)} readOnly /></PropertyRow>
+            <PropertyRow label={unitLabel("Center X")}><PropertyInput value={len.format(ellipse.center.x)} readOnly={isLocked} type="number" onChange={val => update({ center: { ...ellipse.center, x: len.parse(val, ellipse.center.x) } })} /></PropertyRow>
+            <PropertyRow label={unitLabel("Center Y")}><PropertyInput value={len.format(ellipse.center.y)} readOnly={isLocked} type="number" onChange={val => update({ center: { ...ellipse.center, y: len.parse(val, ellipse.center.y) } })} /></PropertyRow>
+            {/* Raio maior ao longo da rotação; se o novo maior ficar menor que o menor, os eixos trocam de papel. */}
+            <PropertyRow label={unitLabel("Major Radius")}><PropertyInput value={len.format(ellipse.radiusX)} readOnly={isLocked} type="number" onChange={val => { const r = len.parse(val, ellipse.radiusX); if (r > 0) update({ radiusX: r }); }} /></PropertyRow>
+            <PropertyRow label={unitLabel("Minor Radius")}><PropertyInput value={len.format(ellipse.radiusY)} readOnly={isLocked} type="number" onChange={val => { const r = len.parse(val, ellipse.radiusY); if (r > 0) update({ radiusY: r }); }} /></PropertyRow>
+            <PropertyRow label="Radius Ratio"><PropertyInput value={(ellipse.radiusY / ellipse.radiusX).toFixed(4)} readOnly={isLocked} type="number" onChange={val => { const ratio = parseNumber(val, -1); if (ratio > 0 && ratio <= 1) update({ radiusY: ellipse.radiusX * ratio }); }} /></PropertyRow>
+            <PropertyRow label="Rotation (°)"><PropertyInput value={worldRadiansToVisualDegrees(ellipse.rotation).toFixed(2)} readOnly={isLocked} type="number" onChange={val => update({ rotation: visualDegreesToWorldRadians(parseNumber(val, worldRadiansToVisualDegrees(ellipse.rotation))) })} /></PropertyRow>
             {arcAngles !== null && (
               <>
-                <PropertyRow label="Start Angle (°)"><PropertyInput value={arcAngles.start.toFixed(2)} readOnly /></PropertyRow>
-                <PropertyRow label="End Angle (°)"><PropertyInput value={arcAngles.end.toFixed(2)} readOnly /></PropertyRow>
+                {/* Ângulos reais medidos a partir do eixo maior, anti-horários, como no AutoCAD. */}
+                <PropertyRow label="Start Angle (°)"><PropertyInput value={arcAngles.start.toFixed(2)} readOnly={isLocked} type="number" onChange={val => updateArcAngles(parseNumber(val, arcAngles.start), arcAngles.end)} /></PropertyRow>
+                <PropertyRow label="End Angle (°)"><PropertyInput value={arcAngles.end.toFixed(2)} readOnly={isLocked} type="number" onChange={val => updateArcAngles(arcAngles.start, parseNumber(val, arcAngles.end))} /></PropertyRow>
                 <PropertyRow label="Total Angle (°)"><PropertyInput value={arcAngles.sweep.toFixed(2)} readOnly /></PropertyRow>
+                <PropertyRow label={unitLabel("Arc Length")}><PropertyInput value={len.format(length)} readOnly /></PropertyRow>
               </>
             )}
             {arcAngles === null && (
-              <PropertyRow label={`Area (${len.unit}²)`}><PropertyInput value={len.formatArea(Math.PI * ellipse.radiusX * ellipse.radiusY)} readOnly /></PropertyRow>
+              <>
+                <PropertyRow label={unitLabel("Perimeter")}><PropertyInput value={len.format(length)} readOnly /></PropertyRow>
+                <PropertyRow label={`Area (${len.unit}²)`}><PropertyInput value={len.formatArea(Math.PI * ellipse.radiusX * ellipse.radiusY)} readOnly /></PropertyRow>
+              </>
             )}
           </>
         );

@@ -35,7 +35,18 @@ export type PathSourceArc = Readonly<{
   clockwise: boolean;
 }>;
 
-export type PathSource = PathSourcePolyline | PathSourceLine | PathSourceCircle | PathSourceArc;
+// Elipse ou arco de elipse: percorrida no sentido paramétrico crescente, a partir de startAngle (ou 0).
+export type PathSourceEllipse = Readonly<{
+  type: "ellipse";
+  center: Point2D;
+  radiusX: number;
+  radiusY: number;
+  rotation: number;
+  startAngle?: number | undefined;
+  endAngle?: number | undefined;
+}>;
+
+export type PathSource = PathSourcePolyline | PathSourceLine | PathSourceCircle | PathSourceArc | PathSourceEllipse;
 
 export type PathSourceSample = Readonly<{
   point: Point2D;
@@ -63,6 +74,10 @@ export function isPathSourceClosed(source: PathSource): boolean {
     return source.closed;
   }
 
+  if (source.type === "ellipse") {
+    return source.startAngle === undefined || source.endAngle === undefined;
+  }
+
   // Um circulo e sempre fechado; line e arc sao abertos por definicao neste MVP.
   return source.type === "circle";
 }
@@ -79,6 +94,10 @@ export function getPathSourceLength(source: PathSource, epsilon = CAD_EPSILON): 
 
   if (source.type === "circle") {
     return 2 * Math.PI * source.radius;
+  }
+
+  if (source.type === "ellipse") {
+    return ellipseLengthTable(source).total;
   }
 
   // O caso arc usa o sweep efetivo multiplicado pelo raio para descobrir o arco real entre os angulos.
@@ -100,6 +119,10 @@ export function validatePathSource(source: PathSource, epsilon = CAD_EPSILON): P
     if (!Number.isFinite(source.radius) || source.radius <= epsilon) {
       return { ok: false, reason: "Circle/Arc path must have a positive radius." };
     }
+  }
+
+  if (source.type === "ellipse" && (!(source.radiusX > epsilon) || !(source.radiusY > epsilon))) {
+    return { ok: false, reason: "Ellipse path must have positive radii." };
   }
 
   if (getPathSourceLength(source, epsilon) <= epsilon) {
@@ -199,6 +222,10 @@ export function samplePathSourceAtDistance(source: PathSource, distanceAlong: nu
     };
   }
 
+  if (source.type === "ellipse") {
+    return sampleEllipseAtDistance(source, distanceAlong, totalLength);
+  }
+
   // O caso arc segue o sentido do sweep configurado.
   // Convencao do codebase: clockwise=true significa percorrer o arco com angulos crescentes (CCW matematico).
   const sweep = arcSweepAngle(source.startAngle, source.endAngle, source.clockwise);
@@ -219,5 +246,73 @@ export function samplePathSourceAtDistance(source: PathSource, distanceAlong: nu
     tangent,
     distance: distanceAlong,
     t: totalLength > 0 ? distanceAlong / totalLength : 0
+  };
+}
+
+// ------------------------------------------------------------------------------------------------
+// Elipse: amostragem por comprimento de arco
+// ------------------------------------------------------------------------------------------------
+
+const ELLIPSE_TABLE_STEPS = 1440;
+
+type EllipseLengthTable = Readonly<{ start: number; sweep: number; cumulative: Float64Array; total: number }>;
+
+// A tabela de comprimento acumulado é calculada uma vez por fonte (objeto imutável) e reaproveitada.
+const ellipseTables = new WeakMap<PathSourceEllipse, EllipseLengthTable>();
+
+function ellipseLengthTable(source: PathSourceEllipse): EllipseLengthTable {
+  const cached = ellipseTables.get(source);
+  if (cached !== undefined) return cached;
+
+  const isArc = source.startAngle !== undefined && source.endAngle !== undefined;
+  const start = isArc ? source.startAngle! : 0;
+  let sweep = isArc ? (source.endAngle! - source.startAngle!) % (Math.PI * 2) : Math.PI * 2;
+  if (sweep <= 1e-12) sweep += Math.PI * 2;
+
+  // Comprimento acumulado pela regra do trapézio sobre a velocidade |dP/dt| (passo fino = erro desprezível).
+  const cumulative = new Float64Array(ELLIPSE_TABLE_STEPS + 1);
+  const speed = (t: number) => Math.hypot(source.radiusX * Math.sin(t), source.radiusY * Math.cos(t));
+  const h = sweep / ELLIPSE_TABLE_STEPS;
+  let previous = speed(start);
+
+  for (let index = 1; index <= ELLIPSE_TABLE_STEPS; index += 1) {
+    const current = speed(start + index * h);
+    cumulative[index] = cumulative[index - 1]! + ((previous + current) / 2) * h;
+    previous = current;
+  }
+
+  const table = { start, sweep, cumulative, total: cumulative[ELLIPSE_TABLE_STEPS]! };
+  ellipseTables.set(source, table);
+  return table;
+}
+
+function sampleEllipseAtDistance(source: PathSourceEllipse, distanceAlong: number, totalLength: number): PathSourceSample {
+  const table = ellipseLengthTable(source);
+  const target = Math.max(0, Math.min(distanceAlong, table.total));
+  // Busca binária do intervalo da tabela e interpolação linear do parâmetro.
+  let low = 0;
+  let high = ELLIPSE_TABLE_STEPS;
+
+  while (high - low > 1) {
+    const middle = (low + high) >> 1;
+    if (table.cumulative[middle]! <= target) low = middle;
+    else high = middle;
+  }
+
+  const segmentLength = table.cumulative[high]! - table.cumulative[low]!;
+  const fraction = segmentLength > 0 ? (target - table.cumulative[low]!) / segmentLength : 0;
+  const t = table.start + ((low + fraction) / ELLIPSE_TABLE_STEPS) * table.sweep;
+  const cos = Math.cos(source.rotation);
+  const sin = Math.sin(source.rotation);
+  const localX = source.radiusX * Math.cos(t);
+  const localY = source.radiusY * Math.sin(t);
+  const derivativeX = -source.radiusX * Math.sin(t);
+  const derivativeY = source.radiusY * Math.cos(t);
+
+  return {
+    point: { x: source.center.x + localX * cos - localY * sin, y: source.center.y + localX * sin + localY * cos },
+    tangent: normalize({ x: derivativeX * cos - derivativeY * sin, y: derivativeX * sin + derivativeY * cos }),
+    distance: target,
+    t: totalLength > 0 ? target / totalLength : 0
   };
 }

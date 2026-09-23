@@ -681,7 +681,7 @@ export function useCadStore(): CadStore {
 
       // Ferramentas que recebem texto livre (ex.: conteúdo do Text) recebem a entrada crua, sem resolver
       // aliases nem comandos globais: digitar "zoom" ou "u" vira texto, não comando.
-      if (activeCadTool?.acceptsFreeText?.() === true) {
+      if (activeCadTool?.acceptsFreeText?.() === true || activeCadTool?.claimsCommandInput?.(command) === true) {
         processToolResult(activeCadTool.onCommandInput(command, createToolContext()));
         return;
       }

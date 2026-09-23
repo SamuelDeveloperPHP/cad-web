@@ -7,6 +7,7 @@ import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent
 import type { ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
+import { parseDirectInput } from "./directInput";
 
 /**
  * Ferramenta responsável por desenhar círculos.
@@ -83,6 +84,20 @@ export class CircleTool implements CadTool {
   }
 
   onCommandInput(input: string, context: ToolContext): ToolResult {
+    if (this.centerPoint === null) {
+      // O centro aceita coordenada absoluta digitada (na unidade de trabalho).
+      const parsed = parseDirectInput(input);
+
+      if (parsed.kind === "absolute") {
+        this.centerPoint = { x: parsed.point.x * context.unitScale, y: parsed.point.y * context.unitScale };
+        this.currentPoint = this.centerPoint;
+        context.showMessage("Specify radius of circle or enter diameter (e.g. d=100, r=50, 50).");
+        return TOOL_RESULT_NONE;
+      }
+
+      return parsed.kind === "empty" ? TOOL_RESULT_NONE : { type: "error", message: "Specify center as x,y coordinates or click on the drawing." };
+    }
+
     if (this.centerPoint !== null) {
       const radius = this.parseRadius(input);
 

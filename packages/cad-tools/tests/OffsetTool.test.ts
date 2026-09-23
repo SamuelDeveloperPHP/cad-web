@@ -47,3 +47,32 @@ describe("OffsetTool", () => {
     expect(created.start.y).toBeCloseTo(10);
   });
 });
+
+describe("OffsetTool with curves", () => {
+  it("offsets an ellipse into a closed polyline and an arc into a larger arc", async () => {
+    const { createEmptyDocument } = await import("@cad-web/cad-core");
+    const { OffsetTool } = await import("../src");
+    const { createMockToolContext, createPointerEvent } = await import("./testContext");
+    const document = {
+      ...createEmptyDocument("doc_offset_curves"),
+      entities: [
+        { id: "el", layerId: "layer_0", type: "ellipse" as const, center: { x: 0, y: 0 }, radiusX: 40, radiusY: 20, rotation: 0, color: "#ff0000" },
+        { id: "arc", layerId: "layer_0", type: "arc" as const, center: { x: 200, y: 0 }, radius: 10, startAngle: 0, endAngle: 1, clockwise: true }
+      ]
+    };
+    const context = createMockToolContext({ document, viewport: { origin: { x: 0, y: 0 }, scale: 1 } });
+    const tool = new OffsetTool();
+
+    tool.activate(context);
+    tool.onCommandInput("5", context);
+    tool.onPointerDown(createPointerEvent({ x: 40, y: 0 }), context);
+    tool.onPointerDown(createPointerEvent({ x: 100, y: 0 }), context);
+    tool.onPointerDown(createPointerEvent({ x: 210, y: 0 }), context);
+    tool.onPointerDown(createPointerEvent({ x: 300, y: 0 }), context);
+
+    const polyline = (context.commands[0] as any).entity;
+    expect(polyline).toMatchObject({ type: "polyline", closed: true, color: "#ff0000" });
+    expect(polyline.points[0].x).toBeCloseTo(45);
+    expect((context.commands[1] as any).entity).toMatchObject({ type: "arc", radius: 15, startAngle: 0, endAngle: 1 });
+  });
+});
