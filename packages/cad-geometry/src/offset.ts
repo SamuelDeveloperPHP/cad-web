@@ -1,6 +1,7 @@
 import type { CircleGeometry, LineGeometry, Point2D, RectangleGeometry } from "./types";
 import { addVector, distance, dot, normalize, perpendicularLeft, scaleVector, subtractPoints } from "./vector";
 import { rotationMatrix, transformPoint } from "./matrix";
+import { fitParametricCurve, type BezierChain } from "./spline";
 
 /**
  * Calculates the offset of a line.
@@ -222,4 +223,47 @@ export function offsetEllipse(
   }
 
   return { points, closed: !isArc };
+}
+
+/**
+ * Offset de elipse ou arco de elipse como spline (cadeia de Béziers): a curva paralela P(t) ± d·N(t) é
+ * ajustada por Béziers com erro menor que tolerance (padrão: 1e-5 do maior raio). Suave e compacta,
+ * como a spline que o AutoCAD gera no OFFSET de elipses.
+ */
+export function offsetEllipseToBezierChain(
+  ellipse: EllipseOffsetInput,
+  offsetDistance: number,
+  sidePoint: Point2D,
+  tolerance = Math.max(ellipse.radiusX, ellipse.radiusY) * 1e-5
+): Readonly<{ chain: BezierChain; closed: boolean }> | null {
+  const sampled = offsetEllipse(ellipse, offsetDistance, sidePoint);
+
+  if (sampled === null) return null;
+
+  const a = ellipse.radiusX;
+  const b = ellipse.radiusY;
+  const cos = Math.cos(ellipse.rotation);
+  const sin = Math.sin(ellipse.rotation);
+  const localSide = {
+    x: ((sidePoint.x - ellipse.center.x) * cos + (sidePoint.y - ellipse.center.y) * sin) / a,
+    y: (-(sidePoint.x - ellipse.center.x) * sin + (sidePoint.y - ellipse.center.y) * cos) / b
+  };
+  const signed = localSide.x * localSide.x + localSide.y * localSide.y >= 1 ? offsetDistance : -offsetDistance;
+  const isArc = ellipse.startAngle !== undefined && ellipse.endAngle !== undefined;
+  const start = isArc ? ellipse.startAngle! : 0;
+  let sweep = isArc ? (ellipse.endAngle! - ellipse.startAngle!) % (Math.PI * 2) : Math.PI * 2;
+  if (sweep <= 1e-12) sweep += Math.PI * 2;
+
+  const offsetPoint = (t: number): Point2D => {
+    const nx = b * Math.cos(t);
+    const ny = a * Math.sin(t);
+    const length = Math.hypot(nx, ny);
+    const localX = a * Math.cos(t) + (signed * nx) / length;
+    const localY = b * Math.sin(t) + (signed * ny) / length;
+    return { x: ellipse.center.x + localX * cos - localY * sin, y: ellipse.center.y + localX * sin + localY * cos };
+  };
+
+  const chain = fitParametricCurve(offsetPoint, start, start + sweep, tolerance, isArc ? 4 : 8);
+  // A elipse fechada volta exatamente ao ponto inicial.
+  return { chain: isArc ? chain : [...chain.slice(0, -1), chain[0]!], closed: !isArc };
 }

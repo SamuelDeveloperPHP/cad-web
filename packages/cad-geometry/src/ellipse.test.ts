@@ -149,3 +149,18 @@ describe("ellipse axes normalization and length", () => {
     expect(quarter).toBeCloseTo(96.884482205 / 4, 6);
   });
 });
+
+describe("distance to a closed ellipse near parameter zero", () => {
+  it("refines across the 0/2π seam", () => {
+    // Ponto fora da elipse logo abaixo do vértice do eixo X (parâmetro levemente negativo).
+    const ellipse = { type: "ellipse" as const, center: { x: 0, y: 0 }, radiusX: 40, radiusY: 15, rotation: 0 };
+    const point = { x: 41.5, y: -0.8 };
+    let brute = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < 200000; index += 1) {
+      const t = (index / 200000) * 2 * Math.PI;
+      brute = Math.min(brute, Math.hypot(40 * Math.cos(t) - point.x, 15 * Math.sin(t) - point.y));
+    }
+
+    expect(distancePointToEllipse(point, ellipse)).toBeCloseTo(brute, 6);
+  });
+});
