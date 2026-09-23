@@ -369,7 +369,83 @@ export function ellipseFromAxisPoints(
     return null;
   }
 
-  return { type: "ellipse", center, radiusX, radiusY, rotation };
+  // Como no AutoCAD, o primeiro eixo guardado é sempre o maior (o segundo ponto pode ter dado o maior eixo).
+  return normalizeEllipseAxes<EllipseGeometry>({ type: "ellipse", center, radiusX, radiusY, rotation });
+}
+
+type EllipseAxesLike = Readonly<{
+  radiusX: number;
+  radiusY: number;
+  rotation: number;
+  startAngle?: number | undefined;
+  endAngle?: number | undefined;
+}>;
+
+/**
+ * Garante radiusX ≥ radiusY (eixo maior no eixo local X, como o AutoCAD guarda a elipse), sem mudar a
+ * forma: se o eixo Y é o maior, troca os raios, soma 90° à rotação e desloca os parâmetros do arco em −90°,
+ * pois o ponto (rx·cos t, ry·sin t) no referencial antigo é o ponto de parâmetro t − π/2 no novo.
+ */
+export function normalizeEllipseAxes<T extends EllipseAxesLike>(ellipse: T): T {
+  if (ellipse.radiusY <= ellipse.radiusX) {
+    return ellipse;
+  }
+
+  const shifted = ellipse.startAngle !== undefined && ellipse.endAngle !== undefined
+    ? { startAngle: normalizeParam(ellipse.startAngle - Math.PI / 2), endAngle: normalizeParam(ellipse.endAngle - Math.PI / 2) }
+    : {};
+
+  return {
+    ...ellipse,
+    radiusX: ellipse.radiusY,
+    radiusY: ellipse.radiusX,
+    rotation: normalizeParam(ellipse.rotation + Math.PI / 2, -Math.PI),
+    ...shifted
+  };
+}
+
+// Leva um ângulo para [base, base + 2π).
+function normalizeParam(angle: number, base = 0): number {
+  const wrapped = (angle - base) % TWO_PI;
+  return (wrapped < 0 ? wrapped + TWO_PI : wrapped) + base;
+}
+
+/**
+ * Perímetro da elipse completa pela segunda aproximação de Ramanujan (erro relativo < 1e-9 para
+ * excentricidades usuais de desenho).
+ */
+export function ellipsePerimeter(radiusX: number, radiusY: number): number {
+  const a = Math.max(radiusX, radiusY);
+  const b = Math.min(radiusX, radiusY);
+
+  if (a <= 0) {
+    return 0;
+  }
+
+  const h = ((a - b) * (a - b)) / ((a + b) * (a + b));
+  return Math.PI * (a + b) * (1 + (3 * h) / (10 + Math.sqrt(4 - 3 * h)));
+}
+
+/**
+ * Comprimento da elipse ou do arco de elipse, integrando |dP/dt| = √(rx²·sin²t + ry²·cos²t) pela regra
+ * de Simpson ao longo da varredura paramétrica.
+ */
+export function ellipseArcLength(ellipse: EllipseGeometry, intervals = 512): number {
+  if (isFullEllipse(ellipse)) {
+    return ellipsePerimeter(ellipse.radiusX, ellipse.radiusY);
+  }
+
+  const { start, sweep } = normalizeEllipseSweep(ellipse.startAngle!, ellipse.endAngle!);
+  const n = intervals % 2 === 0 ? intervals : intervals + 1;
+  const h = sweep / n;
+  const speed = (t: number) => Math.hypot(ellipse.radiusX * Math.sin(t), ellipse.radiusY * Math.cos(t));
+  let sum = speed(start) + speed(start + sweep);
+
+  for (let index = 1; index < n; index += 1) {
+    sum += (index % 2 === 0 ? 2 : 4) * speed(start + index * h);
+  }
+
+  return (sum * h) / 3;
 }
 
 /**

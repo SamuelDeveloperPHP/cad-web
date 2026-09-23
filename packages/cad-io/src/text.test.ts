@@ -89,7 +89,11 @@ describe("cad-io text", () => {
       },
       { id: "text_3", layerId: "layer_0", type: "text", position: { x: 1, y: 2 }, content: "Simples", height: 3 }
     ];
-    const imported = parseSvgDocument(serializeCadDocumentToSvg(documentWith(texts), { precision: 6 }));
+    // Com os dados nativos embutidos (padrão), a ida e volta é exata.
+    expect(parseSvgDocument(serializeCadDocumentToSvg(documentWith(texts))).entities).toEqual(texts);
+
+    // Sem os dados nativos (SVG de versões anteriores), o texto é reconstruído pelo desenho SVG.
+    const imported = parseSvgDocument(serializeCadDocumentToSvg(documentWith(texts), { precision: 6, embedCadData: false }));
     const importedTexts = imported.entities.filter((entity) => entity.type === "text");
 
     expect(importedTexts).toHaveLength(3);

@@ -25,6 +25,10 @@ export interface CadTool {
   // nem comandos globais (ex.: o conteúdo digitado na ferramenta de texto pode ser "u" ou "zoom").
   acceptsFreeText?(): boolean;
 
+  // Opcional: quando true para a entrada, ela é uma opção da ferramenta (ex.: "a" = Axis na Ellipse) e
+  // deve ser entregue a ela em vez de ativar a ferramenta de mesmo alias (ex.: "a" = Arc).
+  claimsCommandInput?(input: string): boolean;
+
   // Opcional: ponto de referência do desenho em andamento (ponto anterior), que habilita perpendicular e tangente.
   getSnapReferencePoint?(): Point2D | null;
 }

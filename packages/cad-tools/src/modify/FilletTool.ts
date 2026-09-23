@@ -1,13 +1,17 @@
 import {
+  CompositeCommand,
+  CreateEntityCommand,
   FilletCornerCommand,
   FilletLineLineCommand,
+  ReplaceEntityCommand,
+  UpdateEntityCommand,
   type ArcEntity,
   type CadEntity,
   type LineEntity,
   type PolylineEntity,
   type RectangleEntity
 } from "@cad-web/cad-core";
-import { computeLineLineFillet, type Point2D } from "@cad-web/cad-geometry";
+import { computeLineCurveFillet, computeLineLineFillet, curveOfEntity, distancePointToSegment, entityWithSpan, type Point2D } from "@cad-web/cad-geometry";
 import type { CadTool } from "../contracts/CadTool";
 import type { ToolContext } from "../contracts/ToolContext";
 import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent";
@@ -18,6 +22,7 @@ import {
   findNearestSegment,
   type SegmentHit
 } from "./segmentUtils";
+import { findNearestEditable, isCurveEntity, type CurveEntity } from "./curveEditUtils";
 
 const DEFAULT_SCREEN_TOLERANCE_PIXELS = 8;
 
@@ -28,6 +33,17 @@ type FilletSelection = Readonly<{
   pickPoint: Point2D;
 }>;
 
+// Seleção de uma curva (círculo, arco, elipse ou arco de elipse) para o fillet linha–curva.
+type CurveSelection = Readonly<{
+  entity: CurveEntity;
+  pickPoint: Point2D;
+}>;
+
+type LineCurvePlan = Readonly<{
+  command: CompositeCommand;
+  previewEntities: ReadonlyArray<CadEntity>;
+}>;
+
 export class FilletTool implements CadTool {
   readonly id = "fillet";
   readonly name = "Fillet";
@@ -36,9 +52,11 @@ export class FilletTool implements CadTool {
   private phase: FilletPhase = "specify_radius";
   private radius: number | null = null;
   private firstSelection: FilletSelection | null = null;
+  private firstCurve: CurveSelection | null = null;
 
   activate(context: ToolContext): void {
     this.firstSelection = null;
+    this.firstCurve = null;
     context.clearPreview();
     context.clearSelection();
 
@@ -79,6 +97,21 @@ export class FilletTool implements CadTool {
   }
 
   onPointerMove(event: ToolPointerEvent, context: ToolContext): ToolResult {
+    if (this.phase === "select_second_line" && this.radius !== null) {
+      const curvePlan = this.planFromSecondPick(event.worldPoint, context);
+
+      if (curvePlan !== null) {
+        if (typeof curvePlan === "string") {
+          context.clearPreview();
+          return TOOL_RESULT_NONE;
+        }
+
+        const preview = { type: "ghostEntities" as const, entities: curvePlan.previewEntities };
+        context.setPreview(preview);
+        return { type: "preview", preview };
+      }
+    }
+
     if (this.phase !== "select_second_line" || this.radius === null || this.firstSelection === null) {
       return TOOL_RESULT_NONE;
     }
@@ -148,6 +181,7 @@ export class FilletTool implements CadTool {
 
     if (this.phase === "select_second_line") {
       this.firstSelection = null;
+      this.firstCurve = null;
       this.phase = "select_first_line";
       context.clearPreview();
       context.clearSelection();
@@ -156,6 +190,7 @@ export class FilletTool implements CadTool {
     }
 
     this.firstSelection = null;
+    this.firstCurve = null;
     this.phase = this.radius === null ? "specify_radius" : "select_first_line";
     context.clearPreview();
     context.clearSelection();
@@ -185,6 +220,22 @@ export class FilletTool implements CadTool {
 
   private selectFirstSegment(point: Point2D, context: ToolContext): ToolResult {
     const hit = findNearestSegment(context, point, this.getToleranceWorld(context));
+    const curveHit = findNearestEditable(context, point, this.getToleranceWorld(context), isCurveEntity);
+
+    // Uma curva mais próxima que qualquer segmento inicia o fillet linha–curva.
+    if (curveHit !== null && (hit === null || curveHit.distance < segmentHitDistance(hit, point))) {
+      if (curveHit.locked) {
+        context.showMessage("[Fillet] Layer is locked");
+        return TOOL_RESULT_NONE;
+      }
+
+      this.firstCurve = { entity: curveHit.entity as CurveEntity, pickPoint: point };
+      this.firstSelection = null;
+      this.phase = "select_second_line";
+      context.selectEntities([curveHit.entity.id]);
+      context.showMessage("[Fillet] Select line");
+      return TOOL_RESULT_NONE;
+    }
 
     if (hit === null) {
       context.showMessage("[Fillet] Select first line");
@@ -207,6 +258,19 @@ export class FilletTool implements CadTool {
   }
 
   private selectSecondSegment(point: Point2D, context: ToolContext): ToolResult {
+    const curvePlan = this.radius === null ? null : this.planFromSecondPick(point, context);
+
+    if (curvePlan !== null) {
+      if (typeof curvePlan === "string") {
+        context.showMessage(curvePlan);
+        return TOOL_RESULT_NONE;
+      }
+
+      context.executeCommand(curvePlan.command);
+      this.resetForNextFillet(context);
+      return { type: "command", command: curvePlan.command };
+    }
+
     if (this.radius === null || this.firstSelection === null) {
       context.showMessage("[Fillet] Specify radius");
       this.phase = "specify_radius";
@@ -371,8 +435,93 @@ export class FilletTool implements CadTool {
     return { type: "command", command };
   }
 
+  /**
+   * Resolve o segundo clique quando uma das escolhas é curva: primeira curva + linha, ou primeira linha +
+   * curva. Devolve null quando o caso é linha–linha/cantos (tratado pelo fluxo existente) e uma mensagem
+   * quando a combinação não é válida.
+   */
+  private planFromSecondPick(point: Point2D, context: ToolContext): LineCurvePlan | string | null {
+    const tolerance = this.getToleranceWorld(context);
+
+    if (this.firstCurve !== null) {
+      const lineHit = findNearestSegment(context, point, tolerance);
+
+      if (lineHit === null || lineHit.kind !== "line") {
+        return "[Fillet] Select a line to fillet with the curve";
+      }
+
+      if (lineHit.locked) {
+        return "[Fillet] Layer is locked";
+      }
+
+      return this.planLineCurve(lineHit.entity, point, this.firstCurve.entity, this.firstCurve.pickPoint, context);
+    }
+
+    if (this.firstSelection === null || this.firstSelection.hit.kind !== "line") {
+      return null;
+    }
+
+    const curveHit = findNearestEditable(context, point, tolerance, isCurveEntity);
+    const segmentHit = findNearestSegment(context, point, tolerance, getExcludeId(this.firstSelection.hit));
+
+    if (curveHit === null || (segmentHit !== null && segmentHitDistance(segmentHit, point) <= curveHit.distance)) {
+      return null;
+    }
+
+    if (curveHit.locked) {
+      return "[Fillet] Layer is locked";
+    }
+
+    return this.planLineCurve(this.firstSelection.hit.entity, this.firstSelection.pickPoint, curveHit.entity as CurveEntity, point, context);
+  }
+
+  private planLineCurve(
+    line: LineEntity,
+    linePick: Point2D,
+    curveEntity: CurveEntity,
+    curvePick: Point2D,
+    context: ToolContext
+  ): LineCurvePlan | string {
+    const { curve, span } = curveOfEntity(curveEntity);
+    const result = computeLineCurveFillet({ line, curve, span, radius: this.radius ?? 0, linePick, curvePick });
+
+    if (!result.ok) {
+      return result.reason.includes("outside") ? "[Fillet] Fillet point is outside the arc" : "[Fillet] Radius too large or invalid";
+    }
+
+    const layerId = line.layerId === curveEntity.layerId ? line.layerId : context.document.activeLayerId;
+    const arc: ArcEntity = {
+      id: generateId("arc_fillet", line.id, 0),
+      layerId,
+      type: "arc",
+      center: result.arc.center,
+      radius: result.arc.radius,
+      startAngle: result.arc.startAngle,
+      endAngle: result.arc.endAngle,
+      clockwise: result.arc.clockwise,
+      ...sharedStyleProps(line, curveEntity)
+    };
+    const updatedLine: LineEntity = { ...line, start: result.line.start, end: result.line.end };
+    const updatedCurve = result.curveSpan === null ? null : ({ ...entityWithSpan(curveEntity, result.curveSpan), id: curveEntity.id } as CadEntity);
+    const command = new CompositeCommand([
+      new UpdateEntityCommand(line.id, { start: result.line.start, end: result.line.end } as Partial<CadEntity>),
+      ...(updatedCurve === null ? [] : [new ReplaceEntityCommand(curveEntity, [updatedCurve], "Trims the filleted curve.")]),
+      new CreateEntityCommand(arc)
+    ], "Fillets a line and a curve.");
+
+    return {
+      command,
+      previewEntities: [
+        { ...updatedLine, id: "fillet_preview_l1" },
+        ...(updatedCurve === null ? [] : [{ ...updatedCurve, id: "fillet_preview_curve" } as CadEntity]),
+        { ...arc, id: "fillet_preview_arc" }
+      ]
+    };
+  }
+
   private resetForNextFillet(context: ToolContext): void {
     this.firstSelection = null;
+    this.firstCurve = null;
     this.phase = "select_first_line";
     context.clearPreview();
     context.clearSelection();
@@ -403,6 +552,18 @@ function getSegmentGeometry(hit: SegmentHit): { type: "line"; start: Point2D; en
   }
 
   return { type: "line", start: hit.segment.start, end: hit.segment.end };
+}
+
+function segmentHitDistance(hit: SegmentHit, point: Point2D): number {
+  const segment = hit.kind === "line" ? hit.entity : hit.segment;
+  return distancePointToSegment(point, segment.start, segment.end);
+}
+
+// Cor, espessura e tipo de linha em comum entre as duas entidades passam para o arco de concordância.
+function sharedStyleProps(first: CadEntity, second: CadEntity): Record<string, unknown> {
+  const a = extractStyleProps(first);
+  const b = extractStyleProps(second);
+  return Object.fromEntries(Object.entries(a).filter(([key, value]) => b[key] === value));
 }
 
 function getExcludeId(hit: SegmentHit): string | undefined {

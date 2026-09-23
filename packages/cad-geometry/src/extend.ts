@@ -1,6 +1,7 @@
 import { CAD_EPSILON, clamp } from "./constants";
 import { distance } from "./vector";
 import type { Point2D } from "./types";
+import type { IntersectPrimitive } from "./intersections";
 import { cross, dot, subtractPoints } from "./vector";
 import {
   rectangleEdgesAsLines,
@@ -34,7 +35,8 @@ export type ExtendCandidate = Readonly<{
   point: Point2D;
   targetParameter: number;
   extensionDistance: number;
-  boundaryType: TrimCuttingEntity["type"];
+  // Tipo da entidade de limite ou, na versão por primitivas, o tipo da primitiva (segment/circle/ellipse).
+  boundaryType: TrimCuttingEntity["type"] | IntersectPrimitive["kind"];
   boundaryId?: string;
 }>;
 

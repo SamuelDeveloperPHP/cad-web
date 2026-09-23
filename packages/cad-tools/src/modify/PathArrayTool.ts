@@ -291,7 +291,7 @@ export class PathArrayTool implements CadTool {
   }
 
   private handlePathClick(point: Point2D, context: ToolContext): ToolResult {
-    // O metodo aceita polyline, line, circle ou arc como path; demais tipos sao rejeitados com mensagem clara.
+    // O metodo aceita polyline, line, circle, arc ou elipse (e arco de elipse) como path; demais tipos sao rejeitados.
     const toleranceWorld = DEFAULT_SCREEN_TOLERANCE_PIXELS / context.viewport.scale;
     const entityId = findNearestEntityId(context.document, { worldPoint: point, toleranceWorld });
 
@@ -496,7 +496,7 @@ export class PathArrayTool implements CadTool {
   }
 
   private resolvePathSource(context: ToolContext): PathSource | null {
-    // O metodo converte a entidade do path em PathSource para reuso com line/circle/arc/polyline.
+    // O metodo converte a entidade do path em PathSource para reuso com line/circle/arc/polyline/ellipse.
     if (this.params.pathEntityId === null) {
       return null;
     }
@@ -653,8 +653,8 @@ function previewIdFactory(sourceEntity: CadEntity, _sample: PathSample, sequence
 }
 
 function isSupportedPathEntity(entity: CadEntity): boolean {
-  // O metodo lista os tipos aceitos como path: polyline, line, circle e arc.
-  return entity.type === "polyline" || entity.type === "line" || entity.type === "circle" || entity.type === "arc";
+  // O metodo lista os tipos aceitos como path: polyline, line, circle, arc e ellipse.
+  return entity.type === "polyline" || entity.type === "line" || entity.type === "circle" || entity.type === "arc" || entity.type === "ellipse";
 }
 
 function entityToPathSource(entity: CadEntity): PathSource | null {
@@ -669,6 +669,18 @@ function entityToPathSource(entity: CadEntity): PathSource | null {
 
   if (entity.type === "circle") {
     return { type: "circle", center: entity.center, radius: entity.radius };
+  }
+
+  if (entity.type === "ellipse") {
+    return {
+      type: "ellipse",
+      center: entity.center,
+      radiusX: entity.radiusX,
+      radiusY: entity.radiusY,
+      rotation: entity.rotation,
+      startAngle: entity.startAngle,
+      endAngle: entity.endAngle
+    };
   }
 
   if (entity.type === "arc") {

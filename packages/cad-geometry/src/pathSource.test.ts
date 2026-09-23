@@ -165,3 +165,32 @@ describe("validatePathSource", () => {
     ).toEqual({ ok: true });
   });
 });
+
+describe("ellipse path source", () => {
+  it("measures and samples an ellipse by arc length with unit tangents", async () => {
+    const { ellipsePerimeter } = await import("./ellipse");
+    const source = { type: "ellipse" as const, center: { x: 10, y: 0 }, radiusX: 20, radiusY: 10, rotation: 0 };
+
+    expect(isPathSourceClosed(source)).toBe(true);
+    expect(getPathSourceLength(source)).toBeCloseTo(ellipsePerimeter(20, 10), 3);
+
+    const samples = samplePathSourceByCount(source, 4);
+    expect(samples).toHaveLength(4);
+    expect(samples[0]?.point.x).toBeCloseTo(30);
+    // Por simetria, a metade do perímetro cai no vértice oposto do eixo maior.
+    expect(samples[2]?.point.x).toBeCloseTo(-10, 3);
+    for (const sample of samples) {
+      expect(Math.hypot(sample.tangent.x, sample.tangent.y)).toBeCloseTo(1);
+    }
+  });
+
+  it("samples an elliptical arc from its start to its end", () => {
+    const source = { type: "ellipse" as const, center: { x: 0, y: 0 }, radiusX: 20, radiusY: 10, rotation: 0, startAngle: 0, endAngle: Math.PI };
+    const samples = samplePathSourceByCount(source, 3);
+
+    expect(isPathSourceClosed(source)).toBe(false);
+    expect(samples[0]?.point.x).toBeCloseTo(20);
+    expect(samples[1]?.point.y).toBeCloseTo(10, 3);
+    expect(samples[2]?.point.x).toBeCloseTo(-20);
+  });
+});

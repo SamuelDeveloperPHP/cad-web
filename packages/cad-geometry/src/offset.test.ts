@@ -86,3 +86,43 @@ describe("Offset Geometry", () => {
     });
   });
 });
+
+describe("ellipse and arc offset", () => {
+  it("offsets an ellipse outward keeping a constant distance", async () => {
+    const { offsetEllipse, distancePointToEllipse } = await import("./index");
+    const ellipse = { center: { x: 5, y: -3 }, radiusX: 40, radiusY: 15, rotation: 0.4 };
+    const result = offsetEllipse(ellipse, 3, { x: 200, y: 0 });
+
+    expect(result?.closed).toBe(true);
+    for (const point of result!.points.filter((_, index) => index % 17 === 0)) {
+      expect(distancePointToEllipse(point, { type: "ellipse", ...ellipse })).toBeCloseTo(3, 3);
+    }
+  });
+
+  it("offsets inward and refuses distances beyond the curvature limit", async () => {
+    const { offsetEllipse } = await import("./index");
+    const ellipse = { center: { x: 0, y: 0 }, radiusX: 40, radiusY: 20, rotation: 0 };
+
+    expect(offsetEllipse(ellipse, 5, { x: 0, y: 0 })?.points[0]?.x).toBeCloseTo(35);
+    // Menor raio de curvatura = b²/a = 10.
+    expect(offsetEllipse(ellipse, 10, { x: 0, y: 0 })).toBeNull();
+  });
+
+  it("offsets an elliptical arc as an open polyline between the arc ends", async () => {
+    const { offsetEllipse } = await import("./index");
+    const result = offsetEllipse({ center: { x: 0, y: 0 }, radiusX: 40, radiusY: 20, rotation: 0, startAngle: 0, endAngle: Math.PI / 2 }, 2, { x: 100, y: 100 });
+
+    expect(result?.closed).toBe(false);
+    expect(result?.points[0]?.x).toBeCloseTo(42);
+    expect(result?.points.at(-1)?.y).toBeCloseTo(22);
+  });
+
+  it("offsets arcs by changing the radius", async () => {
+    const { offsetArc } = await import("./index");
+    const arc = { center: { x: 0, y: 0 }, radius: 10, startAngle: 0, endAngle: 1, clockwise: true };
+
+    expect(offsetArc(arc, 2, { x: 20, y: 0 })?.radius).toBe(12);
+    expect(offsetArc(arc, 2, { x: 1, y: 0 })?.radius).toBe(8);
+    expect(offsetArc(arc, 12, { x: 1, y: 0 })).toBeNull();
+  });
+});

@@ -154,7 +154,7 @@ describe("ExplodeTool", () => {
     tool.activate(context);
 
     expect(context.commands).toEqual([]);
-    expect(context.messages).toContain("[Explode] Nothing to explode");
+    expect(context.messages.at(-1)).toMatch(/^\[Explode\] Nothing to explode: only rectangles and polylines/);
   });
 
   it("explodes supported entities and reports unsupported ones in the same selection", () => {

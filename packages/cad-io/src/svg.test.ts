@@ -162,9 +162,10 @@ describe("cad-io SVG", () => {
       schemaVersion: "1.0.0",
       id: "imported_svg",
       units: "mm",
+      // Camadas referenciadas pelas entidades e ausentes no arquivo são criadas na importação.
       layers: [
         { id: "layer_0", name: "Layer 0", color: "#ffffff", visible: true, locked: false, order: 0 },
-        
+        { id: "steel", name: "steel", color: "#ffffff", visible: true, locked: false, order: 1 }
       ],
       activeLayerId: "layer_0",
       entities: [
@@ -215,7 +216,7 @@ describe("cad-io SVG", () => {
       <svg>
         <script><line id="bad_script" x1="0" y1="0" x2="1" y2="1" /></script>
         <line id="safe_line" onclick="alert(1)" href="https://example.com" x1="1" y1="2" x2="3" y2="4" />
-        <path id="unsupported" d="M0 0 L10 10" />
+        <use id="unsupported" href="#safe_line" />
       </svg>
     `);
 

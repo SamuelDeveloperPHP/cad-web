@@ -96,3 +96,23 @@ export function ellipseArcVisualAngles(ellipse: EllipseArcAngles): VisualArcAngl
     sweep: sweep >= Math.PI * 2 - 1e-9 || visualSweep <= 1e-9 ? 360 : visualSweep
   };
 }
+
+/**
+ * Inverso de ellipseArcVisualAngles: recebe os ângulos reais visuais (anti-horários, medidos a partir do
+ * eixo X local) e devolve os parâmetros startAngle/endAngle guardados na entidade. Um ângulo real φ
+ * corresponde ao parâmetro t = atan2(rx·sin φ, ry·cos φ).
+ */
+export function ellipseArcParamsFromVisual(
+  radiusX: number,
+  radiusY: number,
+  visualStart: number,
+  visualEnd: number
+): Readonly<{ startAngle: number; endAngle: number }> {
+  const paramOf = (visualDegrees: number) => {
+    const phi = visualDegreesToWorldRadians(visualDegrees);
+    return Math.atan2(radiusX * Math.sin(phi), radiusY * Math.cos(phi));
+  };
+
+  // A varredura guardada cresce no mundo (horário na tela): o início visual é o fim guardado.
+  return { startAngle: paramOf(visualEnd), endAngle: paramOf(visualStart) };
+}

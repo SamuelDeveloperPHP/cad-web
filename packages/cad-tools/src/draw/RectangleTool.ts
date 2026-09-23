@@ -6,6 +6,7 @@ import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent
 import type { ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
+import { parseDirectInput } from "./directInput";
 
 /**
  * Ferramenta responsável por desenhar retângulos.
@@ -75,6 +76,20 @@ export class RectangleTool implements CadTool {
   }
 
   onCommandInput(input: string, context: ToolContext): ToolResult {
+    if (this.startPoint === null) {
+      // O primeiro canto aceita coordenada absoluta digitada (na unidade de trabalho).
+      const parsed = parseDirectInput(input);
+
+      if (parsed.kind === "absolute") {
+        this.startPoint = { x: parsed.point.x * context.unitScale, y: parsed.point.y * context.unitScale };
+        this.currentPoint = this.startPoint;
+        context.showMessage("Specify other corner point or enter dimensions (e.g. 100,50).");
+        return TOOL_RESULT_NONE;
+      }
+
+      return parsed.kind === "empty" ? TOOL_RESULT_NONE : { type: "error", message: "Specify first corner as x,y coordinates or click on the drawing." };
+    }
+
     if (this.startPoint !== null) {
       const dimensions = this.parseDimensions(input);
       

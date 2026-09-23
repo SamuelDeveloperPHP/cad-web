@@ -96,3 +96,69 @@ describe("EllipseTool", () => {
     expect(context.previews.at(-1)).toBeNull();
   });
 });
+
+describe("EllipseTool Axis, End mode", () => {
+  it("creates an ellipse from the two axis endpoints and the other axis distance", () => {
+    const tool = new EllipseTool();
+    const context = createMockToolContext();
+
+    tool.activate(context);
+    tool.onCommandInput("a", context);
+    tool.onPointerDown(createPointerEvent({ x: 0, y: 0 }), context);
+    tool.onPointerDown(createPointerEvent({ x: 60, y: 0 }), context);
+    const result = tool.onCommandInput("10", context);
+
+    expect(result.type).toBe("command");
+    const entity = (context.commands[0] as any).entity as EllipseEntity;
+    expect(entity.center.x).toBeCloseTo(30);
+    expect(entity.center.y).toBeCloseTo(0);
+    expect(entity.radiusX).toBeCloseTo(30);
+    expect(entity.radiusY).toBeCloseTo(10);
+  });
+
+  it("stores the longer axis as major even when the first axis is shorter", () => {
+    const tool = new EllipseTool();
+    const context = createMockToolContext();
+
+    tool.activate(context);
+    tool.onCommandInput("axis", context);
+    tool.onPointerDown(createPointerEvent({ x: 0, y: 0 }), context);
+    tool.onPointerDown(createPointerEvent({ x: 20, y: 0 }), context);
+    tool.onCommandInput("25", context);
+
+    const entity = (context.commands[0] as any).entity as EllipseEntity;
+    expect(entity.radiusX).toBeCloseTo(25);
+    expect(entity.radiusY).toBeCloseTo(10);
+    expect(Math.abs(Math.sin(entity.rotation))).toBeCloseTo(1);
+  });
+
+  it("accepts typed endpoints in the working unit", () => {
+    const tool = new EllipseTool();
+    const context = createMockToolContext({ unitScale: 10 });
+
+    tool.activate(context);
+    tool.onCommandInput("a", context);
+    tool.onCommandInput("0,0", context);
+    tool.onPointerMove(createPointerEvent({ x: 100, y: 0 }), context);
+    tool.onCommandInput("8", context);
+    tool.onCommandInput("2", context);
+
+    const entity = (context.commands[0] as any).entity as EllipseEntity;
+    expect(entity.radiusX).toBeCloseTo(40);
+    expect(entity.radiusY).toBeCloseTo(20);
+  });
+});
+
+describe("EllipseTool options", () => {
+  it("claims its mode options so they do not activate Arc/Circle", () => {
+    const tool = new EllipseTool();
+    const context = createMockToolContext();
+
+    tool.activate(context);
+    expect(tool.claimsCommandInput("a")).toBe(true);
+    expect(tool.claimsCommandInput("C")).toBe(true);
+    expect(tool.claimsCommandInput("line")).toBe(false);
+    tool.onPointerDown(createPointerEvent({ x: 0, y: 0 }), context);
+    expect(tool.claimsCommandInput("a")).toBe(false);
+  });
+});
