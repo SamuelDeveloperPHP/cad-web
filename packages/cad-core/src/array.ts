@@ -99,6 +99,15 @@ export function cloneCadEntityWithOffset(
     };
   }
 
+  if (entity.type === "spline") {
+    return {
+      ...entity,
+      id: newId,
+      controlPoints: entity.controlPoints.map((point) => offsetPoint(point, offset)),
+      ...(entity.fitPoints !== undefined ? { fitPoints: entity.fitPoints.map((point) => offsetPoint(point, offset)) } : {})
+    };
+  }
+
   if (entity.type === "polyline") {
     return {
       ...entity,
@@ -326,6 +335,16 @@ export function rotateCadEntityAroundCenter(
     };
   }
 
+  if (entity.type === "spline") {
+    const rotate = (point: Point2D) => rotatePointAroundCenter(point, center, angleRadians);
+    return {
+      ...entity,
+      id: newId,
+      controlPoints: entity.controlPoints.map(rotate),
+      ...(entity.fitPoints !== undefined ? { fitPoints: entity.fitPoints.map(rotate) } : {})
+    };
+  }
+
   if (entity.type === "polyline") {
     return {
       ...entity,
@@ -510,6 +529,10 @@ function referencePointForEntity(entity: CadEntity): Point2D {
 
   if (entity.type === "text") {
     return entity.position;
+  }
+
+  if (entity.type === "spline") {
+    return entity.controlPoints[0] ?? { x: 0, y: 0 };
   }
 
   if (entity.type === "polyline") {

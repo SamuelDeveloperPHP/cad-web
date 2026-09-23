@@ -33,8 +33,11 @@ import { CAD_IO_SCHEMA_VERSION, CadIoValidationError, validateCadDocument } from
  * - **SVG de outros programas**: o arquivo é percorrido respeitando a hierarquia de grupos e seus
  *   `transform` (matrix, translate, scale, rotate, skewX/Y). Linhas, retângulos, círculos, elipses,
  *   polylines/polígonos, `<path>` (M/L/H/V/Z/A/C/S/Q/T) e `<text>` viram entidades nativas; arcos do
- *   path viram arcos ou arcos de elipse; Béziers são aproximadas por polylines. Camadas do CAD-WEB e do
- *   Inkscape viram camadas. Conteúdo de `<defs>`, `<clipPath>`, `<symbol>` etc. e `display:none` é ignorado.
+ *   path viram arcos ou arcos de elipse; curvas de Bézier viram splines exatas. Camadas do CAD-WEB e do
+ *   Inkscape viram camadas. `<use>` instancia elementos de `<defs>` e `<symbol>` (com viewBox); regras CSS
+ *   de `<style>` (tag, .classe, #id) valem com a precedência do SVG; width/height com unidade (mm, cm, in,
+ *   pt, pc, q, px) + viewBox convertem as coordenadas para mm. Conteúdo de `<defs>`, `<clipPath>` etc. e
+ *   `display:none` é ignorado.
  */
 
 type SvgContext = Readonly<{
@@ -112,16 +115,39 @@ class SvgImporter {
   private readonly nativeOrder = new Map<CadEntity, number>();
   private meta: DocumentMeta | null = null;
   private documentId: string | null = null;
+  private cssRules: ReadonlyArray<CssRule> = [];
+  private useInstances = 0;
+  private readonly elementsById = new Map<string, Readonly<{ start: number; afterTag: number; rawName: string; selfClosing: boolean }>>();
 
   constructor(private readonly source: string) {}
 
   run(): CadDocument {
-    const stack: Array<{ tag: string; context: SvgContext }> = [];
-    const rootContext: SvgContext = { matrix: IDENTITY_MATRIX, style: new Map(), layerId: null };
+    this.cssRules = parseCssRules(this.source);
+    this.indexElementsById();
+    this.walk(0, this.source.length, { matrix: IDENTITY_MATRIX, style: new Map(), layerId: null }, 0, new Set(), null);
+    return this.buildDocument();
+  }
+
+  /**
+   * Percorre as tags em [from, to) com uma pilha de contextos (transform, estilo herdado, camada).
+   * Em um fragmento instanciado por <use>, fragmentRoot descreve o elemento referenciado: ele entra mesmo
+   * sendo <symbol> (tratado como grupo, com o mapeamento do viewBox) e herda o contexto do <use>.
+   */
+  private walk(
+    from: number,
+    to: number,
+    rootContext: SvgContext,
+    depth: number,
+    visiting: ReadonlySet<string>,
+    fragmentRoot: Readonly<{ matrix: Matrix2D | null }> | null
+  ): void {
+    const stack: Array<{ tag: string; context: SvgContext; id: string | undefined }> = [];
     const pattern = new RegExp(TAG_PATTERN.source, "g");
+    pattern.lastIndex = from;
+    let pendingFragmentRoot = fragmentRoot;
     let match: RegExpExecArray | null;
 
-    while ((match = pattern.exec(this.source)) !== null) {
+    while ((match = pattern.exec(this.source)) !== null && match.index < to) {
       const rawName = match[2];
 
       if (rawName === undefined) {
@@ -139,27 +165,44 @@ class SvgImporter {
 
       const selfClosing = match[4] === "/";
       const attributes = parseSvgAttributes(match[3] ?? "");
+      const css = cssDeclarationsFor(this.cssRules, tag, attributes);
       const parent = stack[stack.length - 1]?.context ?? rootContext;
       const afterTag = pattern.lastIndex;
       const skipSubtree = () => {
         if (!selfClosing) pattern.lastIndex = findMatchingClose(this.source, rawName, afterTag);
       };
+      const isFragmentRoot = pendingFragmentRoot !== null;
+      const fragmentMatrix = pendingFragmentRoot?.matrix ?? null;
+      pendingFragmentRoot = null;
 
-      if (SKIPPED_ELEMENTS.has(tag) || isHidden(attributes)) {
+      if ((SKIPPED_ELEMENTS.has(tag) && !(isFragmentRoot && tag === "symbol")) || isHidden(attributes, css)) {
         skipSubtree();
         continue;
       }
 
-      const context = this.childContext(parent, attributes, tag, stack.length > 0);
+      const isRootSvg = tag === "svg" && stack.length === 0 && depth === 0;
+      let context = this.childContext(parent, attributes, css, tag, isRootSvg);
 
-      if (tag === "svg" && this.documentId === null) {
+      if (fragmentMatrix !== null) {
+        context = { ...context, matrix: multiplyMatrices(context.matrix, fragmentMatrix) };
+      }
+
+      if (isRootSvg && this.documentId === null) {
         this.readRootMetadata(attributes);
       }
 
       // Entidade exportada pelo CAD-WEB: o JSON embutido é a fonte exata; o desenho SVG é só visual.
       const native = attributes.get("data-cad-entity");
-      if (native !== undefined) {
+      if (native !== undefined && depth === 0) {
         this.addNativeEntity(native, parseNumber(attributes.get("data-cad-index")));
+        skipSubtree();
+        continue;
+      }
+
+      if (tag === "use") {
+        // Um <use> que aponta para um ancestral seu é circular: pelo SVG, não desenha nada.
+        const ancestors = new Set([...visiting, ...stack.map((entry) => entry.id).filter((value): value is string => value !== undefined)]);
+        this.instantiateUse(attributes, context, depth, ancestors);
         skipSubtree();
         continue;
       }
@@ -183,25 +226,78 @@ class SvgImporter {
       this.addShape(tag, attributes, context, match.index);
 
       if (!selfClosing) {
-        stack.push({ tag, context });
+        stack.push({ tag, context, id: attributes.get("id") });
       }
     }
-
-    return this.buildDocument();
   }
 
-  private childContext(parent: SvgContext, attributes: ReadonlyMap<string, string>, tag: string, nested: boolean): SvgContext {
+  // Posição de cada elemento com id, para o <use> instanciar o trecho referenciado.
+  private indexElementsById(): void {
+    const pattern = new RegExp(TAG_PATTERN.source, "g");
+    let match: RegExpExecArray | null;
+
+    while ((match = pattern.exec(this.source)) !== null) {
+      if (match[2] === undefined || match[1] === "/") continue;
+      const id = /\bid\s*=\s*(?:"([^"]*)"|'([^']*)')/.exec(match[3] ?? "");
+      const value = id?.[1] ?? id?.[2];
+      if (value !== undefined && !this.elementsById.has(value)) {
+        this.elementsById.set(value, { start: match.index, afterTag: pattern.lastIndex, rawName: match[2], selfClosing: match[4] === "/" });
+      }
+    }
+  }
+
+  /**
+   * <use href="#id" x y>: instancia o elemento referenciado (inclusive dentro de <defs> ou um <symbol>)
+   * com o transform do <use> e o deslocamento x/y; o <symbol> com viewBox é ajustado a width/height.
+   * Referências circulares, profundidade acima de 8 e explosão de instâncias são bloqueadas.
+   */
+  private instantiateUse(attributes: ReadonlyMap<string, string>, context: SvgContext, depth: number, visiting: ReadonlySet<string>): void {
+    const href = attributes.get("href");
+    const id = href?.startsWith("#") ? href.slice(1) : null;
+
+    if (id === null || visiting.has(id) || depth >= MAX_USE_DEPTH || this.entities.length >= MAX_IMPORTED_ENTITIES || this.useInstances >= MAX_USE_INSTANCES) return;
+
+    this.useInstances += 1;
+
+    const target = this.elementsById.get(id);
+    if (target === undefined) return;
+
+    const matrix = multiplyMatrices(context.matrix, translationMatrix(parseNumber(attributes.get("x")) ?? 0, parseNumber(attributes.get("y")) ?? 0));
+    let fragmentMatrix: Matrix2D | null = null;
+
+    if (localName(target.rawName) === "symbol") {
+      const targetAttributes = parseSvgAttributes(TAG_ATTRIBUTES(this.source, target.start));
+      fragmentMatrix = viewBoxMatrix(targetAttributes.get("viewbox") ?? targetAttributes.get("viewBox"), parseNumber(attributes.get("width")), parseNumber(attributes.get("height")));
+    }
+
+    const end = target.selfClosing ? target.afterTag : findMatchingClose(this.source, target.rawName, target.afterTag);
+    this.walk(target.start, end, { ...context, matrix }, depth + 1, new Set([...visiting, id]), { matrix: fragmentMatrix });
+  }
+
+  private childContext(
+    parent: SvgContext,
+    attributes: ReadonlyMap<string, string>,
+    css: ReadonlyMap<string, string>,
+    tag: string,
+    isRootSvg: boolean
+  ): SvgContext {
     const transform = attributes.get("transform");
     let matrix = transform === undefined ? parent.matrix : multiplyMatrices(parent.matrix, parseTransformList(transform));
 
-    // Um <svg> aninhado desloca o conteúdo por x/y.
-    if (tag === "svg" && nested && (attributes.has("x") || attributes.has("y"))) {
+    if (isRootSvg) {
+      // Unidades físicas: width/height com unidade (mm, cm, in, pt, pc, q, px) + viewBox definem mm por unidade.
+      const scale = physicalScale(attributes);
+      if (scale !== null) matrix = multiplyMatrices(matrix, scaleMatrix(scale));
+    } else if (tag === "svg") {
+      // <svg> aninhado: desloca por x/y e mapeia o viewBox para width/height.
       matrix = multiplyMatrices(matrix, translationMatrix(parseNumber(attributes.get("x")) ?? 0, parseNumber(attributes.get("y")) ?? 0));
+      const viewBox = viewBoxMatrix(attributes.get("viewbox"), parseNumber(attributes.get("width")), parseNumber(attributes.get("height")));
+      if (viewBox !== null) matrix = multiplyMatrices(matrix, viewBox);
     }
 
     const style = new Map(parent.style);
     for (const name of INHERITED_PROPERTIES) {
-      const value = readPresentation(attributes, name);
+      const value = readPresentation(attributes, name, css);
       if (value !== undefined && value !== "inherit") style.set(name, value);
     }
 
@@ -407,13 +503,51 @@ class SvgImporter {
     }
   }
 
+  /**
+   * Run de path: só retas viram linha/polyline; com curvas, o run inteiro vira uma spline exata (as retas
+   * entram como Béziers retas). A transformação afim é aplicada aos pontos de controle, sem perda.
+   */
+  private addPathRun(attributes: ReadonlyMap<string, string>, context: SvgContext, index: number, run: Extract<PathItem, { kind: "run" }>): void {
+    const m = context.matrix;
+
+    if (!run.segments.some((segment) => segment.kind === "cubic")) {
+      const points = [run.start, ...run.segments.map((segment) => segment.to)];
+      const closedPoints = run.closed && points.length > 1 && samePoint(points[0]!, points[points.length - 1]!) ? points.slice(0, -1) : points;
+      this.addPointRun(attributes, context, index, "path", closedPoints.map((point) => transformPoint(point, m)), run.closed);
+      return;
+    }
+
+    const chain: Point2D[] = [run.start];
+    let previous = run.start;
+
+    for (const segment of run.segments) {
+      if (segment.kind === "cubic") {
+        chain.push(segment.c1, segment.c2, segment.to);
+      } else {
+        chain.push(
+          { x: previous.x + (segment.to.x - previous.x) / 3, y: previous.y + (segment.to.y - previous.y) / 3 },
+          { x: previous.x + (2 * (segment.to.x - previous.x)) / 3, y: previous.y + (2 * (segment.to.y - previous.y)) / 3 },
+          segment.to
+        );
+      }
+      previous = segment.to;
+    }
+
+    this.push({
+      ...this.base(attributes, context, "path", index),
+      type: "spline",
+      controlPoints: chain.map((point) => transformPoint(point, m)),
+      closed: run.closed
+    });
+  }
+
   private addPath(attributes: ReadonlyMap<string, string>, context: SvgContext, index: number): void {
     const items = parsePathData(attributes.get("d") ?? "");
     const m = context.matrix;
 
     for (const item of items) {
       if (item.kind === "run") {
-        this.addPointRun(attributes, context, index, "path", item.points.map((point) => transformPoint(point, m)), item.closed);
+        this.addPathRun(attributes, context, index, item);
         continue;
       }
 
@@ -591,33 +725,39 @@ class SvgImporter {
 // Path
 // ------------------------------------------------------------------------------------------------
 
+type PathSegment =
+  | Readonly<{ kind: "line"; to: Point2D }>
+  | Readonly<{ kind: "cubic"; c1: Point2D; c2: Point2D; to: Point2D }>;
+
 type PathItem =
-  | Readonly<{ kind: "run"; points: ReadonlyArray<Point2D>; closed: boolean }>
+  | Readonly<{ kind: "run"; start: Point2D; segments: ReadonlyArray<PathSegment>; closed: boolean }>
   | Readonly<{ kind: "arc"; from: Point2D; to: Point2D; rx: number; ry: number; rotation: number; largeArc: boolean; sweep: boolean }>;
 
 /**
- * Interpreta o atributo d. Trechos retos e Béziers (aproximadas) formam "runs" de pontos; cada comando A
- * vira um item de arco próprio. Z fecha o run quando ele começou no início do subpath.
+ * Interpreta o atributo d. Trechos retos e curvas (C/S cúbicas; Q/T quadráticas elevadas a cúbicas, de
+ * forma exata) formam "runs"; cada comando A vira um item de arco próprio. Z fecha o run quando ele
+ * começou no início do subpath (acrescentando o segmento reto de fechamento, se preciso).
  */
 export function parsePathData(d: string): ReadonlyArray<PathItem> {
   const items: PathItem[] = [];
   const reader = new PathReader(d);
   let current: Point2D = { x: 0, y: 0 };
   let subpathStart: Point2D = { x: 0, y: 0 };
-  let run: Point2D[] = [];
+  let runStart: Point2D = current;
+  let segments: PathSegment[] = [];
   let runStartsSubpath = true;
   let lastControl: Point2D | null = null;
   let lastCommand = "";
   let command = "";
 
-  const flush = () => {
-    if (run.length >= 2) items.push({ kind: "run", points: run, closed: false });
-    run = [];
+  const flush = (closed = false) => {
+    if (segments.length > 0) items.push({ kind: "run", start: runStart, segments, closed });
+    segments = [];
   };
-  const lineTo = (point: Point2D) => {
-    if (run.length === 0) run.push(current);
-    run.push(point);
-    current = point;
+  const push = (segment: PathSegment) => {
+    if (segments.length === 0) runStart = current;
+    segments.push(segment);
+    current = segment.to;
   };
 
   while (!reader.done()) {
@@ -638,14 +778,8 @@ export function parsePathData(d: string): ReadonlyArray<PathItem> {
     const offset = (point: Point2D): Point2D => (relative ? { x: current.x + point.x, y: current.y + point.y } : point);
 
     if (upper === "Z") {
-      if (run.length >= 2 && runStartsSubpath) {
-        const closedPoints = samePoint(run[run.length - 1]!, subpathStart) ? run.slice(0, -1) : run;
-        items.push({ kind: "run", points: closedPoints, closed: closedPoints.length >= 3 });
-        run = [];
-      } else {
-        if (!samePoint(current, subpathStart)) lineTo(subpathStart);
-        flush();
-      }
+      if (segments.length > 0 && !samePoint(current, subpathStart)) push({ kind: "line", to: subpathStart });
+      flush(segments.length > 0 && runStartsSubpath);
       current = subpathStart;
       runStartsSubpath = true;
       lastControl = null;
@@ -665,27 +799,29 @@ export function parsePathData(d: string): ReadonlyArray<PathItem> {
       runStartsSubpath = true;
       lastControl = null;
     } else if (upper === "L") {
-      lineTo(offset(point!));
+      push({ kind: "line", to: offset(point!) });
       lastControl = null;
     } else if (upper === "H" || upper === "V") {
       const value = reader.readNumber();
       if (value === null) break;
-      lineTo(upper === "H"
-        ? { x: relative ? current.x + value : value, y: current.y }
-        : { x: current.x, y: relative ? current.y + value : value });
+      push({
+        kind: "line",
+        to: upper === "H"
+          ? { x: relative ? current.x + value : value, y: current.y }
+          : { x: current.x, y: relative ? current.y + value : value }
+      });
       lastControl = null;
     } else if (upper === "C" || upper === "S") {
-      const control1 = upper === "C"
+      const control1: Point2D = upper === "C"
         ? offset(point!)
         : lastControl !== null && (lastCommand === "C" || lastCommand === "S")
           ? { x: 2 * current.x - lastControl.x, y: 2 * current.y - lastControl.y }
           : current;
       const control2 = upper === "C" ? reader.readPoint() : point;
-      const end = upper === "C" ? reader.readPoint() : reader.readPoint();
+      const end = reader.readPoint();
       if (control2 === null || end === null) break;
       const absoluteControl2 = offset(control2);
-      const absoluteEnd = offset(end);
-      for (const flattened of flattenCubicBezier(current, control1, absoluteControl2, absoluteEnd)) lineTo(flattened);
+      push({ kind: "cubic", c1: control1, c2: absoluteControl2, to: offset(end) });
       lastControl = absoluteControl2;
     } else if (upper === "Q" || upper === "T") {
       const control: Point2D = upper === "Q"
@@ -696,7 +832,13 @@ export function parsePathData(d: string): ReadonlyArray<PathItem> {
       const end = upper === "Q" ? reader.readPoint() : point;
       if (end === null) break;
       const absoluteEnd = offset(end);
-      for (const flattened of flattenQuadraticBezier(current, control, absoluteEnd)) lineTo(flattened);
+      // Elevação de grau exata: a quadrática é a cúbica com controles a 2/3 do caminho até o controle.
+      push({
+        kind: "cubic",
+        c1: { x: current.x + (2 / 3) * (control.x - current.x), y: current.y + (2 / 3) * (control.y - current.y) },
+        c2: { x: absoluteEnd.x + (2 / 3) * (control.x - absoluteEnd.x), y: absoluteEnd.y + (2 / 3) * (control.y - absoluteEnd.y) },
+        to: absoluteEnd
+      });
       lastControl = control;
     } else if (upper === "A") {
       const rotation = reader.readNumber();
@@ -957,7 +1099,8 @@ function parseRgb(color: string): [number, number, number] | null {
   return functional === null ? null : [Number(functional[1]), Number(functional[2]), Number(functional[3])];
 }
 
-function readPresentation(attributes: ReadonlyMap<string, string>, name: string): string | undefined {
+// Precedência do SVG: declaração inline em style > regra CSS de <style> > atributo de apresentação.
+function readPresentation(attributes: ReadonlyMap<string, string>, name: string, css?: ReadonlyMap<string, string>): string | undefined {
   const style = attributes.get("style");
 
   if (style !== undefined) {
@@ -969,11 +1112,141 @@ function readPresentation(attributes: ReadonlyMap<string, string>, name: string)
     }
   }
 
-  return attributes.get(name);
+  return css?.get(name) ?? attributes.get(name);
 }
 
-function isHidden(attributes: ReadonlyMap<string, string>): boolean {
-  return readPresentation(attributes, "display") === "none";
+function isHidden(attributes: ReadonlyMap<string, string>, css?: ReadonlyMap<string, string>): boolean {
+  return readPresentation(attributes, "display", css) === "none";
+}
+
+// ------------------------------------------------------------------------------------------------
+// CSS de <style>
+// ------------------------------------------------------------------------------------------------
+
+type CssRule = Readonly<{
+  tag: string | null;
+  id: string | null;
+  classes: ReadonlyArray<string>;
+  specificity: number;
+  order: number;
+  declarations: ReadonlyMap<string, string>;
+}>;
+
+/**
+ * Lê as regras dos blocos <style> com seletores simples: tag, .classe, #id, tag.classe, *, e listas
+ * separadas por vírgula. Seletores com combinadores, atributos ou pseudo-classes são ignorados.
+ */
+function parseCssRules(source: string): ReadonlyArray<CssRule> {
+  const rules: CssRule[] = [];
+  const blocks = /<style\b[^>]*>([\s\S]*?)<\/style>/gi;
+  let block: RegExpExecArray | null;
+  let order = 0;
+
+  while ((block = blocks.exec(source)) !== null) {
+    const text = (block[1] ?? "").replace(/<!\[CDATA\[|\]\]>/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    const rulePattern = /([^{}]+)\{([^{}]*)\}/g;
+    let rule: RegExpExecArray | null;
+
+    while ((rule = rulePattern.exec(text)) !== null) {
+      const declarations = new Map<string, string>();
+      for (const declaration of (rule[2] ?? "").split(";")) {
+        const separator = declaration.indexOf(":");
+        if (separator > 0) {
+          declarations.set(declaration.slice(0, separator).trim().toLowerCase(), declaration.slice(separator + 1).replace(/!important/i, "").trim());
+        }
+      }
+
+      for (const rawSelector of (rule[1] ?? "").split(",")) {
+        const selector = rawSelector.trim();
+        const parsed = /^(\*|[A-Za-z][\w-]*)?(#[\w-]+)?((?:\.[\w-]+)*)$/.exec(selector);
+        if (selector === "" || parsed === null) continue;
+        const tag = parsed[1] !== undefined && parsed[1] !== "*" ? parsed[1].toLowerCase() : null;
+        const id = parsed[2]?.slice(1) ?? null;
+        const classes = (parsed[3] ?? "").split(".").filter((name) => name !== "");
+        rules.push({ tag, id, classes, specificity: (id !== null ? 100 : 0) + classes.length * 10 + (tag !== null ? 1 : 0), order: order++, declarations });
+      }
+    }
+  }
+
+  return rules;
+}
+
+// Declarações CSS que valem para o elemento: maior especificidade vence; em empate, a regra posterior.
+function cssDeclarationsFor(rules: ReadonlyArray<CssRule>, tag: string, attributes: ReadonlyMap<string, string>): ReadonlyMap<string, string> {
+  if (rules.length === 0) return EMPTY_MAP;
+
+  const id = attributes.get("id");
+  const classes = new Set((attributes.get("class") ?? "").split(/\s+/).filter((name) => name !== ""));
+  const matching = rules
+    .filter((rule) => (rule.tag === null || rule.tag === tag) && (rule.id === null || rule.id === id) && rule.classes.every((name) => classes.has(name)))
+    .sort((left, right) => left.specificity - right.specificity || left.order - right.order);
+
+  if (matching.length === 0) return EMPTY_MAP;
+
+  const result = new Map<string, string>();
+  for (const rule of matching) for (const [name, value] of rule.declarations) result.set(name, value);
+  return result;
+}
+
+const EMPTY_MAP: ReadonlyMap<string, string> = new Map();
+const MAX_USE_DEPTH = 8;
+const MAX_IMPORTED_ENTITIES = 500_000;
+const MAX_USE_INSTANCES = 100_000;
+
+// ------------------------------------------------------------------------------------------------
+// Unidades físicas e viewBox
+// ------------------------------------------------------------------------------------------------
+
+const MM_PER_UNIT: Record<string, number> = { mm: 1, cm: 10, q: 0.25, in: 25.4, pt: 25.4 / 72, pc: 25.4 / 6, px: 25.4 / 96 };
+
+// Comprimento com unidade absoluta, em mm; null quando sem unidade (ou em %, em, etc.).
+function lengthInMillimeters(value: string | undefined): number | null {
+  const match = /^\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?)\s*(mm|cm|q|in|pt|pc|px)\s*$/i.exec(value ?? "");
+  return match === null ? null : Number(match[1]) * MM_PER_UNIT[match[2]!.toLowerCase()]!;
+}
+
+function parseViewBox(value: string | undefined): Readonly<{ minX: number; minY: number; width: number; height: number }> | null {
+  const numbers = (value ?? "").trim().split(/[\s,]+/).map(Number);
+  if (numbers.length !== 4 || numbers.some((number) => !Number.isFinite(number)) || numbers[2]! <= 0 || numbers[3]! <= 0) return null;
+  return { minX: numbers[0]!, minY: numbers[1]!, width: numbers[2]!, height: numbers[3]! };
+}
+
+/**
+ * Escala de unidade do usuário para mm no <svg> raiz, quando width/height trazem unidade absoluta:
+ * com viewBox, mm por unidade = width_mm / largura do viewBox (uniforme, como preserveAspectRatio "meet");
+ * sem viewBox, a unidade do usuário é o px do CSS (25,4/96 mm). Sem unidade, 1 unidade = 1 mm (padrão).
+ * A origem do desenho é mantida (só escala), para as coordenadas continuarem as do arquivo.
+ */
+function physicalScale(attributes: ReadonlyMap<string, string>): number | null {
+  const widthMm = lengthInMillimeters(attributes.get("width"));
+  const heightMm = lengthInMillimeters(attributes.get("height"));
+
+  if (widthMm === null && heightMm === null) return null;
+
+  const viewBox = parseViewBox(attributes.get("viewbox"));
+  const scales = viewBox === null
+    ? [MM_PER_UNIT.px!]
+    : [widthMm === null ? null : widthMm / viewBox.width, heightMm === null ? null : heightMm / viewBox.height].filter((value): value is number => value !== null);
+  const scale = Math.min(...scales);
+
+  return Number.isFinite(scale) && scale > 0 ? scale : null;
+}
+
+// Mapeia um viewBox para a área width × height (uniforme, "meet"); null se faltar informação.
+function viewBoxMatrix(viewBoxValue: string | undefined, width: number | null, height: number | null): Matrix2D | null {
+  const viewBox = parseViewBox(viewBoxValue);
+  if (viewBox === null) return null;
+
+  const scales = [width === null ? null : width / viewBox.width, height === null ? null : height / viewBox.height].filter((value): value is number => value !== null && value > 0);
+  const scale = scales.length === 0 ? 1 : Math.min(...scales);
+  return multiplyMatrices(scaleMatrix(scale), translationMatrix(-viewBox.minX, -viewBox.minY));
+}
+
+// Texto dos atributos da tag de abertura que começa em start.
+function TAG_ATTRIBUTES(source: string, start: number): string {
+  const pattern = new RegExp(TAG_PATTERN.source, "g");
+  pattern.lastIndex = start;
+  return pattern.exec(source)?.[3] ?? "";
 }
 
 function isValidEntity(entity: CadEntity): boolean {
@@ -1104,8 +1377,14 @@ export function parseSvgAttributes(source: string): ReadonlyMap<string, string> 
 
     const name = rawName.toLowerCase();
 
-    // Atributos de evento e links externos nunca são lidos.
-    if (name.startsWith("on") || name === "href" || name === "xlink:href") continue;
+    // Atributos de evento e links externos nunca são lidos; só referências internas (#id) do <use>.
+    if (name.startsWith("on")) continue;
+
+    if (name === "href" || name === "xlink:href") {
+      const decoded = decodeSvgAttribute(value).trim();
+      if (decoded.startsWith("#")) attributes.set("href", decoded);
+      continue;
+    }
 
     attributes.set(name, decodeSvgAttribute(value));
   }

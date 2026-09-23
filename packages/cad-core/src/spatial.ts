@@ -2,6 +2,7 @@ import {
   buildAlignedDimensionGeometry,
   buildAngularDimensionGeometry,
   arcBoundingBox,
+  bezierChainBoundingBox,
   ellipseArcBoundingBox,
   buildDiameterDimensionGeometry,
   buildLinearDimensionGeometry,
@@ -123,6 +124,11 @@ function computeEntityBoundingBox(entity: CadEntity): BoundingBox {
 
   if (entity.type === "polyline") {
     return polylineBoundingBox(entity.points);
+  }
+
+  if (entity.type === "spline") {
+    // Envoltório exato da cadeia de Béziers (extremos pelas raízes da derivada).
+    return bezierChainBoundingBox(entity.controlPoints);
   }
 
   if (entity.type === "text") {
