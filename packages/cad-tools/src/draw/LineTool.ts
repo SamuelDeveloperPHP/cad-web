@@ -93,7 +93,19 @@ export class LineTool implements CadTool {
     }
 
     if (this.startPoint === null) {
-      return TOOL_RESULT_NONE;
+      // Primeiro ponto digitado como coordenada absoluta (na unidade de trabalho), como no AutoCAD.
+      const first = parseDirectInput(input);
+
+      if (first.kind === "absolute") {
+        this.startPoint = { x: first.point.x * context.unitScale, y: first.point.y * context.unitScale };
+        this.currentPoint = this.startPoint;
+        context.showMessage("Specify next point.");
+        return TOOL_RESULT_NONE;
+      }
+
+      return first.kind === "empty"
+        ? TOOL_RESULT_NONE
+        : { type: "error", message: "Specify first point as x,y coordinates or click on the drawing." };
     }
 
     const parsed = parseDirectInput(input);

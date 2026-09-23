@@ -171,6 +171,10 @@ function toEllipseGeometry(entity: SnapEllipseEntity): EllipseGeometry {
  * linhas/retângulos/polylines; círculo (com faixa opcional) para círculos e arcos; elipse para
  * elipses e arcos de elipse.
  */
+export function entityIntersectPrimitives(entity: SnapEntity): ReadonlyArray<IntersectPrimitive> {
+  return snapEntityToPrimitives(entity);
+}
+
 function snapEntityToPrimitives(entity: SnapEntity): ReadonlyArray<IntersectPrimitive> {
   if (entity.type === "line") {
     return [{ kind: "segment", a: entity.start, b: entity.end }];

@@ -113,3 +113,39 @@ describe("elliptical arc geometry", () => {
     expect(arc?.endAngle).toBeCloseTo(Math.PI / 2, 6);
   });
 });
+
+describe("ellipse axes normalization and length", () => {
+  it("keeps the major axis on local X, preserving the shape and the arc", async () => {
+    const { normalizeEllipseAxes, ellipsePointAtParam: pointAt } = await import("./ellipse");
+    const arc = { type: "ellipse" as const, center: { x: 5, y: 5 }, radiusX: 10, radiusY: 30, rotation: 0.3, startAngle: 0.2, endAngle: 2.5 };
+    const normalized = normalizeEllipseAxes(arc);
+
+    expect(normalized.radiusX).toBe(30);
+    expect(normalized.radiusY).toBe(10);
+    for (const [before, after] of [[arc.startAngle, normalized.startAngle!], [arc.endAngle, normalized.endAngle!]] as const) {
+      const p = pointAt(arc.center, arc.radiusX, arc.radiusY, arc.rotation, before);
+      const q = pointAt(normalized.center, normalized.radiusX, normalized.radiusY, normalized.rotation, after);
+      expect(q.x).toBeCloseTo(p.x, 9);
+      expect(q.y).toBeCloseTo(p.y, 9);
+    }
+    expect(normalizeEllipseAxes(normalized)).toBe(normalized);
+  });
+
+  it("builds from axis points with the longer axis as major", () => {
+    const ellipse = ellipseFromAxisPoints({ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 25 });
+
+    expect(ellipse?.radiusX).toBeCloseTo(25);
+    expect(ellipse?.radiusY).toBeCloseTo(10);
+    expect(Math.abs(Math.sin(ellipse!.rotation))).toBeCloseTo(1);
+  });
+
+  it("computes perimeter and arc length", async () => {
+    const { ellipsePerimeter, ellipseArcLength } = await import("./ellipse");
+
+    expect(ellipsePerimeter(10, 10)).toBeCloseTo(2 * Math.PI * 10, 9);
+    // Valor de referência (integral elíptica) para a = 20, b = 10: 96.88448220547...
+    expect(ellipsePerimeter(20, 10)).toBeCloseTo(96.884482205, 6);
+    const quarter = ellipseArcLength({ type: "ellipse", center: { x: 0, y: 0 }, radiusX: 20, radiusY: 10, rotation: 0, startAngle: 0, endAngle: Math.PI / 2 });
+    expect(quarter).toBeCloseTo(96.884482205 / 4, 6);
+  });
+});

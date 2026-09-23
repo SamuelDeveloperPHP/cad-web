@@ -105,7 +105,18 @@ export class ArcTool implements CadTool {
     }
 
     if (this.points.length === 0) {
-      return { type: "error", message: "Invalid input. Use 'ce' for center mode or '3p' for three points." };
+      // O primeiro ponto (início ou centro, conforme o modo) aceita coordenada absoluta digitada.
+      const first = parseDirectInput(input);
+
+      if (first.kind === "absolute") {
+        const point = { x: first.point.x * context.unitScale, y: first.point.y * context.unitScale };
+        this.points.push(point);
+        this.cursorPoint = point;
+        this.showStepMessage(context);
+        return TOOL_RESULT_NONE;
+      }
+
+      return { type: "error", message: "Invalid input. Use x,y for the first point, 'ce' for center mode or '3p' for three points." };
     }
 
     const parsed = parseDirectInput(input);

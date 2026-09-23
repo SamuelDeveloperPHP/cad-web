@@ -62,3 +62,15 @@ describe("visual angle convention (AutoCAD, Y up)", () => {
     expect(flat.end).toBeCloseTo((Math.atan(0.5) * 180) / Math.PI);
   });
 });
+
+describe("ellipse arc visual angles inverse", () => {
+  it("round trips visual angles through parameters", async () => {
+    const { ellipseArcParamsFromVisual } = await import("./visualAngles");
+    const params = ellipseArcParamsFromVisual(30, 12, 20, 200);
+    const visual = ellipseArcVisualAngles({ radiusX: 30, radiusY: 12, ...params });
+
+    expect(visual.start).toBeCloseTo(20, 9);
+    expect(visual.end).toBeCloseTo(200, 9);
+    expect(visual.sweep).toBeCloseTo(180, 9);
+  });
+});

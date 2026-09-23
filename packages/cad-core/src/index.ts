@@ -891,6 +891,79 @@ export class ExtendLineCommand implements CadCommand {
   }
 }
 
+/**
+ * Substitui uma entidade por zero ou mais entidades na mesma posição da lista (Trim/Extend de curvas,
+ * que transformam um círculo em arco, dividem um arco em dois, etc.). O undo restaura o original.
+ */
+export class ReplaceEntityCommand implements CadCommand {
+  readonly type = "ReplaceEntityCommand";
+  private originalIndex = -1;
+
+  constructor(
+    readonly originalEntity: CadEntity,
+    readonly resultEntities: ReadonlyArray<CadEntity>,
+    readonly description = "Replaces an entity with edited entities."
+  ) {}
+
+  get id(): string {
+    return `cmd_replace_${this.originalEntity.id}_${Date.now()}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    const entityIndex = document.entities.findIndex((entity) => entity.id === this.originalEntity.id);
+
+    if (entityIndex === -1) {
+      return document;
+    }
+
+    this.originalIndex = entityIndex;
+
+    return {
+      ...document,
+      entities: [
+        ...document.entities.slice(0, entityIndex),
+        ...this.resultEntities,
+        ...document.entities.slice(entityIndex + 1)
+      ]
+    };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    const resultIds = new Set(this.resultEntities.map((entity) => entity.id));
+    const remaining = document.entities.filter((entity) => !resultIds.has(entity.id));
+    const insertionIndex = clampEntityIndex(this.originalIndex, remaining.length);
+
+    return {
+      ...document,
+      entities: [...remaining.slice(0, insertionIndex), this.originalEntity, ...remaining.slice(insertionIndex)]
+    };
+  }
+}
+
+/**
+ * Executa vários comandos como uma única operação de histórico: execute em ordem, undo na ordem inversa.
+ */
+export class CompositeCommand implements CadCommand {
+  readonly type = "CompositeCommand";
+
+  constructor(
+    readonly commands: ReadonlyArray<CadCommand>,
+    readonly description = "Applies several edits as one operation."
+  ) {}
+
+  get id(): string {
+    return `cmd_composite_${this.commands.map((command) => command.type).join("_")}_${Date.now()}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    return this.commands.reduce((current, command) => command.execute(current), document);
+  }
+
+  undo(document: CadDocument): CadDocument {
+    return [...this.commands].reverse().reduce((current, command) => command.undo(current), document);
+  }
+}
+
 export class FilletLineLineCommand implements CadCommand {
   readonly type = "FilletLineLineCommand";
   readonly description = "Creates a tangent arc between two lines.";

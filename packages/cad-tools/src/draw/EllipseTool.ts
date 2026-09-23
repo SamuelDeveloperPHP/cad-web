@@ -9,12 +9,13 @@ import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
 import { parseDirectInput, resolveDirectInput } from "./directInput";
 
-type EllipsePhase = "center" | "majorAxis" | "minorAxis";
+type EllipsePhase = "center" | "axisStart" | "axisEnd" | "majorAxis" | "minorAxis";
 
 /**
- * Ferramenta responsável por desenhar elipses no modo centro:
- * primeiro o centro, depois o fim do eixo maior (define rotação e semi-eixo maior)
- * e por fim um ponto que define o semi-eixo menor (distância perpendicular ao eixo maior).
+ * Ferramenta responsável por desenhar elipses em dois modos, como no AutoCAD:
+ * - Centro (padrão): centro → fim do primeiro eixo → distância até o outro eixo.
+ * - Eixo, Fim (opção `a`): dois extremos do primeiro eixo → distância até o outro eixo.
+ * O eixo maior é sempre guardado no eixo X local (a geometria é normalizada no kernel).
  */
 export class EllipseTool implements CadTool {
   readonly id = "ellipse";
@@ -24,11 +25,17 @@ export class EllipseTool implements CadTool {
   private phase: EllipsePhase = "center";
   private center: Point2D | null = null;
   private majorAxisEnd: Point2D | null = null;
+  private axisStart: Point2D | null = null;
   private cursorPoint: Point2D | null = null;
+
+  claimsCommandInput(input: string): boolean {
+    const option = input.trim().toLowerCase();
+    return (this.phase === "center" || this.phase === "axisStart") && ELLIPSE_OPTIONS.has(option);
+  }
 
   activate(context: ToolContext): void {
     this.reset();
-    context.showMessage("Specify center of ELLIPSE.");
+    context.showMessage(CENTER_PROMPT);
   }
 
   deactivate(context: ToolContext): void {
@@ -44,6 +51,17 @@ export class EllipseTool implements CadTool {
       this.phase = "majorAxis";
       context.showMessage("Specify end of major axis.");
       return TOOL_RESULT_NONE;
+    }
+
+    if (this.phase === "axisStart") {
+      this.axisStart = point;
+      this.phase = "axisEnd";
+      context.showMessage("Specify other endpoint of axis.");
+      return TOOL_RESULT_NONE;
+    }
+
+    if (this.phase === "axisEnd") {
+      return this.acceptAxisEnd(point, context);
     }
 
     if (this.phase === "majorAxis") {
@@ -89,6 +107,21 @@ export class EllipseTool implements CadTool {
   }
 
   onCommandInput(input: string, context: ToolContext): ToolResult {
+    const option = input.trim().toLowerCase();
+
+    // Opções de modo, aceitas antes do primeiro ponto: a/axis/eixo = Eixo, Fim; c/center/centro = Centro.
+    if ((this.phase === "center" || this.phase === "axisStart") && ["a", "axis", "eixo"].includes(option)) {
+      this.phase = "axisStart";
+      context.showMessage(AXIS_PROMPT);
+      return TOOL_RESULT_NONE;
+    }
+
+    if ((this.phase === "center" || this.phase === "axisStart") && ["c", "center", "centro"].includes(option)) {
+      this.phase = "center";
+      context.showMessage(CENTER_PROMPT);
+      return TOOL_RESULT_NONE;
+    }
+
     const parsed = parseDirectInput(input);
 
     if (parsed.kind === "empty" || parsed.kind === "invalid") {
@@ -106,6 +139,29 @@ export class EllipseTool implements CadTool {
       }
 
       return { type: "error", message: "Specify center as x,y coordinates." };
+    }
+
+    if (this.phase === "axisStart") {
+      if (parsed.kind === "absolute") {
+        this.axisStart = { x: parsed.point.x * context.unitScale, y: parsed.point.y * context.unitScale };
+        this.phase = "axisEnd";
+        context.showMessage("Specify other endpoint of axis.");
+        return TOOL_RESULT_NONE;
+      }
+
+      return { type: "error", message: "Specify axis endpoint as x,y coordinates." };
+    }
+
+    if (this.phase === "axisEnd" && this.axisStart !== null) {
+      // Distância, relativo ou polar a partir do primeiro extremo: o comprimento é o eixo inteiro.
+      const cursorDir = this.cursorPoint !== null ? subtractPoints(this.cursorPoint, this.axisStart) : null;
+      const point = resolveDirectInput(parsed, this.axisStart, cursorDir, context.unitScale);
+
+      if (point === null) {
+        return { type: "error", message: "Move the cursor to indicate direction before entering distance." };
+      }
+
+      return this.acceptAxisEnd(point, context);
     }
 
     if (this.phase === "majorAxis" && this.center !== null) {
@@ -155,6 +211,12 @@ export class EllipseTool implements CadTool {
 
   // Constrói a geometria de preview conforme a fase atual, usando o ponto corrente do cursor.
   private buildGeometry(point: Point2D): EllipseGeometry | null {
+    if (this.phase === "axisEnd" && this.axisStart !== null) {
+      // Com os dois extremos, o preview é o círculo cujo diâmetro é o eixo.
+      const center = { x: (this.axisStart.x + point.x) / 2, y: (this.axisStart.y + point.y) / 2 };
+      return ellipseFromAxisPoints(center, point, { x: center.x - (point.y - center.y), y: center.y + (point.x - center.x) });
+    }
+
     if (this.phase === "majorAxis" && this.center !== null) {
       // Durante a definição do eixo maior o preview mostra um círculo (semi-eixos iguais).
       const radius = Math.hypot(point.x - this.center.x, point.y - this.center.y);
@@ -193,7 +255,7 @@ export class EllipseTool implements CadTool {
     context.executeCommand(command);
     this.reset();
     context.clearPreview();
-    context.showMessage("Specify center of ELLIPSE.");
+    context.showMessage(CENTER_PROMPT);
 
     return { type: "command", command };
   }
@@ -211,6 +273,10 @@ export class EllipseTool implements CadTool {
   }
 
   getSnapReferencePoint(): Point2D | null {
+    if (this.phase === "axisEnd") {
+      return this.axisStart;
+    }
+
     if (this.phase === "majorAxis" || this.phase === "minorAxis") {
       return this.center;
     }
@@ -218,13 +284,35 @@ export class EllipseTool implements CadTool {
     return null;
   }
 
+  // O segundo extremo fecha o eixo: o centro é o ponto médio e o extremo vira o fim do eixo.
+  private acceptAxisEnd(point: Point2D, context: ToolContext): ToolResult {
+    if (this.axisStart === null) {
+      return TOOL_RESULT_NONE;
+    }
+
+    if (Math.hypot(point.x - this.axisStart.x, point.y - this.axisStart.y) <= 0) {
+      return { type: "error", message: "Axis endpoints must be different." };
+    }
+
+    this.center = { x: (this.axisStart.x + point.x) / 2, y: (this.axisStart.y + point.y) / 2 };
+    this.majorAxisEnd = point;
+    this.phase = "minorAxis";
+    context.showMessage("Specify distance to other axis.");
+    return TOOL_RESULT_NONE;
+  }
+
   private reset(): void {
     this.phase = "center";
     this.center = null;
     this.majorAxisEnd = null;
+    this.axisStart = null;
     this.cursorPoint = null;
   }
 }
+
+const ELLIPSE_OPTIONS: ReadonlySet<string> = new Set(["a", "axis", "eixo", "c", "center", "centro"]);
+const CENTER_PROMPT = "[Ellipse] Specify center or [a = Axis, End]";
+const AXIS_PROMPT = "[Ellipse] Specify axis endpoint or [c = Center]";
 
 // A função devolve um ponto na direção perpendicular ao eixo maior, à distância exata informada,
 // de modo que o semi-eixo menor resultante seja igual ao valor digitado.

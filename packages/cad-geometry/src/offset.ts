@@ -129,3 +129,97 @@ export function offsetRectangle(
     rotation: rotAngle
   };
 }
+
+/**
+ * Offset de um arco circular: mesmo centro e ângulos, raio aumentado (lado de fora) ou reduzido (lado de dentro).
+ */
+export function offsetArc<T extends Readonly<{ center: Point2D; radius: number }>>(
+  arc: T,
+  offsetDistance: number,
+  sidePoint: Point2D
+): T | null {
+  if (offsetDistance <= 0) return null;
+
+  const isExternal = distance(sidePoint, arc.center) >= arc.radius;
+  const newRadius = isExternal ? arc.radius + offsetDistance : arc.radius - offsetDistance;
+
+  return newRadius > 0 ? { ...arc, radius: newRadius } : null;
+}
+
+export type EllipseOffsetInput = Readonly<{
+  center: Point2D;
+  radiusX: number;
+  radiusY: number;
+  rotation: number;
+  startAngle?: number | undefined;
+  endAngle?: number | undefined;
+}>;
+
+export type EllipseOffsetResult = Readonly<{
+  points: ReadonlyArray<Point2D>;
+  closed: boolean;
+}>;
+
+/**
+ * Offset de elipse ou arco de elipse. A curva paralela a uma elipse não é uma elipse (o AutoCAD gera
+ * uma spline); aqui ela é amostrada em uma polyline densa: P(t) ± d·N(t), com N a normal unitária externa.
+ * O lado vem do ponto indicado (fora da elipse = para fora). Para dentro, a distância precisa ser menor
+ * que o menor raio de curvatura (b²/a); acima disso a curva paralela forma laços e o offset é recusado.
+ */
+export function offsetEllipse(
+  ellipse: EllipseOffsetInput,
+  offsetDistance: number,
+  sidePoint: Point2D,
+  maxChordError = Math.max(ellipse.radiusX, ellipse.radiusY) * 1e-4
+): EllipseOffsetResult | null {
+  if (offsetDistance <= 0) return null;
+
+  const a = ellipse.radiusX;
+  const b = ellipse.radiusY;
+  const cos = Math.cos(ellipse.rotation);
+  const sin = Math.sin(ellipse.rotation);
+  const localSide = {
+    x: ((sidePoint.x - ellipse.center.x) * cos + (sidePoint.y - ellipse.center.y) * sin) / a,
+    y: (-(sidePoint.x - ellipse.center.x) * sin + (sidePoint.y - ellipse.center.y) * cos) / b
+  };
+  const outward = localSide.x * localSide.x + localSide.y * localSide.y >= 1;
+  const minCurvatureRadius = Math.min(a, b) ** 2 / Math.max(a, b);
+
+  if (!outward && offsetDistance >= minCurvatureRadius) {
+    return null;
+  }
+
+  const signed = outward ? offsetDistance : -offsetDistance;
+  const isArc = ellipse.startAngle !== undefined && ellipse.endAngle !== undefined;
+  const start = isArc ? ellipse.startAngle! : 0;
+  let sweep = isArc ? (ellipse.endAngle! - ellipse.startAngle!) % (Math.PI * 2) : Math.PI * 2;
+  if (sweep <= 1e-12) sweep += Math.PI * 2;
+
+  // Quantidade de amostras para o erro de corda ficar abaixo do limite no ponto de maior curvatura.
+  const maxRadius = Math.max(a, b) + Math.abs(signed);
+  const minRadius = Math.max(minCurvatureRadius + signed, 1e-9);
+  const stepAngle = 2 * Math.acos(Math.max(-1, Math.min(1, 1 - maxChordError / minRadius)));
+  const byCurvature = Math.ceil((sweep * maxRadius) / Math.max(minRadius * stepAngle, 1e-9));
+  const samples = Math.min(2048, Math.max(isArc ? 16 : 64, byCurvature));
+  const points: Point2D[] = [];
+  const count = isArc ? samples + 1 : samples;
+
+  for (let index = 0; index < count; index += 1) {
+    const t = start + (sweep * index) / samples;
+    const localX = a * Math.cos(t);
+    const localY = b * Math.sin(t);
+    // Normal externa (não normalizada) da elipse local: (b·cos t, a·sin t).
+    const nx = b * Math.cos(t);
+    const ny = a * Math.sin(t);
+    const nLength = Math.hypot(nx, ny);
+    const offsetX = localX + (signed * nx) / nLength;
+    const offsetY = localY + (signed * ny) / nLength;
+
+    points.push({
+      x: ellipse.center.x + offsetX * cos - offsetY * sin,
+      y: ellipse.center.y + offsetX * sin + offsetY * cos
+    });
+  }
+
+  return { points, closed: !isArc };
+}
