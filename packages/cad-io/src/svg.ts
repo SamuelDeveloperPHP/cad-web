@@ -47,6 +47,8 @@ export function parseSvgDocument(source: string): CadDocument {
     { id: "layer_0", name: "Layer 0", color: "#ffffff", visible: true, locked: false, order: 0 }
   ];
 
+  entities.push(...parseSvgTexts(sanitizedSource, layers.map((layer) => layer.id)));
+
   const document: CadDocument = {
     schemaVersion: CAD_IO_SCHEMA_VERSION,
     id: getSvgDocumentId(sanitizedSource),
@@ -173,16 +175,23 @@ function serializeTextToSvg(entity: TextEntity, precision: number): string {
     `text-anchor="${anchor}"`
   ].filter((attribute) => attribute !== "").join(" ");
 
+  // Linhas vazias também são exportadas, para o espaçamento vertical sobreviver à ida e volta.
   const lines = layout.lines
-    .filter((line) => line.content !== "")
     .map((line) => {
       const x = formatNumber(line.origin.x, precision);
       const y = formatNumber(line.origin.y, precision);
       const transform = Math.abs(rotationDeg) > 1e-9 ? ` transform="rotate(${formatNumber(rotationDeg, precision)} ${x} ${y})"` : "";
-      return `<text x="${x}" y="${y}"${transform}>${escapeSvgAttribute(line.content)}</text>`;
+      return `<text x="${x}" y="${y}"${transform} xml:space="preserve">${escapeSvgAttribute(line.content)}</text>`;
     });
 
-  return `<g id="${escapeSvgAttribute(entity.id)}" data-entity-type="text" data-layer-id="${escapeSvgAttribute(entity.layerId)}" ${styleAttributes} fill="${fill}" stroke="none">${lines.join("")}</g>`;
+  // data-position e data-vertical-align permitem reconstruir o ponto de inserção exato na importação,
+  // já que o SVG só guarda a origem de cada linha na linha de base.
+  const roundTripAttributes = [
+    `data-position="${formatNumber(entity.position.x, precision)} ${formatNumber(entity.position.y, precision)}"`,
+    `data-vertical-align="${entity.verticalAlign ?? "baseline"}"`
+  ].join(" ");
+
+  return `<g id="${escapeSvgAttribute(entity.id)}" data-entity-type="text" data-layer-id="${escapeSvgAttribute(entity.layerId)}" ${roundTripAttributes} ${styleAttributes} fill="${fill}" stroke="none">${lines.join("")}</g>`;
 }
 
 function serializePolylineToSvg(entity: PolylineEntity, precision: number): string {
@@ -424,6 +433,284 @@ function serializeArcToSvg(entity: ArcEntity, precision: number): string {
     `data-entity-type="arc"`,
     `d="M ${formatNumber(start.x, precision)} ${formatNumber(start.y, precision)} A ${formatNumber(entity.radius, precision)} ${formatNumber(entity.radius, precision)} 0 ${largeArcFlag} ${sweepFlag} ${formatNumber(end.x, precision)} ${formatNumber(end.y, precision)}" />`
   ].join(" ");
+}
+
+/**
+ * Importa textos do SVG em duas passadas:
+ * 1. Grupos exportados pelo CAD-WEB (`<g data-entity-type="text">`): um grupo vira uma única entidade
+ *    de várias linhas, com ponto de inserção e alinhamento vertical exatos (data-position/data-vertical-align).
+ * 2. `<text>` avulsos de outros programas: cada elemento vira uma entidade, lendo atributos ou `style`,
+ *    `<tspan>` com x/y/dy como quebras de linha e transform `rotate`/`translate`.
+ * A camada vem do atributo data-layer-id do próprio elemento ou do grupo de camada que o contém.
+ */
+function parseSvgTexts(source: string, layerIds: ReadonlyArray<string>): TextEntity[] {
+  const entities: TextEntity[] = [];
+  const layerRanges = findLayerGroupRanges(source);
+  const fallbackLayerId = layerIds[0] ?? "layer_0";
+  const layerAt = (index: number, own: string | undefined): string => {
+    const explicit = sanitizeSvgIdentifier(own);
+    if (explicit !== null) return explicit;
+    const range = layerRanges.find((candidate) => index >= candidate.start && index < candidate.end);
+    return range?.id ?? fallbackLayerId;
+  };
+
+  const groupPattern = /<g\b([^>]*\bdata-entity-type\s*=\s*["']text["'][^>]*)>([\s\S]*?)<\/g>/gi;
+  let groupMatch: RegExpExecArray | null;
+
+  while ((groupMatch = groupPattern.exec(source)) !== null) {
+    const attributes = parseSvgAttributes(groupMatch[1] ?? "");
+    const lines = Array.from(iterateSvgTextElements(groupMatch[2] ?? ""));
+    const entity = buildTextFromCadWebGroup(attributes, lines, groupMatch.index, layerAt(groupMatch.index, attributes.get("data-layer-id")));
+
+    if (entity !== null) {
+      entities.push(entity);
+    }
+  }
+
+  // Os grupos já tratados são apagados (mantendo os índices) para não reimportar suas linhas na passada genérica.
+  const remaining = source.replace(groupPattern, (match) => " ".repeat(match.length));
+
+  for (const element of iterateSvgTextElements(remaining)) {
+    const entity = buildTextFromSvgElement(element, layerAt(element.sourceIndex, element.attributes.get("data-layer-id")));
+
+    if (entity !== null) {
+      entities.push(entity);
+    }
+  }
+
+  return entities;
+}
+
+type ParsedSvgText = Readonly<{
+  attributes: ReadonlyMap<string, string>;
+  lines: ReadonlyArray<string>;
+  sourceIndex: number;
+}>;
+
+function* iterateSvgTextElements(source: string): Iterable<ParsedSvgText> {
+  const textPattern = /<text\b([^>]*)>([\s\S]*?)<\/text>/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = textPattern.exec(source)) !== null) {
+    yield {
+      attributes: parseSvgAttributes(match[1] ?? ""),
+      lines: readSvgTextLines(match[2] ?? "", /\bxml:space\s*=\s*["']preserve["']/i.test(match[1] ?? "")),
+      sourceIndex: match.index
+    };
+  }
+}
+
+// Extrai as linhas do conteúdo de um <text>: cada <tspan> com x, y ou dy inicia uma nova linha.
+function readSvgTextLines(inner: string, preserveSpaces = false): ReadonlyArray<string> {
+  if (!/<tspan\b/i.test(inner)) {
+    // Com xml:space="preserve" (como na exportação do CAD-WEB) os espaços do conteúdo são mantidos.
+    return [preserveSpaces ? decodeSvgText(inner.replace(/<[^>]*>/g, "")) : normalizeSvgTextContent(inner)];
+  }
+
+  const lines: string[] = [];
+  const leading = normalizeSvgTextContent(inner.slice(0, inner.search(/<tspan\b/i)));
+  let current = leading;
+  const tspanPattern = /<tspan\b([^>]*)>([\s\S]*?)<\/tspan>/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = tspanPattern.exec(inner)) !== null) {
+    const attributes = parseSvgAttributes(match[1] ?? "");
+    const content = normalizeSvgTextContent(match[2] ?? "");
+    const startsLine = attributes.has("x") || attributes.has("y") || attributes.has("dy");
+
+    if (startsLine && current !== "") {
+      lines.push(current);
+      current = content;
+    } else {
+      current = current === "" ? content : `${current}${content}`;
+    }
+  }
+
+  lines.push(current);
+  return lines;
+}
+
+// Remove marcação interna, decodifica entidades e colapsa espaços (comportamento padrão do SVG).
+function normalizeSvgTextContent(raw: string): string {
+  return decodeSvgText(raw.replace(/<[^>]*>/g, "")).replace(/\s+/g, " ").trim();
+}
+
+function decodeSvgText(value: string): string {
+  return decodeSvgAttribute(
+    value
+      .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => safeFromCodePoint(Number.parseInt(hex, 16)))
+      .replace(/&#(\d+);/g, (_, dec: string) => safeFromCodePoint(Number.parseInt(dec, 10)))
+  );
+}
+
+function safeFromCodePoint(codePoint: number): string {
+  return Number.isInteger(codePoint) && codePoint > 0 && codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : "";
+}
+
+function buildTextFromCadWebGroup(
+  attributes: ReadonlyMap<string, string>,
+  lines: ReadonlyArray<ParsedSvgText>,
+  sourceIndex: number,
+  layerId: string
+): TextEntity | null {
+  const content = lines.map((line) => line.lines.join(" ")).join("\n");
+  const height = parseSvgNumber(readSvgStyle(attributes, "font-size") ?? "");
+  const first = lines[0];
+
+  if (first === undefined || content.trim() === "" || height === null || height <= 0) {
+    return null;
+  }
+
+  const firstX = parseSvgNumber(first.attributes.get("x") ?? "") ?? 0;
+  const firstY = parseSvgNumber(first.attributes.get("y") ?? "") ?? 0;
+  const rotation = readSvgTextTransform(first.attributes.get("transform"), firstX, firstY).rotation;
+  const positionParts = (attributes.get("data-position") ?? "").trim().split(/[\s,]+/).map((part) => parseSvgNumber(part));
+  const [positionX, positionY] = positionParts;
+  const verticalAlign = readVerticalAlign(attributes.get("data-vertical-align"));
+
+  return {
+    id: sanitizeSvgIdentifier(attributes.get("id")) ?? `text_${sourceIndex}`,
+    layerId,
+    type: "text",
+    // Sem data-position (SVG antigo), a origem da primeira linha é o ponto de inserção na linha de base.
+    position: positionX !== null && positionX !== undefined && positionY !== null && positionY !== undefined
+      ? { x: positionX, y: positionY }
+      : { x: firstX, y: firstY },
+    content,
+    height,
+    ...(rotation !== 0 ? { rotation } : {}),
+    ...readTextStyleFields(attributes),
+    ...(positionX !== null && positionX !== undefined && verticalAlign !== "baseline" ? { verticalAlign } : {})
+  };
+}
+
+function buildTextFromSvgElement(element: ParsedSvgText, layerId: string): TextEntity | null {
+  const content = element.lines.filter((line) => line !== "").join("\n");
+  // O tamanho padrão de fonte do SVG é 16.
+  const height = parseSvgNumber(readSvgStyle(element.attributes, "font-size") ?? "16");
+
+  if (content === "" || height === null || height <= 0) {
+    return null;
+  }
+
+  const x = parseSvgNumber(element.attributes.get("x") ?? "") ?? 0;
+  const y = parseSvgNumber(element.attributes.get("y") ?? "") ?? 0;
+  const transform = readSvgTextTransform(element.attributes.get("transform"), x, y);
+  const verticalAlign = readVerticalAlign(readSvgStyle(element.attributes, "dominant-baseline"));
+
+  return {
+    id: sanitizeSvgIdentifier(element.attributes.get("id")) ?? `text_${element.sourceIndex}`,
+    layerId,
+    type: "text",
+    position: { x: x + transform.offset.x, y: y + transform.offset.y },
+    content,
+    height,
+    ...(transform.rotation !== 0 ? { rotation: transform.rotation } : {}),
+    ...readTextStyleFields(element.attributes),
+    ...(verticalAlign !== "baseline" ? { verticalAlign } : {})
+  };
+}
+
+// Campos de estilo comuns: alinhamento horizontal, fonte, negrito, itálico e cor.
+function readTextStyleFields(attributes: ReadonlyMap<string, string>): Partial<TextEntity> {
+  const anchor = readSvgStyle(attributes, "text-anchor");
+  const fontFamily = readSvgStyle(attributes, "font-family")?.trim();
+  const weight = readSvgStyle(attributes, "font-weight")?.trim().toLowerCase();
+  const style = readSvgStyle(attributes, "font-style")?.trim().toLowerCase();
+  const fill = readSvgStyle(attributes, "fill")?.trim();
+  const bold = weight === "bold" || weight === "bolder" || (weight !== undefined && Number(weight) >= 600);
+
+  return {
+    ...(anchor === "middle" ? { horizontalAlign: "center" as const } : anchor === "end" ? { horizontalAlign: "right" as const } : {}),
+    // A fonte padrão da exportação não é gravada de volta, para o texto seguir o padrão do app.
+    ...(fontFamily !== undefined && fontFamily !== "" && fontFamily !== "Arial, sans-serif" ? { fontFamily } : {}),
+    ...(bold ? { bold: true } : {}),
+    ...(style === "italic" || style === "oblique" ? { italic: true } : {}),
+    ...(fill !== undefined && /^(#[0-9a-f]{3,8}|rgba?\([^)]*\))$/i.test(fill) ? { color: fill } : {})
+  };
+}
+
+// Lê uma propriedade de apresentação do atributo direto ou da declaração inline em style.
+function readSvgStyle(attributes: ReadonlyMap<string, string>, name: string): string | undefined {
+  const direct = attributes.get(name);
+
+  if (direct !== undefined) {
+    return direct;
+  }
+
+  const style = attributes.get("style");
+
+  if (style === undefined) {
+    return undefined;
+  }
+
+  for (const declaration of style.split(";")) {
+    const separator = declaration.indexOf(":");
+
+    if (separator > 0 && declaration.slice(0, separator).trim().toLowerCase() === name) {
+      return declaration.slice(separator + 1).trim();
+    }
+  }
+
+  return undefined;
+}
+
+function readVerticalAlign(value: string | undefined): NonNullable<TextEntity["verticalAlign"]> {
+  const normalized = value?.trim().toLowerCase();
+
+  if (normalized === "middle" || normalized === "central") return "middle";
+  if (normalized === "top" || normalized === "hanging" || normalized === "text-before-edge") return "top";
+  if (normalized === "bottom" || normalized === "text-after-edge" || normalized === "ideographic") return "bottom";
+  return "baseline";
+}
+
+/**
+ * Interpreta o transform de um <text>: rotate(a) em torno do próprio ponto (ou da origem quando x = y = 0)
+ * vira rotação; translate(tx[, ty]) vira deslocamento do ponto. Outros transforms são ignorados.
+ * O SVG usa o mesmo sistema do mundo (Y para baixo), então o ângulo entra sem inverter o sinal.
+ */
+function readSvgTextTransform(
+  transform: string | undefined,
+  x: number,
+  y: number
+): Readonly<{ rotation: number; offset: { x: number; y: number } }> {
+  const identity = { rotation: 0, offset: { x: 0, y: 0 } };
+
+  if (transform === undefined) {
+    return identity;
+  }
+
+  const number = "([-+]?\\d*\\.?\\d+(?:e[-+]?\\d+)?)";
+  const rotateMatch = transform.trim().match(new RegExp(`^rotate\\(\\s*${number}(?:[\\s,]+${number}[\\s,]+${number})?\\s*\\)$`, "i"));
+
+  if (rotateMatch?.[1] !== undefined) {
+    const pivotX = rotateMatch[2] === undefined ? 0 : Number(rotateMatch[2]);
+    const pivotY = rotateMatch[3] === undefined ? 0 : Number(rotateMatch[3]);
+    const aroundPoint = Math.abs(pivotX - x) < 1e-6 && Math.abs(pivotY - y) < 1e-6;
+
+    return aroundPoint ? { rotation: (Number(rotateMatch[1]) * Math.PI) / 180, offset: { x: 0, y: 0 } } : identity;
+  }
+
+  const translateMatch = transform.trim().match(new RegExp(`^translate\\(\\s*${number}(?:[\\s,]+${number})?\\s*\\)$`, "i"));
+
+  if (translateMatch?.[1] !== undefined) {
+    return { rotation: 0, offset: { x: Number(translateMatch[1]), y: translateMatch[2] === undefined ? 0 : Number(translateMatch[2]) } };
+  }
+
+  return identity;
+}
+
+// Faixas [início, fim) no código-fonte de cada grupo de camada exportado, para herdar a camada do texto.
+function findLayerGroupRanges(source: string): ReadonlyArray<Readonly<{ id: string; start: number; end: number }>> {
+  const starts: Array<{ id: string; start: number }> = [];
+  const pattern = /<g\b[^>]*data-layer-id="([^"]+)"[^>]*data-layer-name="[^"]*"[^>]*>/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(source)) !== null) {
+    starts.push({ id: decodeSvgAttribute(match[1] ?? ""), start: match.index });
+  }
+
+  return starts.map((entry, index) => ({ ...entry, end: starts[index + 1]?.start ?? source.length }));
 }
 
 function removeUnsafeSvgBlocks(source: string): string {
