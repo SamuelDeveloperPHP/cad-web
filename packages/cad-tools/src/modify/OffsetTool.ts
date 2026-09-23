@@ -1,11 +1,13 @@
 import { CreateEntityCommand, type CadEntity } from "@cad-web/cad-core";
-import { offsetCircle, offsetLine, offsetRectangle } from "@cad-web/cad-geometry";
+import { offsetArc, offsetCircle, offsetEllipse, offsetLine, offsetRectangle } from "@cad-web/cad-geometry";
 import type { CadTool } from "../contracts/CadTool";
 import type { ToolContext } from "../contracts/ToolContext";
 import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent";
 import { TOOL_RESULT_NONE, type ToolResult } from "../contracts/ToolResult";
 import { findNearestEntityId } from "../selection/hitTesting";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
+
+const OFFSETTABLE_TYPES: ReadonlySet<string> = new Set(["line", "rectangle", "circle", "arc", "ellipse"]);
 
 export class OffsetTool implements CadTool {
   readonly id = "offset";
@@ -54,8 +56,8 @@ export class OffsetTool implements CadTool {
         return TOOL_RESULT_NONE;
       }
 
-      if (entity.type !== "line" && entity.type !== "rectangle" && entity.type !== "circle") {
-        context.showMessage(`Entity type not supported by offset yet.`);
+      if (!OFFSETTABLE_TYPES.has(entity.type)) {
+        context.showMessage(`[Offset] ${entity.type} cannot be offset. Select a line, rectangle, circle, arc or ellipse.`);
         return TOOL_RESULT_NONE;
       }
 
@@ -174,6 +176,13 @@ export class OffsetTool implements CadTool {
       }
     } else if (this.targetEntity.type === "circle") {
       offsetGeom = offsetCircle(this.targetEntity as any, this.distance, sidePoint);
+    } else if (this.targetEntity.type === "arc") {
+      const arc = offsetArc(this.targetEntity, this.distance, sidePoint);
+      offsetGeom = arc === null ? null : { type: "arc", center: arc.center, radius: arc.radius, startAngle: arc.startAngle, endAngle: arc.endAngle, clockwise: arc.clockwise };
+    } else if (this.targetEntity.type === "ellipse") {
+      // A paralela de uma elipse não é elipse: vira uma polyline densa (o AutoCAD gera uma spline).
+      const result = offsetEllipse(this.targetEntity, this.distance, sidePoint);
+      offsetGeom = result === null ? null : { type: "polyline", points: result.points, closed: result.closed };
     }
 
     if (!offsetGeom) return null;

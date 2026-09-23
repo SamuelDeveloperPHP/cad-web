@@ -189,14 +189,15 @@ describe("LineTool", () => {
     });
   });
 
-  it("ignores command input before first point is placed", () => {
+  it("asks for x,y when a bare distance is typed before the first point", () => {
     const tool = new LineTool();
     const context = createMockToolContext();
 
     tool.activate(context);
     const result = tool.onCommandInput("10", context);
 
-    expect(result).toEqual({ type: "none" });
+    // Uma distância sem ponto inicial não tem referência: a ferramenta pede a coordenada do primeiro ponto.
+    expect(result.type).toBe("error");
     expect(context.commands).toEqual([]);
   });
 });

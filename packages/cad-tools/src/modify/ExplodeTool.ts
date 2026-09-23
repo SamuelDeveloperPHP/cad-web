@@ -124,8 +124,12 @@ export class ExplodeTool implements CadTool {
         return { type: "error", message: "[Explode] Layer is locked" };
       }
 
-      context.showMessage("[Explode] Nothing to explode");
-      return { type: "error", message: "[Explode] Nothing to explode" };
+      // Como no AutoCAD, elipses, círculos, arcos, linhas e textos já são primitivas e não se decompõem.
+      const message = unsupportedCount > 0
+        ? "[Explode] Nothing to explode: only rectangles and polylines can be exploded (ellipses, circles, arcs, lines and texts are already primitives)"
+        : "[Explode] Nothing to explode";
+      context.showMessage(message);
+      return { type: "error", message };
     }
 
     if (unsupportedCount > 0 || lockedCount > 0) {

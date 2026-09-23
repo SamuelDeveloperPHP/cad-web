@@ -218,6 +218,56 @@ describe("FilletTool", () => {
     expect((arc as any).radius).toBeCloseTo(2);
   });
 
+  it("fillets a line with an ellipse (ellipse first) and undoes as one step", () => {
+    const tool = new FilletTool();
+    const document = createDocument([
+      { id: "el", layerId: "source", type: "ellipse", center: { x: 0, y: 0 }, radiusX: 30, radiusY: 15, rotation: 0 },
+      { id: "line_a", layerId: "source", type: "line", start: { x: 35, y: -40 }, end: { x: 35, y: 40 } }
+    ]);
+    const context = createMockToolContext({ document, viewport: { origin: { x: 0, y: 0 }, scale: 1 } });
+
+    tool.activate(context);
+    tool.onCommandInput("4", context);
+    tool.onPointerDown(createPointerEvent({ x: 28.5, y: 4.7 }), context);
+    const result = tool.onPointerDown(createPointerEvent({ x: 35, y: 30 }), context);
+
+    expect(result.type).toBe("command");
+    expect(context.commands[0]).toMatchObject({ type: "CompositeCommand" });
+    const next = context.commands[0]!.execute(document);
+    const arc = next.entities.find((entity) => entity.type === "arc") as any;
+    const line = next.entities.find((entity) => entity.id === "line_a") as any;
+    const ellipse = next.entities.find((entity) => entity.id === "el") as any;
+
+    expect(arc.radius).toBe(4);
+    expect(arc.center.x).toBeCloseTo(31);
+    expect(line.end).toEqual({ x: 35, y: 40 });
+    expect(line.start.y).toBeGreaterThan(0);
+    // A elipse fechada não é aparada (como o AutoCAD faz com círculos).
+    expect(ellipse.startAngle).toBeUndefined();
+    expect(context.commands[0]!.undo(next).entities).toEqual(document.entities);
+  });
+
+  it("fillets a line (first) with an elliptical arc, trimming the arc", () => {
+    const tool = new FilletTool();
+    const document = createDocument([
+      { id: "line_a", layerId: "source", type: "line", start: { x: -50, y: 12 }, end: { x: 50, y: 12 } },
+      { id: "el", layerId: "source", type: "ellipse", center: { x: 0, y: 0 }, radiusX: 30, radiusY: 15, rotation: 0, startAngle: 0, endAngle: Math.PI }
+    ]);
+    const context = createMockToolContext({ document, viewport: { origin: { x: 0, y: 0 }, scale: 1 } });
+
+    tool.activate(context);
+    tool.onCommandInput("3", context);
+    tool.onPointerDown(createPointerEvent({ x: 40, y: 12 }), context);
+    const move = tool.onPointerMove(createPointerEvent({ x: 29.9, y: 1 }), context);
+    const result = tool.onPointerDown(createPointerEvent({ x: 29.9, y: 1 }), context);
+
+    expect(move.type).toBe("preview");
+    expect(result.type).toBe("command");
+    const ellipse = context.commands[0]!.execute(document).entities.find((entity) => entity.id === "el") as any;
+    expect(ellipse.startAngle).toBe(0);
+    expect(ellipse.endAngle).toBeLessThan(Math.PI / 2);
+  });
+
   it("exposes command aliases", () => {
     expect(new FilletTool().aliases).toEqual(["f", "fillet"]);
   });

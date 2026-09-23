@@ -1,33 +1,53 @@
 import {
-  getDocumentSpatialIndex,
+  entityBoundingBox,
+  ReplaceEntityCommand,
   TrimLineCommand,
   type CadEntity,
-  type CircleEntity,
-  type LineEntity,
-  type RectangleEntity
+  type LineEntity
 } from "@cad-web/cad-core";
 import {
-  distancePointToSegment,
-  trimLineByClick,
+  curveIntersectionParams,
+  curveOfEntity,
+  curveParamAt,
+  entityWithSpan,
+  trimLineByPrimitives,
+  trimPeriodicCurve,
   type LineParameterSegment,
-  type Point2D,
-  type TrimCuttingEntity
+  type Point2D
 } from "@cad-web/cad-geometry";
 import type { CadTool } from "../contracts/CadTool";
 import type { ToolContext } from "../contracts/ToolContext";
 import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent";
 import { TOOL_RESULT_NONE, type ToolResult } from "../contracts/ToolResult";
 import { findNearestEntityId } from "../selection/hitTesting";
+import {
+  collectBoundaryEntities,
+  findNearestEditable,
+  hasIntersectGeometry,
+  isCurveEntity,
+  isEntityLayerUsable,
+  newPieceId,
+  padBox,
+  toBoundaryPrimitives,
+  type CurveEntity,
+  type EditableEntity
+} from "./curveEditUtils";
 
 const DEFAULT_SCREEN_TOLERANCE_PIXELS = 8;
 
 type TrimPhase = "selecting_cutting_edges" | "trimming_segments";
 
-type LineHit = Readonly<{
-  entity: LineEntity;
-  locked: boolean;
+// Resultado calculado de um trim (usado tanto no preview quanto na confirmação).
+type TrimPlan = Readonly<{
+  command: ReplaceEntityCommand | TrimLineCommand;
+  removedPreview: CadEntity;
 }>;
 
+/**
+ * Ferramenta Trim: apara linhas, círculos, arcos, elipses e arcos de elipse. Qualquer entidade com
+ * geometria (linha, retângulo, polyline, círculo, arco, elipse, arco de elipse) serve de aresta de corte.
+ * Um círculo ou elipse fechada precisa de dois cortes e vira arco; um arco pode virar dois arcos.
+ */
 export class TrimTool implements CadTool {
   readonly id = "trim";
   readonly name = "Trim";
@@ -63,30 +83,21 @@ export class TrimTool implements CadTool {
       return TOOL_RESULT_NONE;
     }
 
-    const hit = findNearestLine(context, event.worldPoint, this.getToleranceWorld(context));
+    const hit = findNearestEditable(context, event.worldPoint, this.getToleranceWorld(context), isTrimmable);
 
     if (hit === null || hit.locked) {
       context.clearPreview();
       return TOOL_RESULT_NONE;
     }
 
-    const result = trimLineByClick(
-      hit.entity,
-      this.getCuttingEntities(context, hit.entity),
-      event.worldPoint,
-      this.getToleranceWorld(context)
-    );
+    const plan = this.planTrim(hit.entity, event.worldPoint, context);
 
-    if (result.removedSegment === null) {
+    if (typeof plan === "string") {
       context.clearPreview();
       return TOOL_RESULT_NONE;
     }
 
-    const preview = {
-      type: "ghostEntities" as const,
-      entities: [createPreviewLine(hit.entity, result.removedSegment)]
-    };
-
+    const preview = { type: "ghostEntities" as const, entities: [plan.removedPreview] };
     context.setPreview(preview);
 
     return { type: "preview", preview };
@@ -133,7 +144,7 @@ export class TrimTool implements CadTool {
 
     const entity = context.document.entities.find((candidate) => candidate.id === hitId);
 
-    if (entity === undefined || !isSupportedCuttingEntity(entity)) {
+    if (entity === undefined || !hasIntersectGeometry(entity)) {
       context.showMessage("[Trim] Cutting edge type not supported");
       return TOOL_RESULT_NONE;
     }
@@ -155,16 +166,16 @@ export class TrimTool implements CadTool {
     this.phase = "trimming_segments";
     context.clearSelection();
     context.clearPreview();
-    context.showMessage("[Trim] Select line segment to trim");
+    context.showMessage("[Trim] Select object to trim");
 
     return TOOL_RESULT_NONE;
   }
 
   private trimPickedSegment(point: Point2D, context: ToolContext): ToolResult {
-    const hit = findNearestLine(context, point, this.getToleranceWorld(context));
+    const hit = findNearestEditable(context, point, this.getToleranceWorld(context), isTrimmable);
 
     if (hit === null) {
-      context.showMessage("[Trim] Select line segment to trim");
+      context.showMessage("[Trim] Select object to trim");
       return TOOL_RESULT_NONE;
     }
 
@@ -173,42 +184,48 @@ export class TrimTool implements CadTool {
       return TOOL_RESULT_NONE;
     }
 
-    const result = trimLineByClick(
-      hit.entity,
-      this.getCuttingEntities(context, hit.entity),
-      point,
-      this.getToleranceWorld(context)
-    );
+    const plan = this.planTrim(hit.entity, point, context);
 
-    if (result.removedSegment === null) {
+    if (typeof plan === "string") {
       context.clearPreview();
-      context.showMessage(result.warnings[0] ?? "[Trim] No valid cutting edge found");
+      context.showMessage(plan);
       return TOOL_RESULT_NONE;
     }
 
-    const resultEntities = result.resultLines.map((segment, index) =>
-      createTrimResultLine(hit.entity, segment, index)
-    );
-    const command = new TrimLineCommand(hit.entity, resultEntities);
-
-    context.executeCommand(command);
+    context.executeCommand(plan.command);
     context.clearPreview();
-    context.showMessage("[Trim] Segment trimmed. Select another segment or press Esc");
+    context.showMessage("[Trim] Trimmed. Select another object or press Esc");
 
-    return { type: "command", command };
+    return { type: "command", command: plan.command };
   }
 
-  private getCuttingEntities(context: ToolContext, target: LineEntity): ReadonlyArray<TrimCuttingEntity> {
-    // O modo rápido consulta o índice espacial ao redor da linha alvo para evitar varreduras amplas.
-    const candidates = this.useAllVisibleCuttingEdges
-      ? getDocumentSpatialIndex(context.document).query(lineSearchBox(target, this.getToleranceWorld(context)))
-      : context.document.entities.filter((entity) => this.cuttingEdgeIds.has(entity.id));
-
-    return candidates.filter((entity): entity is LineEntity | RectangleEntity | CircleEntity =>
-      entity.id !== target.id &&
-      isSupportedCuttingEntity(entity) &&
-      isEntityLayerUsable(context, entity)
+  // Calcula o trim do objeto no ponto clicado; devolve a mensagem de aviso quando não há o que aparar.
+  private planTrim(target: EditableEntity, point: Point2D, context: ToolContext): TrimPlan | string {
+    const tolerance = this.getToleranceWorld(context);
+    const cutters = collectBoundaryEntities(
+      context,
+      this.cuttingEdgeIds,
+      this.useAllVisibleCuttingEdges,
+      padBox(entityBoundingBox(target), tolerance),
+      target.id
     );
+    const primitives = toBoundaryPrimitives(cutters).map((boundary) => boundary.primitive);
+
+    if (target.type === "line") {
+      const result = trimLineByPrimitives(target, primitives, point, tolerance);
+
+      if (result.removedSegment === null) {
+        return result.cutParameters.length === 0 ? "[Trim] No valid cutting edge found" : "[Trim] No trim segment found at the picked point";
+      }
+
+      const pieces = result.resultLines.map((segment, index) => lineFromSegment(target, segment, index === 0 ? target.id : newPieceId(target.id, "trim")));
+      return {
+        command: new TrimLineCommand(target, pieces),
+        removedPreview: lineFromSegment(target, result.removedSegment, `trim_preview_${target.id}`)
+      };
+    }
+
+    return planCurveTrim(target, primitives, point);
   }
 
   private getToleranceWorld(context: ToolContext): number {
@@ -224,87 +241,35 @@ export class TrimTool implements CadTool {
   }
 }
 
-function findNearestLine(context: ToolContext, point: Point2D, toleranceWorld: number): LineHit | null {
-  const spatialIndex = getDocumentSpatialIndex(context.document);
-  const candidates = spatialIndex.query({
-    minX: point.x - toleranceWorld,
-    minY: point.y - toleranceWorld,
-    maxX: point.x + toleranceWorld,
-    maxY: point.y + toleranceWorld
-  });
-  let nearestHit: LineHit | null = null;
-  let nearestDistance = Number.POSITIVE_INFINITY;
+function planCurveTrim(
+  target: CurveEntity,
+  primitives: Parameters<typeof curveIntersectionParams>[1],
+  point: Point2D
+): TrimPlan | string {
+  const { curve, span } = curveOfEntity(target);
+  const cuts = curveIntersectionParams(curve, primitives);
+  const result = trimPeriodicCurve(span, cuts, curveParamAt(curve, point));
 
-  for (const entity of candidates) {
-    if (entity.type !== "line" || isLayerVisible(context, entity) === false) {
-      continue;
-    }
-
-    const distance = distancePointToSegment(point, entity.start, entity.end);
-
-    if (distance <= toleranceWorld && distance < nearestDistance) {
-      nearestDistance = distance;
-      nearestHit = {
-        entity,
-        locked: isLayerLocked(context, entity)
-      };
-    }
+  if (result === null) {
+    return span === null && cuts.length === 1
+      ? "[Trim] A closed curve needs two cutting points"
+      : "[Trim] No valid cutting edge found";
   }
 
-  return nearestHit;
-}
+  const pieces = result.kept.map((piece, index) =>
+    ({ ...entityWithSpan(target, piece), id: index === 0 ? target.id : newPieceId(target.id, "trim") }) as CadEntity
+  );
 
-function createPreviewLine(original: LineEntity, segment: LineParameterSegment): LineEntity {
   return {
-    ...original,
-    id: `trim_preview_${original.id}`,
-    start: segment.start,
-    end: segment.end
+    command: new ReplaceEntityCommand(target, pieces, "Trims a curve."),
+    removedPreview: { ...entityWithSpan(target, result.removed), id: `trim_preview_${target.id}` } as CadEntity
   };
 }
 
-function createTrimResultLine(original: LineEntity, segment: LineParameterSegment, index: number): LineEntity {
-  return {
-    ...original,
-    id: index === 0 ? original.id : createTrimSegmentId(original.id, index),
-    start: segment.start,
-    end: segment.end
-  };
+function isTrimmable(entity: CadEntity): entity is EditableEntity {
+  return entity.type === "line" || isCurveEntity(entity);
 }
 
-function createTrimSegmentId(originalId: string, index: number): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return `${originalId}_trim_${crypto.randomUUID()}`;
-  }
-
-  return `${originalId}_trim_${index}_${Date.now()}_${Math.floor(Math.random() * 1_000_000)}`;
-}
-
-function lineSearchBox(line: LineEntity, padding: number) {
-  return {
-    minX: Math.min(line.start.x, line.end.x) - padding,
-    minY: Math.min(line.start.y, line.end.y) - padding,
-    maxX: Math.max(line.start.x, line.end.x) + padding,
-    maxY: Math.max(line.start.y, line.end.y) + padding
-  };
-}
-
-function isSupportedCuttingEntity(entity: CadEntity): entity is LineEntity | RectangleEntity | CircleEntity {
-  return entity.type === "line" || entity.type === "rectangle" || entity.type === "circle";
-}
-
-function isEntityLayerUsable(context: ToolContext, entity: CadEntity): boolean {
-  return isLayerVisible(context, entity) && !isLayerLocked(context, entity);
-}
-
-function isLayerVisible(context: ToolContext, entity: CadEntity): boolean {
-  const layer = context.document.layers.find((candidate) => candidate.id === (entity.layerId || "layer_0"));
-
-  return layer?.visible !== false;
-}
-
-function isLayerLocked(context: ToolContext, entity: CadEntity): boolean {
-  const layer = context.document.layers.find((candidate) => candidate.id === (entity.layerId || "layer_0"));
-
-  return layer?.locked === true;
+function lineFromSegment(original: LineEntity, segment: LineParameterSegment, id: string): LineEntity {
+  return { ...original, id, start: segment.start, end: segment.end };
 }

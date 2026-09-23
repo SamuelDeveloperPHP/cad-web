@@ -1,40 +1,55 @@
 import {
   ExtendLineCommand,
-  getDocumentSpatialIndex,
+  ReplaceEntityCommand,
   type CadEntity,
-  type CircleEntity,
-  type LineEntity,
-  type RectangleEntity
+  type LineEntity
 } from "@cad-web/cad-core";
 import {
   buildExtendPreview,
-  extendLineToPoint,
-  findLineEndpointNearPoint,
-  findNearestExtendCandidate,
-  getExtendCandidates,
+  curveIntersectionParams,
+  curveOfEntity,
+  distance,
+  ellipseBoundingBox,
+  entityWithSpan,
+  extendPeriodicCurve,
+  lineExtendCandidatesFromPrimitives,
+  spanEndpoints,
+  type BoundingBox,
   type ExtendEndpoint,
-  type LineEndpointHit,
-  type LineParameterSegment,
-  type Point2D,
-  type TrimCuttingEntity
+  type Point2D
 } from "@cad-web/cad-geometry";
 import type { CadTool } from "../contracts/CadTool";
 import type { ToolContext } from "../contracts/ToolContext";
 import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent";
 import { TOOL_RESULT_NONE, type ToolResult } from "../contracts/ToolResult";
 import { findNearestEntityId } from "../selection/hitTesting";
+import {
+  collectBoundaryEntities,
+  findNearestEditable,
+  hasIntersectGeometry,
+  isCurveEntity,
+  isEntityLayerUsable,
+  padBox,
+  toBoundaryPrimitives,
+  type CurveEntity,
+  type EditableEntity
+} from "./curveEditUtils";
 
 const DEFAULT_SCREEN_TOLERANCE_PIXELS = 8;
 const MAX_EXTEND_SEARCH_WORLD = 100_000;
 
 type ExtendPhase = "selecting_boundary_edges" | "extending_segments";
 
-type EndpointLineHit = Readonly<{
-  entity: LineEntity;
-  endpointHit: LineEndpointHit;
-  locked: boolean;
+type ExtendPlan = Readonly<{
+  command: ExtendLineCommand | ReplaceEntityCommand;
+  addedPreview: CadEntity;
 }>;
 
+/**
+ * Ferramenta Extend: estende linhas, arcos e arcos de elipse até o limite mais próximo, pela ponta
+ * mais próxima do clique (como no AutoCAD, basta clicar na metade do objeto perto da ponta).
+ * Qualquer entidade com geometria (linha, retângulo, polyline, círculo, arco, elipse) serve de limite.
+ */
 export class ExtendTool implements CadTool {
   readonly id = "extend";
   readonly name = "Extend";
@@ -70,38 +85,21 @@ export class ExtendTool implements CadTool {
       return TOOL_RESULT_NONE;
     }
 
-    const hit = findNearestLineEndpoint(context, event.worldPoint, this.getToleranceWorld(context));
+    const hit = findNearestEditable(context, event.worldPoint, this.getToleranceWorld(context), isExtendable);
 
     if (hit === null || hit.locked) {
       context.clearPreview();
       return TOOL_RESULT_NONE;
     }
 
-    const candidate = findNearestExtendCandidate(
-      getExtendCandidates(
-        hit.entity,
-        this.getBoundaryEntities(context, hit.entity, hit.endpointHit.endpoint),
-        hit.endpointHit.endpoint
-      )
-    );
+    const plan = this.planExtend(hit.entity, event.worldPoint, context);
 
-    if (candidate === null) {
+    if (typeof plan === "string") {
       context.clearPreview();
       return TOOL_RESULT_NONE;
     }
 
-    const previewSegment = buildExtendPreview(hit.entity, candidate);
-
-    if (previewSegment === null) {
-      context.clearPreview();
-      return TOOL_RESULT_NONE;
-    }
-
-    const preview = {
-      type: "ghostEntities" as const,
-      entities: [createPreviewLine(hit.entity, previewSegment)]
-    };
-
+    const preview = { type: "ghostEntities" as const, entities: [plan.addedPreview] };
     context.setPreview(preview);
 
     return { type: "preview", preview };
@@ -148,7 +146,7 @@ export class ExtendTool implements CadTool {
 
     const entity = context.document.entities.find((candidate) => candidate.id === hitId);
 
-    if (entity === undefined || !isSupportedBoundaryEntity(entity)) {
+    if (entity === undefined || !hasIntersectGeometry(entity)) {
       context.showMessage("[Extend] Boundary type not supported");
       return TOOL_RESULT_NONE;
     }
@@ -176,7 +174,7 @@ export class ExtendTool implements CadTool {
   }
 
   private extendPickedEndpoint(point: Point2D, context: ToolContext): ToolResult {
-    const hit = findNearestLineEndpoint(context, point, this.getToleranceWorld(context));
+    const hit = findNearestEditable(context, point, this.getToleranceWorld(context), isExtendable);
 
     if (hit === null) {
       context.showMessage("[Extend] Select object end to extend");
@@ -188,50 +186,82 @@ export class ExtendTool implements CadTool {
       return TOOL_RESULT_NONE;
     }
 
-    const candidate = findNearestExtendCandidate(
-      getExtendCandidates(
-        hit.entity,
-        this.getBoundaryEntities(context, hit.entity, hit.endpointHit.endpoint),
-        hit.endpointHit.endpoint
-      )
-    );
+    const plan = this.planExtend(hit.entity, point, context);
 
-    if (candidate === null) {
+    if (typeof plan === "string") {
       context.clearPreview();
-      context.showMessage("[Extend] No valid boundary found");
+      context.showMessage(plan);
       return TOOL_RESULT_NONE;
     }
 
-    const extendedLine = extendLineToPoint(hit.entity, hit.endpointHit.endpoint, candidate.point);
-    const updatedEntity: LineEntity = {
-      ...hit.entity,
-      start: extendedLine.start,
-      end: extendedLine.end
-    };
-    const command = new ExtendLineCommand(hit.entity, updatedEntity, hit.endpointHit.endpoint, candidate.boundaryId);
-
-    context.executeCommand(command);
+    context.executeCommand(plan.command);
     context.clearPreview();
-    context.showMessage("[Extend] Line extended. Select another endpoint or press Esc");
+    context.showMessage("[Extend] Extended. Select another object end or press Esc");
 
-    return { type: "command", command };
+    return { type: "command", command: plan.command };
   }
 
-  private getBoundaryEntities(
-    context: ToolContext,
-    target: LineEntity,
-    endpoint: ExtendEndpoint
-  ): ReadonlyArray<TrimCuttingEntity> {
-    // O modo rápido consulta o índice espacial na direção da extensão para reduzir candidatos por movimento.
-    const candidates = this.useAllVisibleBoundaryEdges
-      ? getDocumentSpatialIndex(context.document).query(extendSearchBox(target, endpoint, this.getToleranceWorld(context)))
-      : context.document.entities.filter((entity) => this.boundaryEdgeIds.has(entity.id));
+  private planExtend(target: EditableEntity, point: Point2D, context: ToolContext): ExtendPlan | string {
+    const tolerance = this.getToleranceWorld(context);
 
-    return candidates.filter((entity): entity is LineEntity | RectangleEntity | CircleEntity =>
-      entity.id !== target.id &&
-      isSupportedBoundaryEntity(entity) &&
-      isEntityLayerUsable(context, entity)
+    if (target.type === "line") {
+      const endpoint: ExtendEndpoint = distance(point, target.start) <= distance(point, target.end) ? "start" : "end";
+      const boundaries = collectBoundaryEntities(
+        context,
+        this.boundaryEdgeIds,
+        this.useAllVisibleBoundaryEdges,
+        extendSearchBox(target, endpoint, tolerance),
+        target.id
+      );
+      const candidate = lineExtendCandidatesFromPrimitives(target, toBoundaryPrimitives(boundaries), endpoint)[0];
+
+      if (candidate === undefined) {
+        return "[Extend] No valid boundary found";
+      }
+
+      const updated: LineEntity = endpoint === "start" ? { ...target, start: candidate.point } : { ...target, end: candidate.point };
+      const added = buildExtendPreview(target, candidate);
+
+      return {
+        command: new ExtendLineCommand(target, updated, endpoint, candidate.boundaryId),
+        addedPreview: { ...target, id: `extend_preview_${target.id}`, start: added?.start ?? target.start, end: added?.end ?? target.end }
+      };
+    }
+
+    return this.planCurveExtend(target, point, context, tolerance);
+  }
+
+  private planCurveExtend(target: CurveEntity, point: Point2D, context: ToolContext, tolerance: number): ExtendPlan | string {
+    const { curve, span } = curveOfEntity(target);
+
+    if (span === null) {
+      return "[Extend] Closed circles and ellipses cannot be extended";
+    }
+
+    const ends = spanEndpoints(curve, span);
+    const endpoint: ExtendEndpoint = distance(point, ends.start) <= distance(point, ends.end) ? "start" : "end";
+    const boundaries = collectBoundaryEntities(
+      context,
+      this.boundaryEdgeIds,
+      this.useAllVisibleBoundaryEdges,
+      padBox(fullCurveBox(target), tolerance),
+      target.id
     );
+    const params = curveIntersectionParams(curve, toBoundaryPrimitives(boundaries).map((boundary) => boundary.primitive));
+    const extended = extendPeriodicCurve(span, params, endpoint);
+
+    if (extended === null) {
+      return "[Extend] No valid boundary found";
+    }
+
+    const addedSpan = endpoint === "end"
+      ? { start: span.start + span.sweep, sweep: extended.sweep - span.sweep }
+      : { start: extended.start, sweep: extended.sweep - span.sweep };
+
+    return {
+      command: new ReplaceEntityCommand(target, [{ ...entityWithSpan(target, extended), id: target.id } as CadEntity], "Extends a curve."),
+      addedPreview: { ...entityWithSpan(target, addedSpan), id: `extend_preview_${target.id}` } as CadEntity
+    };
   }
 
   private getToleranceWorld(context: ToolContext): number {
@@ -247,61 +277,33 @@ export class ExtendTool implements CadTool {
   }
 }
 
-function findNearestLineEndpoint(context: ToolContext, point: Point2D, toleranceWorld: number): EndpointLineHit | null {
-  const candidates = getDocumentSpatialIndex(context.document).query({
-    minX: point.x - toleranceWorld,
-    minY: point.y - toleranceWorld,
-    maxX: point.x + toleranceWorld,
-    maxY: point.y + toleranceWorld
-  });
-  let nearestHit: EndpointLineHit | null = null;
-  let nearestDistance = Number.POSITIVE_INFINITY;
+// Linhas e curvas abertas (arco, arco de elipse); círculos e elipses fechadas recebem uma mensagem clara.
+function isExtendable(entity: CadEntity): entity is EditableEntity {
+  return entity.type === "line" || isCurveEntity(entity);
+}
 
-  for (const entity of candidates) {
-    if (entity.type !== "line" || isLayerVisible(context, entity) === false) {
-      continue;
-    }
-
-    const endpointHit = findLineEndpointNearPoint(entity, point, toleranceWorld);
-
-    if (endpointHit !== null && endpointHit.distance < nearestDistance) {
-      nearestDistance = endpointHit.distance;
-      nearestHit = {
-        entity,
-        endpointHit,
-        locked: isLayerLocked(context, entity)
-      };
-    }
+// A extensão de uma curva nunca sai da curva completa: basta buscar limites no envoltório dela.
+function fullCurveBox(target: CurveEntity): BoundingBox {
+  if (target.type === "ellipse") {
+    return ellipseBoundingBox(target.center, target.radiusX, target.radiusY, target.rotation);
   }
 
-  return nearestHit;
-}
-
-function createPreviewLine(original: LineEntity, segment: LineParameterSegment): LineEntity {
   return {
-    ...original,
-    id: `extend_preview_${original.id}`,
-    start: segment.start,
-    end: segment.end
+    minX: target.center.x - target.radius,
+    minY: target.center.y - target.radius,
+    maxX: target.center.x + target.radius,
+    maxY: target.center.y + target.radius
   };
 }
 
-function extendSearchBox(line: LineEntity, endpoint: ExtendEndpoint, padding: number) {
+function extendSearchBox(line: LineEntity, endpoint: ExtendEndpoint, padding: number): BoundingBox {
   const anchor = endpoint === "end" ? line.end : line.start;
   const opposite = endpoint === "end" ? line.start : line.end;
-  const direction = {
-    x: anchor.x - opposite.x,
-    y: anchor.y - opposite.y
-  };
+  const direction = { x: anchor.x - opposite.x, y: anchor.y - opposite.y };
   const length = Math.hypot(direction.x, direction.y);
 
   if (length <= 0) {
-    return {
-      minX: anchor.x - padding,
-      minY: anchor.y - padding,
-      maxX: anchor.x + padding,
-      maxY: anchor.y + padding
-    };
+    return padBox({ minX: anchor.x, minY: anchor.y, maxX: anchor.x, maxY: anchor.y }, padding);
   }
 
   const farPoint = {
@@ -309,30 +311,10 @@ function extendSearchBox(line: LineEntity, endpoint: ExtendEndpoint, padding: nu
     y: anchor.y + (direction.y / length) * MAX_EXTEND_SEARCH_WORLD
   };
 
-  return {
-    minX: Math.min(anchor.x, farPoint.x) - padding,
-    minY: Math.min(anchor.y, farPoint.y) - padding,
-    maxX: Math.max(anchor.x, farPoint.x) + padding,
-    maxY: Math.max(anchor.y, farPoint.y) + padding
-  };
-}
-
-function isSupportedBoundaryEntity(entity: CadEntity): entity is LineEntity | RectangleEntity | CircleEntity {
-  return entity.type === "line" || entity.type === "rectangle" || entity.type === "circle";
-}
-
-function isEntityLayerUsable(context: ToolContext, entity: CadEntity): boolean {
-  return isLayerVisible(context, entity) && !isLayerLocked(context, entity);
-}
-
-function isLayerVisible(context: ToolContext, entity: CadEntity): boolean {
-  const layer = context.document.layers.find((candidate) => candidate.id === (entity.layerId || "layer_0"));
-
-  return layer?.visible !== false;
-}
-
-function isLayerLocked(context: ToolContext, entity: CadEntity): boolean {
-  const layer = context.document.layers.find((candidate) => candidate.id === (entity.layerId || "layer_0"));
-
-  return layer?.locked === true;
+  return padBox({
+    minX: Math.min(anchor.x, farPoint.x),
+    minY: Math.min(anchor.y, farPoint.y),
+    maxX: Math.max(anchor.x, farPoint.x),
+    maxY: Math.max(anchor.y, farPoint.y)
+  }, padding);
 }
