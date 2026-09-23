@@ -29,6 +29,10 @@ export interface CadTool {
   // deve ser entregue a ela em vez de ativar a ferramenta de mesmo alias (ex.: "a" = Arc).
   claimsCommandInput?(input: string): boolean;
 
+  // Opcional: quando true, a tecla vai direto para a ferramenta antes dos atalhos globais (ex.: Delete remove
+  // o vértice do grip ativo em vez de apagar a entidade selecionada).
+  claimsKeyDown?(event: ToolKeyboardEvent): boolean;
+
   // Opcional: ponto de referência do desenho em andamento (ponto anterior), que habilita perpendicular e tangente.
   getSnapReferencePoint?(): Point2D | null;
 }

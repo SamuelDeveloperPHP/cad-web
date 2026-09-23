@@ -1,5 +1,13 @@
-import { getDimensionGripPoints, getSplineGripPoints, splineControlFrame, type Point2D, type SnapType } from "@cad-web/cad-geometry";
-import { resolveDimensionStyle, type CadDocument, type DimensionEntity, type EntityId, type SplineEntity } from "@cad-web/cad-core";
+import {
+  getDimensionGripPoints,
+  getEntityGripPoints,
+  splineControlFrame,
+  supportsEntityGrips,
+  type GripEntityShape,
+  type Point2D,
+  type SnapType
+} from "@cad-web/cad-geometry";
+import { resolveDimensionStyle, type CadDocument, type DimensionEntity, type EntityId } from "@cad-web/cad-core";
 import type { Viewport } from "./types";
 import { worldToScreen } from "./viewport";
 import type { ScreenSize } from "./types";
@@ -212,32 +220,32 @@ export function renderDimensionGrips2D(
   context.restore();
 }
 
-export type SplineGripOverlayOptions = Readonly<{
+export type EntityGripOverlayOptions = Readonly<{
   sizePx?: number;
   // Acima disso os grips não são desenhados (seleções grandes ficam leves).
   maxEntities?: number;
 }>;
 
 /**
- * Grips das splines selecionadas: pontos de ajuste (quadrados) ou vértices de controle da cadeia de
- * Béziers (quadrados nos vértices da curva, círculos nas alças) com a armação tracejada vértice → alça.
- * Só lê a geometria.
+ * Grips das entidades selecionadas (linha, círculo, arco, elipse, polyline, retângulo, texto e spline):
+ * quadrados nos pontos editáveis, retângulos nos meios de segmentos/arestas e círculos nas alças da spline,
+ * que ganha também a armação tracejada vértice → alça. As cotas usam renderDimensionGrips2D. Só lê a geometria.
  */
-export function renderSplineGrips2D(
+export function renderEntityGrips2D(
   context: CanvasRenderingContext2D,
   document: CadDocument,
   selectedEntityIds: ReadonlyArray<EntityId>,
   viewport: Viewport,
-  options: SplineGripOverlayOptions = {}
+  options: EntityGripOverlayOptions = {}
 ): void {
   if (selectedEntityIds.length === 0) {
     return;
   }
 
   const selected = new Set(selectedEntityIds);
-  const splines = document.entities.filter((entity): entity is SplineEntity => entity.type === "spline" && selected.has(entity.id));
+  const entities = document.entities.filter((entity) => selected.has(entity.id) && supportsEntityGrips(entity));
 
-  if (splines.length === 0 || splines.length > (options.maxEntities ?? 50)) {
+  if (entities.length === 0 || entities.length > (options.maxEntities ?? 50)) {
     return;
   }
 
@@ -245,19 +253,20 @@ export function renderSplineGrips2D(
   const half = size / 2;
 
   context.save();
-  context.lineWidth = 1;
 
-  for (const spline of splines) {
-    const layer = document.layers.find((candidate) => candidate.id === spline.layerId);
+  for (const entity of entities) {
+    const layer = document.layers.find((candidate) => candidate.id === entity.layerId);
 
     if (layer?.visible === false || layer?.locked === true) {
       continue;
     }
 
-    const frame = splineControlFrame(spline);
+    const shape = entity as unknown as GripEntityShape;
+    const frame = shape.type === "spline" ? splineControlFrame(shape) : [];
 
     if (frame.length > 0) {
       context.strokeStyle = "rgba(148, 163, 184, 0.75)";
+      context.lineWidth = 1;
       context.setLineDash([4, 3]);
       context.beginPath();
 
@@ -276,19 +285,21 @@ export function renderSplineGrips2D(
     context.fillStyle = "#0f172a";
     context.strokeStyle = "#60a5fa";
 
-    for (const grip of getSplineGripPoints(spline)) {
+    for (const grip of getEntityGripPoints(shape)) {
       const point = worldToScreen(grip.point, viewport);
 
-      if (grip.kind === "control" && grip.index % 3 !== 0) {
+      if (grip.shape === "circle") {
         context.beginPath();
         context.arc(point.x, point.y, half * 0.8, 0, Math.PI * 2);
         context.fill();
         context.stroke();
-        continue;
+      } else if (grip.shape === "segment") {
+        context.fillRect(point.x - half, point.y - half / 2, size, half);
+        context.strokeRect(point.x - half, point.y - half / 2, size, half);
+      } else {
+        context.fillRect(point.x - half, point.y - half, size, size);
+        context.strokeRect(point.x - half, point.y - half, size, size);
       }
-
-      context.fillRect(point.x - half, point.y - half, size, size);
-      context.strokeRect(point.x - half, point.y - half, size, size);
     }
   }
 
