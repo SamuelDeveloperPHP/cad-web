@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { UpdateEntityCommand, UpdateEntitiesBatchCommand, resolveDimensionStyle, type CadEntity, type TextEntity } from "@cad-web/cad-core";
-import { lineLength, rectangleArea, rectanglePerimeter, circleArea, circleCircumference, formatMeasurement, buildAngularDimensionGeometry, getPolylineLength, DIMENSION_ARROW_TYPES, type DimensionArrowType } from "@cad-web/cad-geometry";
-import { visualDegreesToWorldRadians, worldRadiansToVisualDegrees } from "@cad-web/cad-tools";
+import { UpdateEntityCommand, UpdateEntitiesBatchCommand, resolveDimensionStyle, type ArcEntity, type CadEntity, type EllipseEntity, type TextEntity } from "@cad-web/cad-core";
+import { lineLength, rectangleArea, rectanglePerimeter, circleArea, circleCircumference, formatMeasurement, buildAngularDimensionGeometry, getPolylineLength, DIMENSION_ARROW_TYPES, arcAnglesFromVisual, arcVisualAngles, ellipseArcVisualAngles, visualDegreesToWorldRadians, worldRadiansToVisualDegrees, type DimensionArrowType } from "@cad-web/cad-geometry";
 import { workingLengthFormat } from "../../services/workingUnits";
 
 // Rótulos dos terminadores de cota exibidos no seletor de setas.
@@ -379,16 +378,58 @@ export function CadPropertiesPanel({ cad }: { cad: CadStore }) {
         </>
       )}
 
-      {entity.type === "arc" && (
-        <>
-          <PropertyRow label={unitLabel("Center X")}><PropertyInput value={len.format((entity as any).center.x)} readOnly /></PropertyRow>
-          <PropertyRow label={unitLabel("Center Y")}><PropertyInput value={len.format((entity as any).center.y)} readOnly /></PropertyRow>
-          <PropertyRow label={unitLabel("Radius")}><PropertyInput value={len.format((entity as any).radius)} readOnly /></PropertyRow>
-          <PropertyRow label="Start Angle"><PropertyInput value={(((entity as any).startAngle * 180) / Math.PI).toFixed(2) + "°"} readOnly /></PropertyRow>
-          <PropertyRow label="End Angle"><PropertyInput value={(((entity as any).endAngle * 180) / Math.PI).toFixed(2) + "°"} readOnly /></PropertyRow>
-          <PropertyRow label="Clockwise"><PropertyInput value={(entity as any).clockwise ? "Yes" : "No"} readOnly /></PropertyRow>
-        </>
-      )}
+      {entity.type === "arc" && (() => {
+        const arc = entity as ArcEntity;
+        // Ângulos na convenção do AutoCAD: 0° = Leste, anti-horário, sempre do início ao fim no sentido anti-horário.
+        const angles = arcVisualAngles(arc);
+        const updateAngles = (visualStart: number, visualEnd: number) =>
+          handleUpdateSingle(arc.id, arcAnglesFromVisual(arc.clockwise, visualStart, visualEnd) as any);
+        return (
+          <>
+            <PropertyRow label={unitLabel("Center X")}><PropertyInput value={len.format(arc.center.x)} readOnly={isLocked} type="number" onChange={val => handleUpdateSingle(arc.id, { center: { ...arc.center, x: len.parse(val, arc.center.x) } } as any)} /></PropertyRow>
+            <PropertyRow label={unitLabel("Center Y")}><PropertyInput value={len.format(arc.center.y)} readOnly={isLocked} type="number" onChange={val => handleUpdateSingle(arc.id, { center: { ...arc.center, y: len.parse(val, arc.center.y) } } as any)} /></PropertyRow>
+            <PropertyRow label={unitLabel("Radius")}><PropertyInput value={len.format(arc.radius)} readOnly={isLocked} type="number" onChange={val => { const r = len.parse(val, arc.radius); if (r > 0) handleUpdateSingle(arc.id, { radius: r } as any); }} /></PropertyRow>
+            <PropertyRow label="Start Angle (°)"><PropertyInput value={angles.start.toFixed(2)} readOnly={isLocked} type="number" onChange={val => updateAngles(parseNumber(val, angles.start), angles.end)} /></PropertyRow>
+            <PropertyRow label="End Angle (°)"><PropertyInput value={angles.end.toFixed(2)} readOnly={isLocked} type="number" onChange={val => updateAngles(angles.start, parseNumber(val, angles.end))} /></PropertyRow>
+            <PropertyRow label="Total Angle (°)"><PropertyInput value={angles.sweep.toFixed(2)} readOnly /></PropertyRow>
+            <PropertyRow label={unitLabel("Arc Length")}><PropertyInput value={len.format(arc.radius * (angles.sweep * Math.PI) / 180)} readOnly /></PropertyRow>
+          </>
+        );
+      })()}
+
+      {entity.type === "ellipse" && (() => {
+        const ellipse = entity as EllipseEntity;
+        const isArc = ellipse.startAngle !== undefined && ellipse.endAngle !== undefined;
+        const arcAngles = isArc
+          ? ellipseArcVisualAngles({ radiusX: ellipse.radiusX, radiusY: ellipse.radiusY, startAngle: ellipse.startAngle!, endAngle: ellipse.endAngle! })
+          : null;
+        const major = Math.max(ellipse.radiusX, ellipse.radiusY);
+        const minor = Math.min(ellipse.radiusX, ellipse.radiusY);
+        return (
+          <>
+            <PropertyRow label="Kind"><PropertyInput value={isArc ? "Elliptical arc" : "Ellipse"} readOnly /></PropertyRow>
+            <PropertyRow label={unitLabel("Center X")}><PropertyInput value={len.format(ellipse.center.x)} readOnly={isLocked} type="number" onChange={val => handleUpdateSingle(ellipse.id, { center: { ...ellipse.center, x: len.parse(val, ellipse.center.x) } } as any)} /></PropertyRow>
+            <PropertyRow label={unitLabel("Center Y")}><PropertyInput value={len.format(ellipse.center.y)} readOnly={isLocked} type="number" onChange={val => handleUpdateSingle(ellipse.id, { center: { ...ellipse.center, y: len.parse(val, ellipse.center.y) } } as any)} /></PropertyRow>
+            {/* Radius X segue a direção da rotação (1º eixo); Radius Y é o eixo perpendicular. */}
+            <PropertyRow label={unitLabel("Radius X")}><PropertyInput value={len.format(ellipse.radiusX)} readOnly={isLocked} type="number" onChange={val => { const r = len.parse(val, ellipse.radiusX); if (r > 0) handleUpdateSingle(ellipse.id, { radiusX: r } as any); }} /></PropertyRow>
+            <PropertyRow label={unitLabel("Radius Y")}><PropertyInput value={len.format(ellipse.radiusY)} readOnly={isLocked} type="number" onChange={val => { const r = len.parse(val, ellipse.radiusY); if (r > 0) handleUpdateSingle(ellipse.id, { radiusY: r } as any); }} /></PropertyRow>
+            <PropertyRow label="Rotation (°)"><PropertyInput value={worldRadiansToVisualDegrees(ellipse.rotation).toFixed(2)} readOnly={isLocked} type="number" onChange={val => handleUpdateSingle(ellipse.id, { rotation: visualDegreesToWorldRadians(parseNumber(val, worldRadiansToVisualDegrees(ellipse.rotation))) } as any)} /></PropertyRow>
+            <PropertyRow label={unitLabel("Major Radius")}><PropertyInput value={len.format(major)} readOnly /></PropertyRow>
+            <PropertyRow label={unitLabel("Minor Radius")}><PropertyInput value={len.format(minor)} readOnly /></PropertyRow>
+            <PropertyRow label="Radius Ratio"><PropertyInput value={(minor / major).toFixed(4)} readOnly /></PropertyRow>
+            {arcAngles !== null && (
+              <>
+                <PropertyRow label="Start Angle (°)"><PropertyInput value={arcAngles.start.toFixed(2)} readOnly /></PropertyRow>
+                <PropertyRow label="End Angle (°)"><PropertyInput value={arcAngles.end.toFixed(2)} readOnly /></PropertyRow>
+                <PropertyRow label="Total Angle (°)"><PropertyInput value={arcAngles.sweep.toFixed(2)} readOnly /></PropertyRow>
+              </>
+            )}
+            {arcAngles === null && (
+              <PropertyRow label={`Area (${len.unit}²)`}><PropertyInput value={len.formatArea(Math.PI * ellipse.radiusX * ellipse.radiusY)} readOnly /></PropertyRow>
+            )}
+          </>
+        );
+      })()}
 
       {entity.type === "text" && (() => {
         const text = entity as TextEntity;

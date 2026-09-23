@@ -1,5 +1,12 @@
 import type { TextEntity } from "@cad-web/cad-core";
-import { addVector, distance, textLineAdvance, type Point2D } from "@cad-web/cad-geometry";
+import {
+  addVector,
+  distance,
+  textLineAdvance,
+  visualDegreesToWorldRadians,
+  worldRadiansToVisualDegrees,
+  type Point2D
+} from "@cad-web/cad-geometry";
 import { createEntityCommand } from "../commands/CadCommandTypes";
 import type { CadTool } from "../contracts/CadTool";
 import type { ToolContext } from "../contracts/ToolContext";
@@ -280,18 +287,8 @@ export class TextTool implements CadTool {
   }
 }
 
-// Converte graus na convenção visual (anti-horário, Y para cima) para radianos no mundo (Y para baixo).
-export function visualDegreesToWorldRadians(degrees: number): number {
-  const radians = (-degrees * Math.PI) / 180;
-  return Object.is(radians, -0) ? 0 : radians;
-}
-
-// Converte radianos do mundo para graus na convenção visual, normalizados em [0, 360).
-export function worldRadiansToVisualDegrees(radians: number): number {
-  const degrees = ((-radians * 180) / Math.PI) % 360;
-  const normalized = degrees < 0 ? degrees + 360 : degrees;
-  return Math.abs(normalized - 360) < 1e-9 || Math.abs(normalized) < 1e-9 ? 0 : normalized;
-}
+// As conversões de ângulo vivem no kernel (cad-geometry); o re-export mantém a API pública do pacote.
+export { visualDegreesToWorldRadians, worldRadiansToVisualDegrees };
 
 function formatValue(value: number): string {
   return Number(value.toFixed(4)).toString();
