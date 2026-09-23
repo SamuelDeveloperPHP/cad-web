@@ -52,13 +52,28 @@ Comprimentos (coordenadas, comprimento, raio, largura/altura, perímetro) e áre
 - `packages/cad-io`: validação JSON do texto; export SVG (`<g data-entity-type="text">` com um `<text>` por linha) e dos novos terminadores. Testes em `src/text.test.ts`.
 - `apps/web`: botão Text no ribbon, registro da ferramenta, linha de comando com texto livre/foco/Esc, snap Insertion (Modes, rodapé, persistência), painel de propriedades (texto, setas, overrides da cota, unidade de trabalho), `services/workingUnits.ts` compartilhado com o rodapé.
 
+## Complemento 3.18.1 — Importação de texto SVG, painel de arco e elipse
+
+### Importar texto de SVG
+
+- **Grupos do CAD-WEB** (`<g data-entity-type="text">`): viram uma única entidade de várias linhas. A exportação passou a gravar `data-position` (ponto de inserção exato) e `data-vertical-align`, exporta linhas vazias e usa `xml:space="preserve"`, então a ida e volta preserva conteúdo (espaços e linhas vazias), altura, rotação, alinhamentos, fonte, negrito, itálico e cor. SVGs antigos sem esses atributos usam a origem da primeira linha como inserção.
+- **`<text>` de outros programas**: cada elemento vira um texto. Lê atributos diretos ou `style` (`font-size`, `font-family`, `font-weight`, `font-style`, `text-anchor`, `dominant-baseline`, `fill`), `<tspan>` com `x`/`y`/`dy` como quebra de linha, entidades `&amp;`/`&#…;`, e `transform` `rotate(a x y)` (em torno do próprio ponto) ou `translate(tx, ty)`. Espaços são colapsados como no SVG, exceto com `xml:space="preserve"`. Tamanho padrão 16 (padrão do SVG); textos vazios são ignorados.
+- **Camada**: `data-layer-id` do elemento ou do grupo de camada exportado que o contém.
+- O texto das cotas exportadas volta como texto solto, junto das linhas já importadas (a cota chega "explodida", como antes para as linhas).
+
+### Arco e elipse no painel
+
+- Conversões de ângulo (`visualDegreesToWorldRadians`, `worldRadiansToVisualDegrees`, `arcVisualAngles`, `arcAnglesFromVisual`, `ellipseArcVisualAngles`) passaram para `cad-geometry/src/visualAngles.ts`, com testes; o `TextTool` só as reexporta.
+- **Arco**: Start/End Angle na convenção do AutoCAD — 0° = Leste, sempre do início ao fim no sentido anti-horário, independentemente do sentido armazenado (`clockwise`). Centro, raio e ângulos são editáveis (a edição preserva o sentido armazenado); Total Angle e Arc Length somente leitura.
+- **Elipse** (nova seção): tipo (elipse/arco de elipse), Center X/Y, Radius X/Y e Rotation editáveis (Radius X segue a direção da rotação); Major/Minor Radius e Radius Ratio; área para a elipse fechada; para o arco de elipse, Start/End/Total Angle reais (não paramétricos) medidos a partir do eixo X da elipse, somente leitura.
+
 ## Fora de escopo (futuro)
 
 - Editor de texto no próprio canvas (duplo clique) e MTEXT com formatação por trecho.
-- Importar `<text>` de SVG (a importação SVG ainda não traz elipses/arcos/cotas).
+- Importar elipses, arcos e cotas de SVG como entidades nativas.
 - Grips do texto (mover pelo ponto de inserção) e estilos de texto nomeados (STYLE).
 - Medição real da largura com a fonte (hoje estimada) e fator de largura/oblíquo.
-- Painel na unidade de trabalho para elipse e ângulos do arco na convenção visual.
+- Edição dos ângulos do arco de elipse no painel.
 
 ## Testes
 
@@ -77,3 +92,7 @@ npm run build --workspace=apps/web
 5. Iniciar uma linha perto do ponto de inserção do texto: marcador Insertion e ponto exato.
 6. Move/Rotate/Scale/Mirror/Array em texto; Mirror em eixo vertical mantém o texto legível.
 7. Cota → Arrow Type `open`, `dot`, `none`; Arrow Size e Text Height por cota; exportar SVG.
+8. Exportar SVG com textos e reimportar: conteúdo, posição, rotação e estilos iguais.
+9. Importar um SVG de outro editor com `<text>`/`<tspan>`, `text-anchor`, `rotate(...)`: textos no lugar certo.
+10. Arco de 3 pontos Leste → Norte: painel mostra 0° / 90°; mudar End Angle para 180 vira semicírculo superior.
+11. Elipse com eixo a 45°: painel mostra Rotation 45; editar Rotation e Radius Y atualiza o desenho (Ctrl+Z desfaz).
