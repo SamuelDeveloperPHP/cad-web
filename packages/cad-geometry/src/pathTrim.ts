@@ -161,49 +161,57 @@ export function trimPolylinePath(
   clickDistance: number
 ): PathPieces | null {
   const cumulative = pathCumulativeLengths(points, closed);
-  const total = cumulative[cumulative.length - 1]!;
+  const intervals = trimIntervals(cumulative[cumulative.length - 1]!, closed, cuts, clickDistance);
+
+  if (intervals === null) return null;
+
+  return {
+    removed: extractPathPiece(points, closed, intervals.removed[0], intervals.removed[1]),
+    kept: intervals.kept.map(([from, to]) => extractPathPiece(points, closed, from, to))
+  };
+}
+
+export type TrimIntervals = Readonly<{
+  // Trechos mantidos [de, até]; no domínio fechado, de > até atravessa o início.
+  kept: ReadonlyArray<readonly [number, number]>;
+  removed: readonly [number, number];
+}>;
+
+/**
+ * Núcleo do trim em um domínio 1D [0, total] (aberto) ou periódico de período total (fechado): remove o
+ * intervalo entre cortes que contém o clique. Serve tanto para distâncias de polyline quanto para o
+ * parâmetro de uma spline.
+ */
+export function trimIntervals(total: number, closed: boolean, cuts: ReadonlyArray<number>, click: number): TrimIntervals | null {
   const tolerance = Math.max(total * 1e-9, 1e-12);
 
   if (closed) {
     if (cuts.length < 2) return null;
-
-    const click = wrap(clickDistance, total);
-    let from = cuts[cuts.length - 1]!;
-    let to = cuts[0]!;
+    const position = wrap(click, total);
 
     for (let index = 0; index < cuts.length; index += 1) {
-      const next = cuts[(index + 1) % cuts.length]!;
       const start = cuts[index]!;
-      const inside = start <= next ? click >= start && click <= next : click >= start || click <= next;
-      if (inside) {
-        from = start;
-        to = next;
-        break;
-      }
+      const next = cuts[(index + 1) % cuts.length]!;
+      const inside = start <= next ? position >= start && position <= next : position >= start || position <= next;
+      if (inside) return { removed: [start, next], kept: [[next, start]] };
     }
 
-    return {
-      removed: extractPathPiece(points, true, from, to),
-      kept: [extractPathPiece(points, true, to, from)]
-    };
+    return { removed: [cuts[cuts.length - 1]!, cuts[0]!], kept: [[cuts[0]!, cuts[cuts.length - 1]!]] };
   }
 
   if (cuts.length === 0) return null;
 
-  const click = Math.max(0, Math.min(total, clickDistance));
+  const position = Math.max(0, Math.min(total, click));
   const bounds = [0, ...cuts, total];
   let index = 0;
-
-  while (index < bounds.length - 2 && click > bounds[index + 1]!) index += 1;
+  while (index < bounds.length - 2 && position > bounds[index + 1]!) index += 1;
 
   const from = bounds[index]!;
   const to = bounds[index + 1]!;
-  const kept: Array<ReadonlyArray<Point2D>> = [];
-
-  if (from > tolerance) kept.push(extractPathPiece(points, false, 0, from));
-  if (total - to > tolerance) kept.push(extractPathPiece(points, false, to, total));
-
-  return { removed: extractPathPiece(points, false, from, to), kept };
+  const kept: Array<readonly [number, number]> = [];
+  if (from > tolerance) kept.push([0, from]);
+  if (total - to > tolerance) kept.push([to, total]);
+  return { removed: [from, to], kept };
 }
 
 function wrap(value: number, period: number): number {

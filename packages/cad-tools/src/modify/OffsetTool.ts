@@ -1,5 +1,5 @@
 import { CreateEntityCommand, type CadEntity } from "@cad-web/cad-core";
-import { offsetArc, offsetCircle, offsetEllipse, offsetLine, offsetRectangle } from "@cad-web/cad-geometry";
+import { offsetArc, offsetBezierChain, offsetCircle, offsetEllipseToBezierChain, offsetLine, offsetRectangle } from "@cad-web/cad-geometry";
 import type { CadTool } from "../contracts/CadTool";
 import type { ToolContext } from "../contracts/ToolContext";
 import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent";
@@ -7,7 +7,7 @@ import { TOOL_RESULT_NONE, type ToolResult } from "../contracts/ToolResult";
 import { findNearestEntityId } from "../selection/hitTesting";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
 
-const OFFSETTABLE_TYPES: ReadonlySet<string> = new Set(["line", "rectangle", "circle", "arc", "ellipse"]);
+const OFFSETTABLE_TYPES: ReadonlySet<string> = new Set(["line", "rectangle", "circle", "arc", "ellipse", "spline"]);
 
 export class OffsetTool implements CadTool {
   readonly id = "offset";
@@ -180,9 +180,14 @@ export class OffsetTool implements CadTool {
       const arc = offsetArc(this.targetEntity, this.distance, sidePoint);
       offsetGeom = arc === null ? null : { type: "arc", center: arc.center, radius: arc.radius, startAngle: arc.startAngle, endAngle: arc.endAngle, clockwise: arc.clockwise };
     } else if (this.targetEntity.type === "ellipse") {
-      // A paralela de uma elipse não é elipse: vira uma polyline densa (o AutoCAD gera uma spline).
-      const result = offsetEllipse(this.targetEntity, this.distance, sidePoint);
-      offsetGeom = result === null ? null : { type: "polyline", points: result.points, closed: result.closed };
+      // A paralela de uma elipse não é elipse: vira uma spline (como no AutoCAD), com erro < 1e-5 do raio.
+      const result = offsetEllipseToBezierChain(this.targetEntity, this.distance, sidePoint);
+      offsetGeom = result === null ? null : { type: "spline", controlPoints: result.chain, closed: result.closed };
+    } else if (this.targetEntity.type === "spline") {
+      const chain = offsetBezierChain(this.targetEntity.controlPoints, this.distance, sidePoint);
+      offsetGeom = chain === null
+        ? null
+        : { type: "spline", controlPoints: this.targetEntity.closed ? [...chain.slice(0, -1), chain[0]!] : chain, closed: this.targetEntity.closed };
     }
 
     if (!offsetGeom) return null;

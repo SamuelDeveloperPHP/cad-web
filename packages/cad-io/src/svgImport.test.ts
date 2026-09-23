@@ -23,6 +23,7 @@ function fullDocument(): CadDocument {
     },
     { id: "d2", layerId: "dims", type: "dimension", dimensionType: "radius", definition: { targetEntityId: "c1", center: { x: 50, y: 50 }, radius: 12.345678901, leaderEndPoint: { x: 70, y: 60 } } },
     { id: "d3", layerId: "dims", type: "dimension", dimensionType: "angular", definition: { vertex: { x: 0, y: 0 }, firstPoint: { x: 10, y: 0 }, secondPoint: { x: 0, y: 10 }, arcPoint: { x: 7, y: 7 } } },
+    { id: "s1", layerId: "layer_0", type: "spline", closed: false, fitPoints: [{ x: 0, y: 0 }, { x: 10, y: 10 }, { x: 20, y: 0 }], controlPoints: [{ x: 0, y: 0 }, { x: 2.5, y: 5 }, { x: 5.8, y: 10 }, { x: 10, y: 10 }, { x: 14.2, y: 10 }, { x: 17.5, y: 5 }, { x: 20, y: 0 }], color: "#00ff00" },
     { id: "t1", layerId: "layer_0", type: "text", position: { x: 1, y: 2 }, content: "A & B <c>\n\"aspas\" 'simples'", height: 3.5, rotation: 0.2, bold: true }
   ];
 
@@ -56,6 +57,16 @@ describe("SVG import — CAD-WEB round trip", () => {
     expect(imported.activeDimensionStyleId).toBe("dimstyle_custom");
     expect(imported.displayUnit).toBe("m");
     expect(imported.id).toBe("doc_roundtrip");
+  });
+
+  it("exports splines as exact Bézier paths that re-import without the native data", () => {
+    const document = fullDocument();
+    const imported = parseSvgDocument(serializeCadDocumentToSvg(document, { embedCadData: false, precision: 6 }));
+    const original = document.entities.find((entity) => entity.id === "s1") as any;
+    const spline = imported.entities.find((entity) => entity.id === "s1") as any;
+
+    expect(spline.type).toBe("spline");
+    expect(spline.controlPoints).toEqual(original.controlPoints);
   });
 
   it("draws color, thickness and dash pattern in the exported SVG", () => {
@@ -151,13 +162,29 @@ describe("SVG import — other programs", () => {
     expect(middle.y).toBeCloseTo(10);
   });
 
-  it("flattens Bézier curves into polylines ending at the right point", () => {
+  it("imports Bézier curves as exact splines (C, S, Q and T)", () => {
     const imported = parseSvgDocument(svg(`<path id="curve" d="M0 0 C 0 10 10 10 10 0 S 20 -10 20 0 Q 25 5 30 0 T 40 0" />`));
     const curve = imported.entities[0] as any;
 
-    expect(curve.type).toBe("polyline");
-    expect(curve.points.at(-1)).toEqual({ x: 40, y: 0 });
-    expect(curve.points.length).toBeGreaterThan(30);
+    expect(curve.type).toBe("spline");
+    expect(curve.closed).toBe(false);
+    // C literal, S com o controle refletido e Q elevada a cúbica (2/3 até o controle).
+    expect(curve.controlPoints.slice(0, 7)).toEqual([
+      { x: 0, y: 0 }, { x: 0, y: 10 }, { x: 10, y: 10 }, { x: 10, y: 0 }, { x: 10, y: -10 }, { x: 20, y: -10 }, { x: 20, y: 0 }
+    ]);
+    expect(curve.controlPoints[7].x).toBeCloseTo(20 + (2 / 3) * 5);
+    expect(curve.controlPoints[7].y).toBeCloseTo((2 / 3) * 5);
+    expect(curve.controlPoints.at(-1)).toEqual({ x: 40, y: 0 });
+  });
+
+  it("closes curved subpaths and applies transforms to the control points", () => {
+    const imported = parseSvgDocument(svg(`<g transform="translate(10 0) scale(2)"><path id="blob" d="M0 0 C 5 -5 10 5 10 0 L 0 5 Z" /></g>`));
+    const blob = imported.entities[0] as any;
+
+    expect(blob).toMatchObject({ type: "spline", closed: true });
+    expect(blob.controlPoints[0]).toEqual({ x: 10, y: 0 });
+    expect(blob.controlPoints[1]).toEqual({ x: 20, y: -10 });
+    expect(blob.controlPoints.at(-1)).toEqual(blob.controlPoints[0]);
   });
 
   it("creates layers from Inkscape groups and skips defs and hidden content", () => {
@@ -203,5 +230,77 @@ describe("SVG import — other programs", () => {
     const imported = parseSvgDocument(svg(`<line id="x" x1="0" y1="0" x2="1" y2="0" /><line id="x" x1="0" y1="1" x2="1" y2="1" />`));
 
     expect(imported.entities.map((entity) => entity.id)).toEqual(["x", "x_1"]);
+  });
+});
+
+describe("SVG import — <use>, CSS classes and physical units", () => {
+  it("instantiates <use> of elements in <defs> with offset and transform", () => {
+    const imported = parseSvgDocument(svg(`
+      <defs><line id="tick" x1="0" y1="0" x2="10" y2="0" /></defs>
+      <use href="#tick" x="5" y="5" />
+      <use xlink:href="#tick" transform="rotate(90)" />
+    `));
+    const lines = imported.entities.filter((entity) => entity.type === "line") as any[];
+
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toMatchObject({ start: { x: 5, y: 5 }, end: { x: 15, y: 5 } });
+    expect(lines[1].end.x).toBeCloseTo(0);
+    expect(lines[1].end.y).toBeCloseTo(10);
+    expect(new Set(lines.map((line) => line.id)).size).toBe(2);
+  });
+
+  it("instantiates <symbol> mapping its viewBox to the use size", () => {
+    const imported = parseSvgDocument(svg(`
+      <symbol id="valve" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" /></symbol>
+      <use href="#valve" x="100" y="0" width="20" height="20" />
+    `));
+
+    expect(imported.entities[0]).toMatchObject({ type: "circle", center: { x: 110, y: 10 }, radius: 10 });
+  });
+
+  it("blocks circular references", () => {
+    const imported = parseSvgDocument(svg(`<g id="loop"><line x1="0" y1="0" x2="1" y2="0" /><use href="#loop" x="5" /></g>`));
+
+    expect(imported.entities).toHaveLength(1);
+  });
+
+  it("applies CSS class, id and tag rules with SVG precedence", () => {
+    const imported = parseSvgDocument(svg(`
+      <style><![CDATA[
+        .pipe { stroke: #00aaff; }
+        line.warn { stroke: #ff0000; }
+        #special { stroke: #00ff00 }
+        .hidden { display: none }
+        text { font-size: 7px; font-weight: bold }
+        g > line { stroke: #123456 }
+      ]]></style>
+      <line id="a" class="pipe" x1="0" y1="0" x2="1" y2="0" />
+      <line id="b" class="pipe warn" x1="0" y1="1" x2="1" y2="1" />
+      <line id="special" class="pipe warn" x1="0" y1="2" x2="1" y2="2" />
+      <line id="inline" class="pipe" style="stroke:#ffff00" x1="0" y1="3" x2="1" y2="3" />
+      <line id="hidden" class="hidden" x1="0" y1="4" x2="1" y2="4" />
+      <text id="t" x="0" y="10">Nota</text>
+    `));
+    const byId = (id: string) => imported.entities.find((entity) => entity.id === id) as any;
+
+    expect(byId("a").color).toBe("#00aaff");
+    expect(byId("b").color).toBe("#ff0000");
+    expect(byId("special").color).toBe("#00ff00");
+    expect(byId("inline").color).toBe("#ffff00");
+    expect(byId("hidden")).toBeUndefined();
+    expect(byId("t")).toMatchObject({ height: 7, bold: true });
+  });
+
+  it("scales coordinates to millimeters from width/height units and the viewBox", () => {
+    const inMillimeters = parseSvgDocument(`<svg xmlns="http://www.w3.org/2000/svg" width="210mm" height="297mm" viewBox="0 0 2100 2970"><line id="l" x1="0" y1="0" x2="1000" y2="0" /></svg>`);
+    const inInches = parseSvgDocument(`<svg xmlns="http://www.w3.org/2000/svg" width="2in" height="1in" viewBox="0 0 200 100"><circle id="c" cx="100" cy="50" r="10" /></svg>`);
+    const unitless = parseSvgDocument(`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600"><line id="l" x1="0" y1="0" x2="10" y2="0" /></svg>`);
+    const pixelsNoViewBox = parseSvgDocument(`<svg xmlns="http://www.w3.org/2000/svg" width="96px" height="96px"><line id="l" x1="0" y1="0" x2="96" y2="0" /></svg>`);
+
+    expect((inMillimeters.entities[0] as any).end.x).toBeCloseTo(100);
+    expect(inInches.entities[0]).toMatchObject({ type: "circle" });
+    expect((inInches.entities[0] as any).radius).toBeCloseTo(2.54);
+    expect((unitless.entities[0] as any).end.x).toBe(10);
+    expect((pixelsNoViewBox.entities[0] as any).end.x).toBeCloseTo(25.4);
   });
 });

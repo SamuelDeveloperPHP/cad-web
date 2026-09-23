@@ -6,7 +6,8 @@ import {
   type EllipseEntity,
   type LineEntity,
   type PolylineEntity,
-  type RectangleEntity
+  type RectangleEntity,
+  type SplineEntity
 } from "@cad-web/cad-core";
 import {
   distance,
@@ -15,6 +16,7 @@ import {
   distancePointToSegment,
   entityIntersectPrimitives,
   getRectangleCorners,
+  nearestOnBezierChain,
   type BoundaryPrimitive,
   type BoundingBox,
   type Point2D,
@@ -30,7 +32,7 @@ import type { ToolContext } from "../contracts/ToolContext";
 
 export type CurveEntity = CircleEntity | ArcEntity | EllipseEntity;
 export type PathEntity = RectangleEntity | PolylineEntity;
-export type EditableEntity = LineEntity | CurveEntity | PathEntity;
+export type EditableEntity = LineEntity | CurveEntity | PathEntity | SplineEntity;
 
 export type EditableHit = Readonly<{ entity: EditableEntity; locked: boolean; distance: number }>;
 
@@ -60,6 +62,7 @@ export function distanceToEditable(point: Point2D, entity: EditableEntity): numb
   if (entity.type === "circle") return Math.abs(distance(point, entity.center) - entity.radius);
   if (entity.type === "arc") return distancePointToArc(point, entity);
   if (entity.type === "ellipse") return distancePointToEllipse(point, { ...entity, type: "ellipse" });
+  if (entity.type === "spline") return entity.controlPoints.length >= 4 ? nearestOnBezierChain(entity.controlPoints, point).distance : Number.POSITIVE_INFINITY;
 
   const { points, closed } = pathOfEntity(entity);
   const vertices = closed ? [...points, points[0]!] : points;
@@ -103,7 +106,7 @@ export function findNearestEditable(
 
 // Tipos que podem servir de aresta de corte ou de limite.
 export function hasIntersectGeometry(entity: CadEntity): boolean {
-  return ["line", "rectangle", "polyline", "circle", "arc", "ellipse"].includes(entity.type);
+  return ["line", "rectangle", "polyline", "circle", "arc", "ellipse", "spline"].includes(entity.type);
 }
 
 export function toBoundaryPrimitives(entities: ReadonlyArray<CadEntity>): ReadonlyArray<BoundaryPrimitive> {

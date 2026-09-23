@@ -368,6 +368,31 @@ function validateCadEntity(entity: CadEntity | undefined, path: string): void {
     return;
   }
 
+  if (entity.type === "spline") {
+    // Cadeia de Béziers cúbicas: 3n + 1 pontos de controle (n ≥ 1); pontos de ajuste opcionais.
+    const controlPoints = (entity as any).controlPoints;
+
+    if (!Array.isArray(controlPoints) || controlPoints.length < 4 || (controlPoints.length - 1) % 3 !== 0) {
+      throw new CadIoValidationError("Spline controlPoints must have 3n + 1 points (n ≥ 1)", `${path}.controlPoints`);
+    }
+
+    controlPoints.forEach((point: unknown, index: number) => validatePoint(point, `${path}.controlPoints[${index}]`));
+
+    if (typeof (entity as any).closed !== "boolean") {
+      throw new CadIoValidationError("Spline closed must be a boolean", `${path}.closed`);
+    }
+
+    const fitPoints = (entity as any).fitPoints;
+    if (fitPoints !== undefined) {
+      if (!Array.isArray(fitPoints) || fitPoints.length < 2) {
+        throw new CadIoValidationError("Spline fitPoints must have at least 2 points", `${path}.fitPoints`);
+      }
+      fitPoints.forEach((point: unknown, index: number) => validatePoint(point, `${path}.fitPoints[${index}]`));
+    }
+
+    return;
+  }
+
   if (entity.type === "text") {
     validatePoint(entity.position, `${path}.position`);
     assertString(entity.content, `${path}.content`);
