@@ -1,4 +1,4 @@
-import { addVector, boundingBoxContainsPoint, reflectAngleAcrossAxis, reflectionMatrix, rotationMatrix, scaleMatrix, transformPoint, type BoundingBox, type Point2D } from "@cad-web/cad-geometry";
+import { addVector, boundingBoxContainsPoint, reflectAngleAcrossAxis, reflectionMatrix, rotationMatrix, scaleMatrix, transformPoint, type BoundingBox, type DimensionArrowType, type Point2D, type TextHorizontalAlign, type TextVerticalAlign } from "@cad-web/cad-geometry";
 import { createDimensionStyleFromPreset, getDimensionStylePresetById } from "./dimensionStylePresets";
 
 export type EntityId = string;
@@ -61,6 +61,23 @@ export type PolylineEntity = BaseEntity & Readonly<{
   closed: boolean;
 }>;
 
+export type TextEntity = BaseEntity & Readonly<{
+  type: "text";
+  // Ponto de inserção: a âncora definida pelos alinhamentos horizontal e vertical.
+  position: Point2D;
+  // Conteúdo do texto; quebras de linha (\n) geram um bloco de várias linhas.
+  content: string;
+  // Tamanho da fonte em unidades de desenho (mesmo critério do texto de cota).
+  height: number;
+  // Ângulo da linha de base em radianos no sistema do mundo (Y para baixo); ausente = 0.
+  rotation?: number;
+  horizontalAlign?: TextHorizontalAlign;
+  verticalAlign?: TextVerticalAlign;
+  fontFamily?: string;
+  bold?: boolean;
+  italic?: boolean;
+}>;
+
 export interface DimensionStyle {
   id: string;
   name: string;
@@ -70,7 +87,7 @@ export interface DimensionStyle {
   extensionOvershoot: number;
   precision: number;
   unitSuffix: string;
-  arrowType: "tick" | "arrow";
+  arrowType: DimensionArrowType;
   color?: string;
   textColor?: string;
   lineColor?: string;
@@ -125,7 +142,7 @@ export type DimensionEntity = BaseEntity & Readonly<{
   textOverride?: string;
 }>;
 
-export type CadEntity = LineEntity | RectangleEntity | CircleEntity | ArcEntity | EllipseEntity | PolylineEntity | DimensionEntity;
+export type CadEntity = LineEntity | RectangleEntity | CircleEntity | ArcEntity | EllipseEntity | PolylineEntity | DimensionEntity | TextEntity;
 
 export type CadLayer = Readonly<{
   id: string;
@@ -1257,6 +1274,11 @@ export function moveEntity(entity: CadEntity, displacement: Point2D): CadEntity 
     return moveDimensionEntity(entity, displacement);
   }
 
+  if (entity.type === "text") {
+    // O move desloca o ponto de inserção; altura, rotação e alinhamentos não mudam.
+    return { ...entity, position: addVector(entity.position, displacement) };
+  }
+
   return entity;
 }
 
@@ -1381,6 +1403,16 @@ export function rotateEntity(entity: CadEntity, pivot: Point2D, angleRadians: nu
     };
   }
 
+  if (entity.type === "text") {
+    // O rotate gira o ponto de inserção pelo pivô e soma o ângulo à linha de base.
+    const matrix = rotationMatrix(angleRadians, pivot);
+    return {
+      ...entity,
+      position: transformPoint(entity.position, matrix),
+      rotation: (entity.rotation ?? 0) + angleRadians
+    };
+  }
+
   return entity;
 }
 
@@ -1459,6 +1491,15 @@ export function scaleEntity(entity: CadEntity, pivot: Point2D, factor: number): 
     };
   }
 
+  if (entity.type === "text") {
+    // O scale move o ponto de inserção e multiplica a altura; a rotação se mantém.
+    return {
+      ...entity,
+      position: transformPoint(entity.position, matrix),
+      height: entity.height * factor
+    };
+  }
+
   return entity;
 }
 
@@ -1528,6 +1569,10 @@ export function mirrorEntity(entity: CadEntity, axisStart: Point2D, axisEnd: Poi
     };
   }
 
+  if (entity.type === "text") {
+    return mirrorTextEntity(entity, transformPoint(entity.position, matrix), axisAngle);
+  }
+
   if (entity.type === "rectangle") {
     // A reflexão inverte a orientação, então o retângulo é reconstruído usando o canto oposto
     // (base + largura) como nova base, o que mantém largura e altura positivas e a forma refletida correta.
@@ -1552,6 +1597,23 @@ export function mirrorEntity(entity: CadEntity, axisStart: Point2D, axisEnd: Poi
   }
 
   return null;
+}
+
+/**
+ * Espelha o texto mantendo-o legível (como MIRRTEXT = 0 do AutoCAD): o ponto de inserção é refletido
+ * e a linha de base segue a direção refletida; como a reflexão inverteria as letras, escolhe-se entre a
+ * direção refletida e a oposta aquela que continua sendo lida da esquerda para a direita.
+ */
+function mirrorTextEntity(entity: TextEntity, position: Point2D, axisAngle: number): TextEntity {
+  const reflected = reflectAngleAcrossAxis(entity.rotation ?? 0, axisAngle);
+  const readable = Math.cos(reflected) < -1e-9 ? reflected + Math.PI : reflected;
+  const normalized = Math.atan2(Math.sin(readable), Math.cos(readable));
+
+  return {
+    ...entity,
+    position,
+    rotation: Math.abs(normalized) < 1e-12 ? 0 : normalized
+  };
 }
 
 /**
@@ -1616,6 +1678,13 @@ export function stretchEntity(entity: CadEntity, window: BoundingBox, displaceme
     // O retângulo só se move quando está totalmente dentro da janela; um canto isolado não é representável.
     return corners.every((corner) => boundingBoxContainsPoint(window, corner))
       ? { ...entity, x: entity.x + displacement.x, y: entity.y + displacement.y }
+      : entity;
+  }
+
+  if (entity.type === "text") {
+    // O texto move-se por inteiro quando o ponto de inserção está na janela.
+    return boundingBoxContainsPoint(window, entity.position)
+      ? { ...entity, position: move(entity.position) }
       : entity;
   }
 

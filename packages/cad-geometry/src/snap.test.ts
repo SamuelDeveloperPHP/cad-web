@@ -18,6 +18,22 @@ const defaultSettings: SnapSettings = {
 };
 
 describe("cad-geometry object snap", () => {
+  it("snaps to the insertion point of a text", () => {
+    const text: SnapEntity = { id: "text_a", type: "text", position: { x: 3, y: 4 } };
+    const result = findBestSnap({ x: 3.5, y: 4.2 }, { x: 35, y: 42 }, [text], defaultSettings, viewport);
+
+    expect(result.snapped).toBe(true);
+    expect(result.point).toEqual({ x: 3, y: 4 });
+    expect(result.candidate?.type).toBe("insertion");
+  });
+
+  it("ignores the text insertion point when the insertion snap is off", () => {
+    const text: SnapEntity = { id: "text_a", type: "text", position: { x: 3, y: 4 } };
+    const result = findBestSnap({ x: 3.5, y: 4.2 }, { x: 35, y: 42 }, [text], { ...defaultSettings, insertion: false }, viewport);
+
+    expect(result.snapped).toBe(false);
+  });
+
   it("finds endpoint snap on a line", () => {
     const result = findBestSnap(
       { x: 0.4, y: 0.2 },

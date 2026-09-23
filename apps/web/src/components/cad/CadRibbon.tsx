@@ -36,6 +36,7 @@ import {
   Square,
   Trash2,
   Unlock,
+  Type,
   Upload,
   type LucideIcon
 } from "lucide-react";
@@ -75,7 +76,8 @@ const drawTools: ReadonlyArray<RibbonTool> = [
   { id: "circle", label: "Circle", icon: Circle },
   { id: "arc", label: "Arc", icon: Rainbow },
   { id: "ellipse", label: "Ellipse", icon: Ellipse },
-  { id: "ellipseArc", label: "Ell Arc", icon: ChartSpline }
+  { id: "ellipseArc", label: "Ell Arc", icon: ChartSpline },
+  { id: "text", label: "Text", icon: Type }
 ];
 
 const modifyTools: ReadonlyArray<RibbonTool> = [
@@ -165,6 +167,7 @@ export function CadRibbon(props: CadRibbonProps) {
           </summary>
           <div className="cad-ribbon-popover cad-snap-popover">
             <SnapCheckbox label="Endpoint" checked={props.snapSettings.endpoint} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, endpoint: checked })} />
+            <SnapCheckbox label="Insertion" checked={props.snapSettings.insertion} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, insertion: checked })} />
             <SnapCheckbox label="Midpoint" checked={props.snapSettings.midpoint} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, midpoint: checked })} />
             <SnapCheckbox label="Center" checked={props.snapSettings.center} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, center: checked })} />
             <SnapCheckbox label="Quadrant" checked={props.snapSettings.quadrant} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, quadrant: checked })} />
