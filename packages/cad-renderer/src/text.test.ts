@@ -130,3 +130,26 @@ describe("dimension terminators", () => {
     expect(none.filter((call) => call.method === "arc")).toHaveLength(0);
   });
 });
+
+describe("spline rendering", () => {
+  it("draws the Bézier chain with bezierCurveTo and closes closed splines", () => {
+    const { context, calls } = createRecordingContext();
+    renderDocument2D(
+      context,
+      documentWith([
+        {
+          id: "s1",
+          layerId: "layer_0",
+          type: "spline",
+          closed: true,
+          controlPoints: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }, { x: -10, y: 10 }, { x: -10, y: 0 }, { x: 0, y: 0 }]
+        }
+      ]),
+      viewport
+    );
+
+    expect(calls.filter((call) => call.method === "bezierCurveTo")).toHaveLength(2);
+    expect(calls.find((call) => call.method === "bezierCurveTo")?.args).toEqual([20, 0, 20, 20, 0, 20]);
+    expect(calls.some((call) => call.method === "closePath")).toBe(true);
+  });
+});

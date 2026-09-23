@@ -136,14 +136,29 @@ describe("cad-io JSON", () => {
     expect(parseCadDocument(serializeCadDocument(document))).toEqual(document);
   });
 
+  it("serializes splines and rejects malformed control point lists", () => {
+    const spline = {
+      id: "spline_001",
+      layerId: "layer_0",
+      type: "spline" as const,
+      closed: false,
+      fitPoints: [{ x: 0, y: 0 }, { x: 9, y: 0 }],
+      controlPoints: [{ x: 0, y: 0 }, { x: 3, y: 0 }, { x: 6, y: 0 }, { x: 9, y: 0 }]
+    };
+    const document = { ...createEmptyDocument("doc_spline_json"), entities: [spline] };
+
+    expect(parseCadDocument(serializeCadDocument(document))).toEqual(document);
+    expect(() => serializeCadDocument({ ...document, entities: [{ ...spline, controlPoints: spline.controlPoints.slice(0, 3) }] })).toThrow(CadIoValidationError);
+  });
+
   it("rejects unsupported entity types with a path", () => {
     const invalidDocument = {
       ...createEmptyDocument("doc_invalid"),
       entities: [
         {
-          id: "spline_001",
+          id: "hatch_001",
           layerId: "layer_0",
-          type: "spline",
+          type: "hatch",
           points: []
         }
       ]

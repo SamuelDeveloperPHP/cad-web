@@ -41,7 +41,7 @@ import {
 } from "../services/guideSettingsStorage";
 import { createWebToolRegistry } from "../tools/toolRegistry";
 
-export type ActiveCadTool = "select" | "line" | "polyline" | "rectangle" | "circle" | "arc" | "ellipse" | "ellipseArc" | "text" | "move" | "mirror" | "rotate" | "scale" | "stretch" | "offset" | "trim" | "extend" | "fillet" | "chamfer" | "array" | "arrayPolar" | "arrayPath" | "explode" | "erase" | "pan" | "zoomWindow" | "dimLinear" | "dimAligned" | "dimRadius" | "dimDiameter" | "dimAngular";
+export type ActiveCadTool = "select" | "line" | "polyline" | "rectangle" | "circle" | "arc" | "ellipse" | "ellipseArc" | "spline" | "text" | "move" | "mirror" | "rotate" | "scale" | "stretch" | "offset" | "trim" | "extend" | "fillet" | "chamfer" | "array" | "arrayPolar" | "arrayPath" | "explode" | "erase" | "pan" | "zoomWindow" | "dimLinear" | "dimAligned" | "dimRadius" | "dimDiameter" | "dimAngular";
 
 const ACTIVE_CAD_TOOLS: ReadonlySet<string> = new Set<ActiveCadTool>([
   "select",
@@ -52,6 +52,7 @@ const ACTIVE_CAD_TOOLS: ReadonlySet<string> = new Set<ActiveCadTool>([
   "arc",
   "ellipse",
   "ellipseArc",
+  "spline",
   "text",
   "move",
   "mirror",

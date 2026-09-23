@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { UpdateEntityCommand, UpdateEntitiesBatchCommand, resolveDimensionStyle, type ArcEntity, type CadEntity, type EllipseEntity, type TextEntity } from "@cad-web/cad-core";
-import { lineLength, rectangleArea, rectanglePerimeter, circleArea, circleCircumference, formatMeasurement, buildAngularDimensionGeometry, getPolylineLength, DIMENSION_ARROW_TYPES, arcAnglesFromVisual, arcVisualAngles, ellipseArcVisualAngles, ellipseArcParamsFromVisual, ellipseArcLength, normalizeEllipseAxes, visualDegreesToWorldRadians, worldRadiansToVisualDegrees, type DimensionArrowType } from "@cad-web/cad-geometry";
+import { UpdateEntityCommand, UpdateEntitiesBatchCommand, resolveDimensionStyle, type ArcEntity, type CadEntity, type EllipseEntity, type SplineEntity, type TextEntity } from "@cad-web/cad-core";
+import { lineLength, rectangleArea, rectanglePerimeter, circleArea, circleCircumference, formatMeasurement, buildAngularDimensionGeometry, getPolylineLength, DIMENSION_ARROW_TYPES, arcAnglesFromVisual, arcVisualAngles, ellipseArcVisualAngles, ellipseArcParamsFromVisual, ellipseArcLength, normalizeEllipseAxes, bezierChainLength, fitPointsToBezierChain, visualDegreesToWorldRadians, worldRadiansToVisualDegrees, type DimensionArrowType } from "@cad-web/cad-geometry";
 import { workingLengthFormat } from "../../services/workingUnits";
 
 // Rótulos dos terminadores de cota exibidos no seletor de setas.
@@ -440,6 +440,43 @@ export function CadPropertiesPanel({ cad }: { cad: CadStore }) {
               <>
                 <PropertyRow label={unitLabel("Perimeter")}><PropertyInput value={len.format(length)} readOnly /></PropertyRow>
                 <PropertyRow label={`Area (${len.unit}²)`}><PropertyInput value={len.formatArea(Math.PI * ellipse.radiusX * ellipse.radiusY)} readOnly /></PropertyRow>
+              </>
+            )}
+          </>
+        );
+      })()}
+
+      {entity.type === "spline" && (() => {
+        const spline = entity as SplineEntity;
+        const canRefit = spline.fitPoints !== undefined && spline.fitPoints.length >= (spline.closed ? 2 : 3);
+        return (
+          <>
+            <PropertyRow label="Method"><PropertyInput value={spline.fitPoints !== undefined ? "Fit points" : "Control vertices"} readOnly /></PropertyRow>
+            <PropertyRow label="Degree"><PropertyInput value="3" readOnly /></PropertyRow>
+            <PropertyRow label="Closed">
+              {/* Fechar/abrir recalcula a curva pelos pontos de ajuste; sem eles (spline importada/aparada) é só leitura. */}
+              <select
+                value={spline.closed ? "true" : "false"}
+                disabled={isLocked || !canRefit}
+                style={selectStyle(isLocked || !canRefit)}
+                onChange={e => {
+                  const closed = e.target.value === "true";
+                  handleUpdateSingle(spline.id, { closed, controlPoints: fitPointsToBezierChain(spline.fitPoints!, closed) } as any);
+                }}
+              >
+                <option value="false">Open</option>
+                <option value="true">Closed</option>
+              </select>
+            </PropertyRow>
+            <PropertyRow label="Fit Points"><PropertyInput value={String(spline.fitPoints?.length ?? 0)} readOnly /></PropertyRow>
+            <PropertyRow label="Control Points"><PropertyInput value={String(spline.controlPoints.length)} readOnly /></PropertyRow>
+            <PropertyRow label={unitLabel("Length")}><PropertyInput value={len.format(bezierChainLength(spline.controlPoints))} readOnly /></PropertyRow>
+            {!spline.closed && (
+              <>
+                <PropertyRow label={unitLabel("Start X")}><PropertyInput value={len.format(spline.controlPoints[0]!.x)} readOnly /></PropertyRow>
+                <PropertyRow label={unitLabel("Start Y")}><PropertyInput value={len.format(spline.controlPoints[0]!.y)} readOnly /></PropertyRow>
+                <PropertyRow label={unitLabel("End X")}><PropertyInput value={len.format(spline.controlPoints.at(-1)!.x)} readOnly /></PropertyRow>
+                <PropertyRow label={unitLabel("End Y")}><PropertyInput value={len.format(spline.controlPoints.at(-1)!.y)} readOnly /></PropertyRow>
               </>
             )}
           </>

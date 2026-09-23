@@ -38,6 +38,7 @@ import {
   Unlock,
   Type,
   Upload,
+  Waves,
   type LucideIcon
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -77,6 +78,7 @@ const drawTools: ReadonlyArray<RibbonTool> = [
   { id: "arc", label: "Arc", icon: Rainbow },
   { id: "ellipse", label: "Ellipse", icon: Ellipse },
   { id: "ellipseArc", label: "Ell Arc", icon: ChartSpline },
+  { id: "spline", label: "Spline", icon: Waves },
   { id: "text", label: "Text", icon: Type }
 ];
 

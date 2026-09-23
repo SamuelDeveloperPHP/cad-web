@@ -22,6 +22,12 @@ export class PolylineTool implements CadTool {
   private points: Point2D[] = [];
   private cursorPoint: Point2D | null = null;
 
+  // Durante o desenho, c (fechar) e u (desfazer vértice) são opções da Polyline, não os aliases de Circle/Undo.
+  claimsCommandInput(input: string): boolean {
+    const option = input.trim().toLowerCase();
+    return this.phase === "drawing_polyline" && ["c", "close", "fechar", "u", "undo", "desfazer"].includes(option);
+  }
+
   activate(context: ToolContext): void {
     // O metodo reinicia todo o estado interno e exibe o prompt inicial.
     this.points = [];

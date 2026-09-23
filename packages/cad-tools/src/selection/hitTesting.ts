@@ -10,6 +10,7 @@ import {
   distancePointToEllipse,
   distancePointToSegment,
   distancePointToText,
+  nearestOnBezierChain,
   rotationMatrix,
   transformPoint,
   type Point2D
@@ -86,6 +87,8 @@ export function findNearestEntityId(document: CadDocument, options: HitTestOptio
       candidateDistance = distancePointToPolyline(options.worldPoint, entity.points, entity.closed);
     } else if (entity.type === "dimension") {
       candidateDistance = distancePointToDimension(options.worldPoint, entity, document);
+    } else if (entity.type === "spline") {
+      candidateDistance = entity.controlPoints.length >= 4 ? nearestOnBezierChain(entity.controlPoints, options.worldPoint).distance : Number.POSITIVE_INFINITY;
     } else if (entity.type === "text") {
       // O texto é apanhado clicando em qualquer ponto do seu bloco, não só no contorno.
       candidateDistance = distancePointToText(options.worldPoint, entity);
