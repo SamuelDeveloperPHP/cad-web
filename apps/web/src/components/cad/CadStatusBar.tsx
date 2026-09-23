@@ -3,16 +3,10 @@ import { formatMeasurement, type Point2D, type SnapSettings } from "@cad-web/cad
 import type { ActiveCadTool } from "../../state/useCadStore";
 import type { GuideSettings } from "../../services/guideSettingsStorage";
 import { formatZoomScaleLabel, parseZoomScaleInput } from "../../services/zoomScale";
+import { LENGTH_DECIMALS } from "../../services/workingUnits";
 
-// Casas decimais na leitura de coordenadas por unidade, para manter ~1 µm de resolução sem excesso de dígitos.
-const COORD_DECIMALS: Record<string, number> = {
-  um: 1,
-  mm: 3,
-  cm: 4,
-  m: 4,
-  km: 6,
-  in: 4
-};
+// Casas decimais na leitura de coordenadas por unidade (compartilhadas com o painel de propriedades).
+const COORD_DECIMALS = LENGTH_DECIMALS;
 
 type CadStatusBarProps = Readonly<{
   activeTool: ActiveCadTool;
@@ -48,6 +42,7 @@ const toolLabels: Record<ActiveCadTool, string> = {
   arc: "Arc",
   ellipse: "Ellipse",
   ellipseArc: "Ellipse Arc",
+  text: "Text",
   move: "Move",
   mirror: "Mirror",
   rotate: "Rotate",
@@ -294,6 +289,7 @@ function formatActiveSnaps(settings: SnapSettings): string {
 
   const activeSnaps = [
     settings.endpoint ? "Endpoint" : null,
+    settings.insertion ? "Insertion" : null,
     settings.midpoint ? "Midpoint" : null,
     settings.center ? "Center" : null,
     settings.quadrant ? "Quadrant" : null,

@@ -30,6 +30,7 @@ function normalizeSnapSettings(value: unknown): SnapSettings {
   return {
     enabled: typeof candidate.enabled === "boolean" ? candidate.enabled : DEFAULT_SNAP_SETTINGS.enabled,
     endpoint: typeof candidate.endpoint === "boolean" ? candidate.endpoint : DEFAULT_SNAP_SETTINGS.endpoint,
+    insertion: typeof candidate.insertion === "boolean" ? candidate.insertion : DEFAULT_SNAP_SETTINGS.insertion,
     midpoint: typeof candidate.midpoint === "boolean" ? candidate.midpoint : DEFAULT_SNAP_SETTINGS.midpoint,
     center: typeof candidate.center === "boolean" ? candidate.center : DEFAULT_SNAP_SETTINGS.center,
     quadrant: typeof candidate.quadrant === "boolean" ? candidate.quadrant : DEFAULT_SNAP_SETTINGS.quadrant,

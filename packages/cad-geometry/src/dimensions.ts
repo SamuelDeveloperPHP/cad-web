@@ -15,6 +15,12 @@ export type AlignedDimensionDefGeom = Readonly<{
   dimensionLinePoint: Point2D;
 }>;
 
+// Terminadores da linha de cota: marca arquitetônica (tick), seta cheia (arrow), seta aberta (open),
+// ponto cheio (dot) ou nenhum (none).
+export type DimensionArrowType = "tick" | "arrow" | "open" | "dot" | "none";
+
+export const DIMENSION_ARROW_TYPES: ReadonlyArray<DimensionArrowType> = ["tick", "arrow", "open", "dot", "none"];
+
 export type DimensionStyleGeom = Readonly<{
   textHeight: number;
   arrowSize: number;
@@ -22,7 +28,7 @@ export type DimensionStyleGeom = Readonly<{
   extensionOvershoot: number;
   precision: number;
   unitSuffix: string;
-  arrowType?: "tick" | "arrow";
+  arrowType?: DimensionArrowType;
 }>;
 
 export type DimensionGeometryResult = Readonly<{

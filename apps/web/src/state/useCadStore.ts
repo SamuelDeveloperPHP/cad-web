@@ -41,7 +41,7 @@ import {
 } from "../services/guideSettingsStorage";
 import { createWebToolRegistry } from "../tools/toolRegistry";
 
-export type ActiveCadTool = "select" | "line" | "polyline" | "rectangle" | "circle" | "arc" | "ellipse" | "ellipseArc" | "move" | "mirror" | "rotate" | "scale" | "stretch" | "offset" | "trim" | "extend" | "fillet" | "chamfer" | "array" | "arrayPolar" | "arrayPath" | "explode" | "erase" | "pan" | "zoomWindow" | "dimLinear" | "dimAligned" | "dimRadius" | "dimDiameter" | "dimAngular";
+export type ActiveCadTool = "select" | "line" | "polyline" | "rectangle" | "circle" | "arc" | "ellipse" | "ellipseArc" | "text" | "move" | "mirror" | "rotate" | "scale" | "stretch" | "offset" | "trim" | "extend" | "fillet" | "chamfer" | "array" | "arrayPolar" | "arrayPath" | "explode" | "erase" | "pan" | "zoomWindow" | "dimLinear" | "dimAligned" | "dimRadius" | "dimDiameter" | "dimAngular";
 
 const ACTIVE_CAD_TOOLS: ReadonlySet<string> = new Set<ActiveCadTool>([
   "select",
@@ -52,6 +52,7 @@ const ACTIVE_CAD_TOOLS: ReadonlySet<string> = new Set<ActiveCadTool>([
   "arc",
   "ellipse",
   "ellipseArc",
+  "text",
   "move",
   "mirror",
   "rotate",
@@ -88,6 +89,8 @@ export type CadStore = Readonly<{
   snapResult: SnapResult | null;
   guideSettings: GuideSettings;
   activeToolReferencePoint: Point2D | null;
+  // A ferramenta ativa espera texto livre na linha de comando (ex.: conteúdo do Text).
+  activeToolAcceptsFreeText: boolean;
   canUndo: boolean;
   canRedo: boolean;
   message: string;
@@ -674,6 +677,15 @@ export function useCadStore(): CadStore {
 
   const runCommandLine = useCallback(
     (command: string) => {
+      const activeCadTool = activeTool !== "pan" ? toolRegistry.resolve(activeTool) : null;
+
+      // Ferramentas que recebem texto livre (ex.: conteúdo do Text) recebem a entrada crua, sem resolver
+      // aliases nem comandos globais: digitar "zoom" ou "u" vira texto, não comando.
+      if (activeCadTool?.acceptsFreeText?.() === true) {
+        processToolResult(activeCadTool.onCommandInput(command, createToolContext()));
+        return;
+      }
+
       const normalizedCommand = command.trim().toLowerCase();
       const resolvedTool = toolRegistry.resolve(normalizedCommand);
 
@@ -772,6 +784,12 @@ export function useCadStore(): CadStore {
     return tool?.getSnapReferencePoint?.() ?? null;
   }, [activeTool, toolRegistry, preview, mouseWorld]);
 
+  // O estágio da ferramenta muda a cada entrada; message e preview mudam junto e recalculam o valor.
+  const activeToolAcceptsFreeText = useMemo(() => {
+    const tool = toolRegistry.resolve(activeTool);
+    return tool?.acceptsFreeText?.() === true;
+  }, [activeTool, toolRegistry, preview, message]);
+
   return useMemo(
     () => ({
       document,
@@ -785,6 +803,7 @@ export function useCadStore(): CadStore {
       snapResult,
       guideSettings,
       activeToolReferencePoint,
+      activeToolAcceptsFreeText,
       canUndo: historyAvailability.canUndo,
       canRedo: historyAvailability.canRedo,
       message,
@@ -819,6 +838,7 @@ export function useCadStore(): CadStore {
     [
       activeTool,
       activeToolReferencePoint,
+      activeToolAcceptsFreeText,
       cancelInteraction,
       clearDocument,
       dispatchKeyDown,

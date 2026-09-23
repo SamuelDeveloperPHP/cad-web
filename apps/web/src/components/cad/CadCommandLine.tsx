@@ -1,10 +1,14 @@
 import { Terminal } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ActiveCadTool } from "../../state/useCadStore";
 
 type CadCommandLineProps = Readonly<{
   activeTool: ActiveCadTool;
   onSubmit(command: string): void;
+  // Esc dentro da linha de comando: encerra o comando ativo.
+  onEscape?(): void;
+  // Quando true, a ferramenta espera texto livre (ex.: conteúdo do Text) e a linha de comando recebe o foco.
+  focusRequested?: boolean;
   message?: string;
   workingUnit?: string;
 }>;
@@ -18,6 +22,7 @@ const toolPrompts: Record<ActiveCadTool, string> = {
   arc: "[Arc] Specify start point or ce for center",
   ellipse: "[Ellipse] Specify center point",
   ellipseArc: "[Ellipse Arc] Specify center point",
+  text: "[Text] Specify insertion point",
   move: "[Move] Select objects or specify base point",
   mirror: "[Mirror] Select objects, then specify mirror axis",
   rotate: "[Rotate] Specify pivot point",
@@ -42,8 +47,19 @@ const toolPrompts: Record<ActiveCadTool, string> = {
   dimAngular: "[DimAngular] Select first line"
 };
 
-export function CadCommandLine({ activeTool, onSubmit, message, workingUnit }: CadCommandLineProps) {
+export function CadCommandLine({ activeTool, onSubmit, onEscape, focusRequested, message, workingUnit }: CadCommandLineProps) {
   const [value, setValue] = useState("");
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (focusRequested !== true) {
+      return;
+    }
+
+    // O foco é adiado para depois do mousedown do clique no canvas, que o devolveria ao documento.
+    const timer = window.setTimeout(() => inputRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [focusRequested, message]);
   const defaultPrompt = toolPrompts[activeTool] ?? "Command";
   const prompt = message?.startsWith("[") === true ? message : defaultPrompt;
 
@@ -65,8 +81,17 @@ export function CadCommandLine({ activeTool, onSubmit, message, workingUnit }: C
         <span>{prompt}</span>
         <input
           id="cad-command"
+          ref={inputRef}
           value={value}
           onChange={(event) => setValue(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && onEscape !== undefined) {
+              event.preventDefault();
+              setValue("");
+              onEscape();
+              event.currentTarget.blur();
+            }
+          }}
           autoComplete="off"
           spellCheck={false}
           aria-label="Linha de comando CAD"
