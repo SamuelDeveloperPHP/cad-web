@@ -9,9 +9,20 @@ import {
   type CadEntity,
   type LineEntity,
   type PolylineEntity,
-  type RectangleEntity
+  type RectangleEntity,
+  type SplineEntity
 } from "@cad-web/cad-core";
-import { computeLineCurveFillet, computeLineLineFillet, curveOfEntity, distancePointToSegment, entityWithSpan, type Point2D } from "@cad-web/cad-geometry";
+import {
+  computeLineCurveFillet,
+  computeLineLineFillet,
+  computeSplineFillet,
+  curveOfEntity,
+  distancePointToSegment,
+  entityWithSpan,
+  type BezierChain,
+  type FilletOperand,
+  type Point2D
+} from "@cad-web/cad-geometry";
 import type { CadTool } from "../contracts/CadTool";
 import type { ToolContext } from "../contracts/ToolContext";
 import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent";
@@ -22,7 +33,7 @@ import {
   findNearestSegment,
   type SegmentHit
 } from "./segmentUtils";
-import { findNearestEditable, isCurveEntity, type CurveEntity } from "./curveEditUtils";
+import { findNearestEditable, isCurveEntity, type CurveEntity, type EditableEntity } from "./curveEditUtils";
 
 const DEFAULT_SCREEN_TOLERANCE_PIXELS = 8;
 
@@ -33,9 +44,9 @@ type FilletSelection = Readonly<{
   pickPoint: Point2D;
 }>;
 
-// Seleção de uma curva (círculo, arco, elipse ou arco de elipse) para o fillet linha–curva.
+// Seleção de uma curva (círculo, arco, elipse, arco de elipse ou spline) para o fillet com curva.
 type CurveSelection = Readonly<{
-  entity: CurveEntity;
+  entity: CurveEntity | SplineEntity;
   pickPoint: Point2D;
 }>;
 
@@ -220,20 +231,20 @@ export class FilletTool implements CadTool {
 
   private selectFirstSegment(point: Point2D, context: ToolContext): ToolResult {
     const hit = findNearestSegment(context, point, this.getToleranceWorld(context));
-    const curveHit = findNearestEditable(context, point, this.getToleranceWorld(context), isCurveEntity);
+    const curveHit = findNearestEditable(context, point, this.getToleranceWorld(context), isCurveOrSpline);
 
-    // Uma curva mais próxima que qualquer segmento inicia o fillet linha–curva.
+    // Uma curva (ou spline) mais próxima que qualquer segmento inicia o fillet com curva.
     if (curveHit !== null && (hit === null || curveHit.distance < segmentHitDistance(hit, point))) {
       if (curveHit.locked) {
         context.showMessage("[Fillet] Layer is locked");
         return TOOL_RESULT_NONE;
       }
 
-      this.firstCurve = { entity: curveHit.entity as CurveEntity, pickPoint: point };
+      this.firstCurve = { entity: curveHit.entity as CurveEntity | SplineEntity, pickPoint: point };
       this.firstSelection = null;
       this.phase = "select_second_line";
       context.selectEntities([curveHit.entity.id]);
-      context.showMessage("[Fillet] Select line");
+      context.showMessage(curveHit.entity.type === "spline" ? "[Fillet] Select line, curve or spline" : "[Fillet] Select line or spline");
       return TOOL_RESULT_NONE;
     }
 
@@ -444,24 +455,45 @@ export class FilletTool implements CadTool {
     const tolerance = this.getToleranceWorld(context);
 
     if (this.firstCurve !== null) {
+      const first = this.firstCurve;
       const lineHit = findNearestSegment(context, point, tolerance);
+      // Com uma spline, o segundo objeto pode ser linha, curva ou outra spline; com uma curva, linha ou spline.
+      const accept = (entity: CadEntity): entity is EditableEntity =>
+        entity.id !== first.entity.id && (first.entity.type === "spline" ? isCurveOrSpline(entity) : entity.type === "spline");
+      const otherHit = findNearestEditable(context, point, tolerance, accept);
+      const lineDistance = lineHit !== null && lineHit.kind === "line" ? segmentHitDistance(lineHit, point) : Number.POSITIVE_INFINITY;
+
+      if (otherHit !== null && otherHit.distance < lineDistance) {
+        if (otherHit.locked) {
+          return "[Fillet] Layer is locked";
+        }
+
+        const other = otherHit.entity as CurveEntity | SplineEntity;
+        return first.entity.type === "spline"
+          ? this.planSplineFillet(first.entity, first.pickPoint, other, point, context)
+          : this.planSplineFillet(other as SplineEntity, point, first.entity, first.pickPoint, context);
+      }
 
       if (lineHit === null || lineHit.kind !== "line") {
-        return "[Fillet] Select a line to fillet with the curve";
+        return first.entity.type === "spline"
+          ? "[Fillet] Select a line, curve or spline to fillet with the spline"
+          : "[Fillet] Select a line to fillet with the curve";
       }
 
       if (lineHit.locked) {
         return "[Fillet] Layer is locked";
       }
 
-      return this.planLineCurve(lineHit.entity, point, this.firstCurve.entity, this.firstCurve.pickPoint, context);
+      return first.entity.type === "spline"
+        ? this.planSplineFillet(first.entity, first.pickPoint, lineHit.entity, point, context)
+        : this.planLineCurve(lineHit.entity, point, first.entity, first.pickPoint, context);
     }
 
     if (this.firstSelection === null || this.firstSelection.hit.kind !== "line") {
       return null;
     }
 
-    const curveHit = findNearestEditable(context, point, tolerance, isCurveEntity);
+    const curveHit = findNearestEditable(context, point, tolerance, isCurveOrSpline);
     const segmentHit = findNearestSegment(context, point, tolerance, getExcludeId(this.firstSelection.hit));
 
     if (curveHit === null || (segmentHit !== null && segmentHitDistance(segmentHit, point) <= curveHit.distance)) {
@@ -472,7 +504,82 @@ export class FilletTool implements CadTool {
       return "[Fillet] Layer is locked";
     }
 
+    if (curveHit.entity.type === "spline") {
+      return this.planSplineFillet(curveHit.entity, point, this.firstSelection.hit.entity, this.firstSelection.pickPoint, context);
+    }
+
     return this.planLineCurve(this.firstSelection.hit.entity, this.firstSelection.pickPoint, curveHit.entity as CurveEntity, point, context);
+  }
+
+  /**
+   * Fillet com spline (× linha, curva ou outra spline), resolvido no kernel. A linha vai até a tangência;
+   * arcos, arcos de elipse e splines abertas são aparados; círculos, elipses e splines fechadas ficam
+   * inteiros. Tudo em uma única operação de undo.
+   */
+  private planSplineFillet(
+    spline: SplineEntity,
+    splinePick: Point2D,
+    other: LineEntity | CurveEntity | SplineEntity,
+    otherPick: Point2D,
+    context: ToolContext
+  ): LineCurvePlan | string {
+    const operand: FilletOperand = other.type === "line"
+      ? { kind: "line", start: other.start, end: other.end }
+      : other.type === "spline"
+        ? { kind: "spline", chain: other.controlPoints, closed: other.closed }
+        : { kind: "curve", ...curveOfEntity(other) };
+    const result = computeSplineFillet({
+      spline: { chain: spline.controlPoints, closed: spline.closed },
+      splinePick,
+      other: operand,
+      otherPick,
+      radius: this.radius ?? 0
+    });
+
+    if (!result.ok) {
+      return "[Fillet] Radius too large or invalid";
+    }
+
+    const layerId = spline.layerId === other.layerId ? spline.layerId : context.document.activeLayerId;
+    const arc: ArcEntity = {
+      id: generateId("arc_fillet", spline.id, 0),
+      layerId,
+      type: "arc",
+      center: result.arc.center,
+      radius: result.arc.radius,
+      startAngle: result.arc.startAngle,
+      endAngle: result.arc.endAngle,
+      clockwise: result.arc.clockwise,
+      ...sharedStyleProps(spline, other)
+    };
+    const updates: Array<Readonly<{ original: CadEntity; updated: CadEntity }>> = [];
+
+    if (result.spline !== null) {
+      updates.push({ original: spline, updated: splineWithChain(spline, result.spline) });
+    }
+
+    const otherResult = result.other;
+
+    if (otherResult.kind === "line" && other.type === "line") {
+      updates.push({ original: other, updated: { ...other, start: otherResult.start, end: otherResult.end } });
+    } else if (otherResult.kind === "curve" && otherResult.span !== null && other.type !== "line" && other.type !== "spline") {
+      updates.push({ original: other, updated: { ...entityWithSpan(other, otherResult.span), id: other.id } as CadEntity });
+    } else if (otherResult.kind === "spline" && otherResult.chain !== null && other.type === "spline") {
+      updates.push({ original: other, updated: splineWithChain(other, otherResult.chain) });
+    }
+
+    const command = new CompositeCommand([
+      ...updates.map(({ original, updated }) => new ReplaceEntityCommand(original, [updated], "Trims a filleted object.")),
+      new CreateEntityCommand(arc)
+    ], "Fillets a spline.");
+
+    return {
+      command,
+      previewEntities: [
+        ...updates.map(({ updated }, index) => ({ ...updated, id: `fillet_preview_${index}` } as CadEntity)),
+        { ...arc, id: "fillet_preview_arc" }
+      ]
+    };
   }
 
   private planLineCurve(
@@ -531,6 +638,16 @@ export class FilletTool implements CadTool {
   private getToleranceWorld(context: ToolContext): number {
     return DEFAULT_SCREEN_TOLERANCE_PIXELS / context.viewport.scale;
   }
+}
+
+function isCurveOrSpline(entity: CadEntity): entity is EditableEntity {
+  return isCurveEntity(entity) || entity.type === "spline";
+}
+
+// A spline aparada fica só com os pontos de controle (os pontos de ajuste não a descrevem mais).
+function splineWithChain(spline: SplineEntity, chain: BezierChain): SplineEntity {
+  const { fitPoints: _fitPoints, ...rest } = spline;
+  return { ...rest, controlPoints: [...chain] };
 }
 
 function parseFilletRadius(input: string): number | null {
