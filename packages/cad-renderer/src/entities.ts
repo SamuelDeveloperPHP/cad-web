@@ -1,5 +1,5 @@
-import { entityBoundingBox, getDocumentSpatialIndex, resolveDimensionStyle, type CadDocument } from "@cad-web/cad-core";
-import { rotationMatrix, transformPoint, ellipseArcPoints, buildLinearDimensionGeometry, buildAlignedDimensionGeometry, buildRadiusDimensionGeometry, buildDiameterDimensionGeometry, buildAngularDimensionGeometry, type Point2D } from "@cad-web/cad-geometry";
+import { entityBoundingBox, getDocumentSpatialIndex, resolveDimensionStyle, type CadDocument, type TextEntity } from "@cad-web/cad-core";
+import { estimateTextLineWidth, textLayout, rotationMatrix, transformPoint, ellipseArcPoints, buildLinearDimensionGeometry, buildAlignedDimensionGeometry, buildRadiusDimensionGeometry, buildDiameterDimensionGeometry, buildAngularDimensionGeometry, type Point2D } from "@cad-web/cad-geometry";
 import { screenToWorld, worldToScreen } from "./viewport";
 import { DEFAULT_RENDER_STYLE, type RenderStyle, type Viewport } from "./types";
 
@@ -7,6 +7,10 @@ import { DEFAULT_RENDER_STYLE, type RenderStyle, type Viewport } from "./types";
 const LOD_DOT_THRESHOLD_PX = 1.5;
 // Abaixo desta altura de fonte em pixels o texto da cota é omitido: ficaria ilegível e a medição/desenho é cara.
 const LOD_DIMENSION_TEXT_MIN_PX = 5;
+// Abaixo desta altura de fonte em pixels a entidade de texto é desenhada como traços (greeking).
+const LOD_TEXT_MIN_PX = 4;
+// Fonte padrão do texto, a mesma do texto de cota.
+export const DEFAULT_TEXT_FONT = "Arial, sans-serif";
 
 export type RenderStats = {
   visibleEntities: number;
@@ -287,35 +291,7 @@ export function renderDocument2D(
 
       const tickSizeScreen = defaultStyle.arrowSize * viewport.scale;
 
-      if (defaultStyle.arrowType === "arrow") {
-        // O renderizador desenha setas preenchidas.
-        const drawArrow = (point: {x:number, y:number}, opposite: {x:number, y:number}) => {
-          const dirX = opposite.x - point.x;
-          const dirY = opposite.y - point.y;
-          const len = Math.hypot(dirX, dirY);
-          if (len === 0) return;
-          const nx = dirX / len;
-          const ny = dirY / len;
-          
-          const arrowLen = tickSizeScreen;
-          const arrowWidth = tickSizeScreen * 0.3;
-          
-          context.beginPath();
-          context.moveTo(point.x, point.y);
-          context.lineTo(point.x + nx * arrowLen - ny * arrowWidth, point.y + ny * arrowLen + nx * arrowWidth);
-          context.lineTo(point.x + nx * arrowLen + ny * arrowWidth, point.y + ny * arrowLen - nx * arrowWidth);
-          context.closePath();
-          context.fillStyle = context.strokeStyle;
-          context.fill();
-        };
-
-        if (entity.dimensionType === "radius") {
-          drawArrow(dimEnd, dimStart);
-        } else {
-          drawArrow(dimStart, dimEnd);
-          drawArrow(dimEnd, dimStart);
-        }
-      } else {
+      if (defaultStyle.arrowType === "tick") {
         // O renderizador desenha marcas arquitetonicas em 45 graus nas extremidades.
         const tickDx = tickSizeScreen * 0.5;
         const tickDy = tickSizeScreen * 0.5;
@@ -332,6 +308,19 @@ export function renderDocument2D(
         context.lineWidth = oldLineWidth * 1.5;
         context.stroke();
         context.lineWidth = oldLineWidth;
+      } else if (defaultStyle.arrowType !== "none") {
+        // Seta cheia, seta aberta ou ponto: o terminador aponta para a extremidade, vindo do lado oposto.
+        const arrowType = defaultStyle.arrowType;
+        const drawTerminator = (point: Point2D, opposite: Point2D) => {
+          drawDimensionTerminator(context, arrowType, point, opposite, tickSizeScreen);
+        };
+
+        if (entity.dimensionType === "radius") {
+          drawTerminator(dimEnd, dimStart);
+        } else {
+          drawTerminator(dimStart, dimEnd);
+          drawTerminator(dimEnd, dimStart);
+        }
       }
 
       // O renderizador desenha o texto da cota, omitindo-o quando ficaria pequeno demais para ser legível (LOD).
@@ -362,6 +351,8 @@ export function renderDocument2D(
 
         context.restore();
       }
+    } else if (entity.type === "text") {
+      renderTextEntity(context, entity, viewport);
     }
     renderedEntities += 1;
   }
@@ -375,6 +366,129 @@ export function renderDocument2D(
     indexQueryTimeMs,
     renderTimeMs: performance.now() - renderStartTime
   };
+}
+
+/**
+ * Desenha um terminador de cota (seta cheia, seta aberta ou ponto) na extremidade point, com o corpo
+ * voltado para opposite. As medidas estão em pixels de tela.
+ */
+function drawDimensionTerminator(
+  context: CanvasRenderingContext2D,
+  arrowType: "arrow" | "open" | "dot",
+  point: Point2D,
+  opposite: Point2D,
+  sizeScreen: number
+): void {
+  if (arrowType === "dot") {
+    context.beginPath();
+    context.arc(point.x, point.y, sizeScreen * 0.25, 0, Math.PI * 2);
+    context.fillStyle = context.strokeStyle;
+    context.fill();
+    return;
+  }
+
+  const dirX = opposite.x - point.x;
+  const dirY = opposite.y - point.y;
+  const len = Math.hypot(dirX, dirY);
+  if (len === 0) return;
+  const nx = dirX / len;
+  const ny = dirY / len;
+  const arrowLen = sizeScreen;
+  const arrowWidth = sizeScreen * 0.3;
+  const left = { x: point.x + nx * arrowLen - ny * arrowWidth, y: point.y + ny * arrowLen + nx * arrowWidth };
+  const right = { x: point.x + nx * arrowLen + ny * arrowWidth, y: point.y + ny * arrowLen - nx * arrowWidth };
+
+  context.beginPath();
+  context.moveTo(left.x, left.y);
+  context.lineTo(point.x, point.y);
+  context.lineTo(right.x, right.y);
+
+  if (arrowType === "arrow") {
+    context.closePath();
+    context.fillStyle = context.strokeStyle;
+    context.fill();
+  } else {
+    // A seta aberta é só o contorno em "V", sem preenchimento.
+    context.stroke();
+  }
+}
+
+// Famílias genéricas do CSS não levam aspas; nomes de fonte com espaço precisam delas.
+const GENERIC_FONT_FAMILIES = new Set(["serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui"]);
+
+export function cssFontFamily(fontFamily: string | undefined): string {
+  const name = (fontFamily ?? "").trim();
+
+  if (name === "") {
+    return DEFAULT_TEXT_FONT;
+  }
+
+  if (GENERIC_FONT_FAMILIES.has(name.toLowerCase())) {
+    return name;
+  }
+
+  return `"${name.replace(/["\\]/g, "")}", sans-serif`;
+}
+
+/**
+ * Desenha uma entidade de texto usando o layout do kernel (origem de cada linha na linha de base e
+ * alinhamento), de modo que ancoragem, envoltório e hit-test coincidam com o que aparece na tela.
+ * Abaixo de LOD_TEXT_MIN_PX o texto vira traços na linha média ("greeking"), mais barato e ainda
+ * indicando onde há texto.
+ */
+function renderTextEntity(context: CanvasRenderingContext2D, entity: TextEntity, viewport: Viewport): void {
+  const layout = textLayout(entity);
+  const fontSizeScreen = entity.height * viewport.scale;
+  const rotation = entity.rotation ?? 0;
+  const align = entity.horizontalAlign ?? "left";
+
+  context.save();
+  context.setLineDash([]);
+  context.fillStyle = context.strokeStyle;
+
+  if (fontSizeScreen < LOD_TEXT_MIN_PX) {
+    context.lineWidth = 1;
+    context.beginPath();
+
+    for (const line of layout.lines) {
+      const width = estimateTextLineWidth(line.content, entity.height);
+      if (width <= 0) continue;
+      const startOffset = align === "center" ? -width / 2 : align === "right" ? -width : 0;
+      // A linha média fica a ~0,35 da altura acima da linha de base.
+      const lift = entity.height * 0.35;
+      const start = {
+        x: line.origin.x + layout.direction.x * startOffset + layout.up.x * lift,
+        y: line.origin.y + layout.direction.y * startOffset + layout.up.y * lift
+      };
+      const end = { x: start.x + layout.direction.x * width, y: start.y + layout.direction.y * width };
+      const startScreen = worldToScreen(start, viewport);
+      const endScreen = worldToScreen(end, viewport);
+      context.moveTo(startScreen.x, startScreen.y);
+      context.lineTo(endScreen.x, endScreen.y);
+    }
+
+    context.stroke();
+    context.restore();
+    return;
+  }
+
+  const style = `${entity.italic === true ? "italic " : ""}${entity.bold === true ? "bold " : ""}`;
+  context.font = `${style}${fontSizeScreen}px ${cssFontFamily(entity.fontFamily)}`;
+  context.textAlign = align;
+  context.textBaseline = "alphabetic";
+
+  for (const line of layout.lines) {
+    if (line.content === "") continue;
+    const origin = worldToScreen(line.origin, viewport);
+    context.save();
+    context.translate(origin.x, origin.y);
+    // O mundo não é espelhado na tela (Y para baixo em ambos), então a rotação é aplicada sem inverter o sinal.
+    if (rotation !== 0) context.rotate(rotation);
+    context.fillText(line.content, 0, 0);
+    context.restore();
+  }
+
+  context.restore();
 }
 
 function applyStrokeStyle(context: CanvasRenderingContext2D, style: RenderStyle): void {

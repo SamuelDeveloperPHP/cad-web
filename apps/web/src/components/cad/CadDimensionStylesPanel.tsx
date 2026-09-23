@@ -189,6 +189,9 @@ export function CadDimensionStylesPanel({ cad }: { cad: CadStore }) {
                     <select value={editForm.arrowType || "tick"} onChange={e => setEditForm({ ...editForm, arrowType: e.target.value as any })} style={{ width: "100%", background: "#111827", border: "1px solid var(--cad-border)", color: "#fff", padding: "4px", borderRadius: "4px", marginTop: "4px" }}>
                       <option value="tick">Tick</option>
                       <option value="arrow">Arrow</option>
+                      <option value="open">Open Arrow</option>
+                      <option value="dot">Dot</option>
+                      <option value="none">None</option>
                     </select>
                   </label>
                 </div>

@@ -14,6 +14,17 @@ import { CadTopMenu } from "./CadTopMenu";
 
 type DisplayUnitInput = ConstructorParameters<typeof ChangeDisplayUnitCommand>[0];
 
+// Esc digitado na linha de comando encerra o comando ativo, como no canvas.
+const ESCAPE_KEY_EVENT = {
+  key: "Escape",
+  code: "Escape",
+  repeat: false,
+  shiftKey: false,
+  ctrlKey: false,
+  altKey: false,
+  metaKey: false
+} as const;
+
 export function CadEditor() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const svgFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -21,7 +32,15 @@ export function CadEditor() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLInputElement) {
+      // Teclas digitadas em campos editáveis (linha de comando, textarea do conteúdo do texto, selects)
+      // não viram atalhos: "l" ou Delete ali são texto, não Line nem Erase.
+      const target = event.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      ) {
         return;
       }
 
@@ -136,6 +155,8 @@ export function CadEditor() {
       <CadCommandLine
         activeTool={cad.activeTool}
         onSubmit={cad.runCommandLine}
+        onEscape={() => cad.dispatchKeyDown(ESCAPE_KEY_EVENT)}
+        focusRequested={cad.activeToolAcceptsFreeText}
         message={cad.message}
         workingUnit={cad.document.displayUnit || cad.document.units}
       />

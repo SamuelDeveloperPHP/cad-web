@@ -13,6 +13,7 @@ export * from "./draw/EllipseArcTool";
 export * from "./draw/LineTool";
 export * from "./draw/PolylineTool";
 export * from "./draw/RectangleTool";
+export * from "./draw/TextTool";
 export * from "./modify/EraseTool";
 export * from "./modify/MirrorTool";
 export * from "./modify/MoveTool";

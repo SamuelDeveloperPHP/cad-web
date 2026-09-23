@@ -8,6 +8,7 @@ import {
   ArcTool,
   EllipseTool,
   EllipseArcTool,
+  TextTool,
   MoveTool,
   MirrorTool,
   RotateTool,
@@ -41,6 +42,7 @@ export function createWebToolRegistry(): ToolRegistry {
   registry.register(new ArcTool());
   registry.register(new EllipseTool());
   registry.register(new EllipseArcTool());
+  registry.register(new TextTool());
   registry.register(new MoveTool());
   registry.register(new MirrorTool());
   registry.register(new RotateTool());
