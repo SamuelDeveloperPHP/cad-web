@@ -212,10 +212,12 @@ export function distancePointToEllipse(
 
   // O refinamento reduz o intervalo em torno do melhor candidato para melhorar a precisão,
   // sem sair do intervalo varrido pelo arco.
-  let low = Math.max(rangeStart, bestParam - stepSize);
-  let high = Math.min(rangeStart + rangeSweep, bestParam + stepSize);
+  // Na elipse fechada o parâmetro é periódico: a janela pode atravessar 0/2π (perto do vértice do eixo X).
+  const periodic = rangeSweep >= TWO_PI - 1e-12;
+  let low = periodic ? bestParam - stepSize : Math.max(rangeStart, bestParam - stepSize);
+  let high = periodic ? bestParam + stepSize : Math.min(rangeStart + rangeSweep, bestParam + stepSize);
 
-  for (let iteration = 0; iteration < 24; iteration += 1) {
+  for (let iteration = 0; iteration < 48; iteration += 1) {
     const mid1 = low + (high - low) / 3;
     const mid2 = high - (high - low) / 3;
     const d1 = distance(point, ellipsePointAtParam(ellipse.center, rx, ry, ellipse.rotation, mid1));
@@ -265,10 +267,12 @@ export function nearestPointOnEllipse(
     }
   }
 
-  let low = Math.max(rangeStart, bestParam - stepSize);
-  let high = Math.min(rangeStart + rangeSweep, bestParam + stepSize);
+  // Na elipse fechada o parâmetro é periódico: a janela pode atravessar 0/2π (perto do vértice do eixo X).
+  const periodic = rangeSweep >= TWO_PI - 1e-12;
+  let low = periodic ? bestParam - stepSize : Math.max(rangeStart, bestParam - stepSize);
+  let high = periodic ? bestParam + stepSize : Math.min(rangeStart + rangeSweep, bestParam + stepSize);
 
-  for (let iteration = 0; iteration < 24; iteration += 1) {
+  for (let iteration = 0; iteration < 48; iteration += 1) {
     const mid1 = low + (high - low) / 3;
     const mid2 = high - (high - low) / 3;
     const d1 = distance(point, ellipsePointAtParam(ellipse.center, rx, ry, ellipse.rotation, mid1));
