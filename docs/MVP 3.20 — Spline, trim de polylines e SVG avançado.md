@@ -29,7 +29,8 @@ Clique ou digite os pontos (x,y, @dx,dy, @d<a, distância, na unidade de trabalh
 | Path Array | Serve de caminho. |
 | Painel | Método, grau, aberta/fechada (recalcula pelos pontos de ajuste), nº de pontos, comprimento, pontas. |
 | JSON / SVG | Validação (3n + 1 pontos); exporta `<path d="M … C … [Z]">` exato; importa curvas de `<path>` como spline. |
-| Extend, Fillet, Explode | Não suportados nesta fase (mensagem clara); o Explode segue o AutoCAD. |
+| Extend, Fillet | Adicionados no MVP 3.21. |
+| Explode | Não suportado (mensagem clara), como no AutoCAD. |
 
 ### Offset da elipse
 
@@ -65,7 +66,7 @@ Passa a gerar **spline** (em vez de polyline densa), com erro menor que 1e-5 do 
 
 ## Fora de escopo (futuro)
 
-- Extend e Fillet com spline; edição dos pontos de ajuste por grips; NURBS racionais (pesos) e grau diferente de 3 (útil para DXF).
+- ~~Extend e Fillet com spline; edição dos pontos de ajuste por grips~~ (MVP 3.21); NURBS racionais (pesos) e grau diferente de 3 (útil para DXF).
 - CSS com combinadores e seletores de atributo; `<use>` de arquivos externos (bloqueado por segurança).
 
 ## Testes
