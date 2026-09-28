@@ -952,6 +952,38 @@ export class ReplaceEntityCommand implements CadCommand {
 }
 
 /**
+ * Substitui várias entidades pelas versões editadas, com os mesmos ids e na mesma posição da lista
+ * (edições por grip em Move/Rotate/Scale/Mirror). Uma única passada O(n) no execute e no undo, que
+ * restaura exatamente as entidades originais (sem aplicar a transformação inversa).
+ */
+export class ReplaceEntitiesCommand implements CadCommand {
+  readonly type = "ReplaceEntitiesCommand";
+  private readonly updatedById: ReadonlyMap<EntityId, CadEntity>;
+  private readonly originalById: ReadonlyMap<EntityId, CadEntity>;
+
+  constructor(
+    readonly originalEntities: ReadonlyArray<CadEntity>,
+    readonly updatedEntities: ReadonlyArray<CadEntity>,
+    readonly description = "Replaces entities with edited versions."
+  ) {
+    this.updatedById = new Map(updatedEntities.map((entity) => [entity.id, entity]));
+    this.originalById = new Map(originalEntities.map((entity) => [entity.id, entity]));
+  }
+
+  get id(): string {
+    return `cmd_replace_entities_${this.updatedEntities.length}_${Date.now()}`;
+  }
+
+  execute(document: CadDocument): CadDocument {
+    return { ...document, entities: document.entities.map((entity) => this.updatedById.get(entity.id) ?? entity) };
+  }
+
+  undo(document: CadDocument): CadDocument {
+    return { ...document, entities: document.entities.map((entity) => this.originalById.get(entity.id) ?? entity) };
+  }
+}
+
+/**
  * Executa vários comandos como uma única operação de histórico: execute em ordem, undo na ordem inversa.
  */
 export class CompositeCommand implements CadCommand {

@@ -921,6 +921,54 @@ button {
   opacity: 0.7;
 }
 
+/* Menu de contexto da ferramenta ativa (modos do grip), aberto com o botão direito sobre o canvas. */
+.cad-context-menu {
+  position: absolute;
+  z-index: 20;
+  min-width: 170px;
+  padding: 4px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 6px;
+  background: #111827;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  font-size: 12px;
+}
+
+.cad-context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #e5e7eb;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cad-context-menu-item:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.18);
+}
+
+.cad-context-menu-item:disabled {
+  color: #6b7280;
+  cursor: default;
+}
+
+.cad-context-menu-check {
+  display: inline-flex;
+  width: 12px;
+  color: var(--cad-accent, #38bdf8);
+}
+
+.cad-context-menu-separator {
+  height: 1px;
+  margin: 4px 2px;
+  background: rgba(148, 163, 184, 0.25);
+}
+
 /* Retângulo do Zoom Window desenhado sobre o canvas durante o arrasto. */
 .cad-zoom-window-rect {
   position: absolute;

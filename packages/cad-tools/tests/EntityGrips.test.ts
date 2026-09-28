@@ -37,7 +37,7 @@ describe("SelectTool entity grips", () => {
     tool.onPointerDown(at(220, 0), context);
     tool.onPointerUp(at(220, 0), context);
     expect(context.commands).toHaveLength(0);
-    expect(context.messages.at(-1)).toContain("Specify point");
+    expect(context.messages.at(-1)).toContain("** STRETCH ** Specify stretch point");
 
     tool.onPointerMove(at(230, 0), context);
     expect(tool.onPointerDown(at(230, 0), context).type).toBe("complete");

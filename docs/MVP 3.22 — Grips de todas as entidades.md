@@ -43,7 +43,7 @@ Levar os grips (alças de edição) do MVP 3.21, que só existiam em cotas e spl
 ## Fora de escopo (futuro)
 
 - Vários grips quentes ao mesmo tempo (Shift) e grips coincidentes movidos juntos.
-- Menu de grip com Move/Rotate/Scale/Mirror a partir do grip (ciclo com Espaço, como no AutoCAD).
+- ~~Menu de grip com Move/Rotate/Scale/Mirror a partir do grip (ciclo com Espaço, como no AutoCAD)~~ (MVP 3.23).
 - Converter segmento de polyline em arco (a polyline ainda não tem arcos).
 
 ## Testes

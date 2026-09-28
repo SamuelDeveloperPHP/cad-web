@@ -1,4 +1,13 @@
-import { ReplaceEntityCommand, UpdateEntityCommand, type CadEntity, type DimensionEntity, type EntityId } from "@cad-web/cad-core";
+import {
+  CompositeCommand,
+  CreateEntityCommand,
+  ReplaceEntitiesCommand,
+  ReplaceEntityCommand,
+  UpdateEntityCommand,
+  type CadEntity,
+  type DimensionEntity,
+  type EntityId
+} from "@cad-web/cad-core";
 import {
   addVertexAtGrip,
   getDimensionGripPoints,
@@ -8,18 +17,30 @@ import {
   supportsEntityGrips,
   updateDimensionByGrip,
   updateEntityByGrip,
+  visualDegreesToWorldRadians,
   type GripEntityShape,
   type Point2D
 } from "@cad-web/cad-geometry";
-import type { CadTool } from "../contracts/CadTool";
+import type { CadTool, ToolMenuItem } from "../contracts/CadTool";
 import type { ToolContext } from "../contracts/ToolContext";
 import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent";
 import type { CadPreview, ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 import { parseDirectInput, resolveDirectInput } from "../draw/directInput";
+import { newPieceId } from "../modify/curveEditUtils";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
 import { findNearestEntityId } from "./hitTesting";
 import { boxSelectionMode, entitiesInSelectionBox } from "./boxSelection";
+import {
+  applyGripTransform,
+  gripOperationLabel,
+  gripTransformFromPoint,
+  nextGripOperation,
+  parseGripOperation,
+  GRIP_OPERATIONS,
+  type GripOperation,
+  type GripTransform
+} from "./gripOperations";
 
 const DEFAULT_SCREEN_TOLERANCE_PIXELS = 8;
 const GRIP_TOLERANCE_PIXELS = 10;
@@ -28,7 +49,8 @@ export const MAX_GRIP_ENTITIES = 50;
 const BOX_DRAG_THRESHOLD_PIXELS = 4;
 // Clique sem arrasto no grip (abaixo deste deslocamento) deixa o grip "quente", como no AutoCAD.
 const GRIP_CLICK_THRESHOLD_PIXELS = 4;
-const GRIP_KEYS: ReadonlySet<string> = new Set(["Delete", "Backspace", "a", "A", "r", "R"]);
+// Teclas que o grip ativo reivindica antes dos atalhos globais (Delete apagaria a entidade; M abriria o Move).
+const GRIP_KEYS: ReadonlySet<string> = new Set(["Delete", "Backspace", " ", "Enter", "a", "b", "c", "m", "r", "x"]);
 
 type PendingSelection = Readonly<{
   startWorld: Point2D;
@@ -48,18 +70,24 @@ type GripHit = Readonly<{
 }>;
 
 /**
- * Grip em edição. documentEntity é a entidade do documento (alvo do comando); baseEntity é a entidade de
- * onde a edição é calculada (difere dela depois de inserir um vértice). No modo "dragging" o botão está
- * pressionado; no modo "hot" o grip segue o cursor até o próximo clique ou coordenada digitada.
+ * Grip em edição. documentEntity é a entidade do documento (alvo do Stretch); baseEntity é a entidade de
+ * onde o Stretch é calculado (difere dela depois de inserir um vértice). targets são as entidades selecionadas
+ * (em camadas utilizáveis) que Move/Rotate/Scale/Mirror transformam. No phase "dragging" o botão está
+ * pressionado; no "hot" o grip segue o cursor até o próximo clique ou valor digitado.
  */
 type GripEditState = Readonly<{
   documentEntity: GripEntity;
   baseEntity: GripEntity;
   gripId: string;
+  gripPoint: Point2D;
   basePoint: Point2D;
   downScreen: Point2D;
   lastPoint: Point2D;
-  mode: "dragging" | "hot";
+  phase: "dragging" | "hot";
+  operation: GripOperation;
+  targets: ReadonlyArray<CadEntity>;
+  copy: boolean;
+  awaitingBasePoint: boolean;
 }>;
 
 export class SelectTool implements CadTool {
@@ -83,18 +111,55 @@ export class SelectTool implements CadTool {
   }
 
   claimsKeyDown(event: ToolKeyboardEvent): boolean {
-    return this.grip !== null && GRIP_KEYS.has(event.key);
+    return this.grip !== null && !event.ctrlKey && !event.metaKey && (GRIP_KEYS.has(event.key) || GRIP_KEYS.has(event.key.toLowerCase()));
   }
 
   claimsCommandInput(_input: string): boolean {
     return this.grip !== null;
   }
 
+  getContextMenu(): ReadonlyArray<ToolMenuItem> | null {
+    const grip = this.grip;
+
+    if (grip === null) {
+      return null;
+    }
+
+    const vertex = grip.operation === "stretch" ? vertexOptionsOf(grip) : { canAdd: false, canRemove: false };
+    const items: ToolMenuItem[] = GRIP_OPERATIONS.map((operation) => ({
+      label: gripOperationLabel(operation),
+      command: operation,
+      checked: grip.operation === operation
+    }));
+
+    items.push(
+      { label: "Base Point", command: "base", separatorBefore: true },
+      { label: "Copy", command: "copy", checked: grip.copy }
+    );
+
+    if (vertex.canAdd || vertex.canRemove) {
+      items.push(
+        { label: "Add Vertex", command: "add", disabled: !vertex.canAdd, separatorBefore: true },
+        { label: "Remove Vertex", command: "remove", disabled: !vertex.canRemove }
+      );
+    }
+
+    items.push({ label: "Exit", command: "exit", separatorBefore: true });
+    return items;
+  }
+
   onPointerDown(event: ToolPointerEvent, context: ToolContext): ToolResult {
-    // Grip quente: o clique define o novo ponto.
-    if (this.grip !== null && this.grip.mode === "hot") {
-      this.suppressNextPointerUp = true;
-      return this.commitGrip(resolveSnappedPoint(event, context), context);
+    if (this.grip !== null) {
+      // O botão direito fica para o menu de contexto do grip.
+      if (event.button !== "primary") {
+        return TOOL_RESULT_NONE;
+      }
+
+      // Grip quente: o clique define o ponto base (opção Base point) ou o ponto da operação.
+      if (this.grip.phase === "hot") {
+        this.suppressNextPointerUp = true;
+        return this.acceptPoint(resolveSnappedPoint(event, context), context);
+      }
     }
 
     const gripHit = findGripHit(context, event);
@@ -109,10 +174,15 @@ export class SelectTool implements CadTool {
         documentEntity: gripHit.entity,
         baseEntity: gripHit.entity,
         gripId: gripHit.gripId,
+        gripPoint: gripHit.point,
         basePoint: gripHit.point,
         downScreen: event.screenPoint,
         lastPoint: gripHit.point,
-        mode: "dragging"
+        phase: "dragging",
+        operation: "stretch",
+        targets: usableSelection(context, gripHit.entity),
+        copy: false,
+        awaitingBasePoint: false
       };
 
       const preview: CadPreview = { type: "ghostEntities", entities: [gripHit.entity] };
@@ -183,17 +253,21 @@ export class SelectTool implements CadTool {
       return TOOL_RESULT_NONE;
     }
 
-    if (this.grip !== null && this.grip.mode === "dragging") {
-      const moved = Math.hypot(event.screenPoint.x - this.grip.downScreen.x, event.screenPoint.y - this.grip.downScreen.y);
-
-      // Clique sem arrasto: o grip fica quente e segue o cursor (clique, coordenada ou opção define o ponto).
-      if (moved < GRIP_CLICK_THRESHOLD_PIXELS) {
-        this.grip = { ...this.grip, mode: "hot" };
-        context.showMessage(hotGripMessage(this.grip));
+    if (this.grip !== null && this.grip.phase === "dragging") {
+      if (event.button !== "primary") {
         return TOOL_RESULT_NONE;
       }
 
-      return this.commitGrip(resolveSnappedPoint(event, context), context);
+      const moved = Math.hypot(event.screenPoint.x - this.grip.downScreen.x, event.screenPoint.y - this.grip.downScreen.y);
+
+      // Clique sem arrasto: o grip fica quente e segue o cursor (clique, valor digitado ou opção define o ponto).
+      if (moved < GRIP_CLICK_THRESHOLD_PIXELS) {
+        this.grip = { ...this.grip, phase: "hot" };
+        context.showMessage(gripPrompt(this.grip));
+        return TOOL_RESULT_NONE;
+      }
+
+      return this.acceptPoint(resolveSnappedPoint(event, context), context);
     }
 
     if (this.grip !== null) {
@@ -228,11 +302,7 @@ export class SelectTool implements CadTool {
   onKeyDown(event: ToolKeyboardEvent, context: ToolContext): ToolResult {
     if (event.key === "Escape") {
       if (this.grip !== null) {
-        this.grip = null;
-        this.suppressNextPointerUp = false;
-        context.clearPreview();
-        context.showMessage("[Grip] Edit canceled.");
-        return { type: "cancel" };
+        return this.exitGrip(context, "[Grip] Edit canceled.");
       }
 
       if (this.pending !== null) {
@@ -245,79 +315,178 @@ export class SelectTool implements CadTool {
       return { type: "cancel" };
     }
 
-    if (this.grip !== null) {
-      const key = event.key.toLowerCase();
-
-      if (key === "a") return this.addVertex(context);
-      if (key === "r" || key === "delete" || key === "backspace") return this.removeVertex(context);
+    if (this.grip === null) {
+      return TOOL_RESULT_NONE;
     }
+
+    const key = event.key.toLowerCase();
+
+    // Espaço/Enter alternam o modo, como no AutoCAD; as letras são atalhos das opções do grip.
+    if (key === " " || key === "enter") return this.setOperation(nextGripOperation(this.grip.operation), context);
+    if (key === "m") return this.setOperation("move", context);
+    if (key === "b") return this.requestBasePoint(context);
+    if (key === "c") return this.toggleCopy(context);
+    if (key === "x") return this.exitGrip(context, "[Grip] Exit.");
+    if (key === "a") return this.addVertex(context);
+    if (key === "r" || key === "delete" || key === "backspace") return this.removeVertex(context);
 
     return TOOL_RESULT_NONE;
   }
 
   onCommandInput(input: string, context: ToolContext): ToolResult {
-    if (this.grip === null) {
-      return TOOL_RESULT_NONE;
-    }
-
-    const command = input.trim().toLowerCase();
-
-    if (command === "a" || command === "add") return this.addVertex(context);
-    if (command === "r" || command === "remove" || command === "del" || command === "delete") return this.removeVertex(context);
-    if (command.length === 0) return TOOL_RESULT_NONE;
-
-    // Coordenadas na unidade de trabalho: x,y absoluto; @dx,dy e @d<a relativos ao ponto original do grip;
-    // uma distância segue a direção do cursor a partir dele.
-    const direction = { x: this.grip.lastPoint.x - this.grip.basePoint.x, y: this.grip.lastPoint.y - this.grip.basePoint.y };
-    const point = resolveDirectInput(
-      parseDirectInput(input),
-      this.grip.basePoint,
-      Math.hypot(direction.x, direction.y) > 0 ? direction : null,
-      context.unitScale
-    );
-
-    if (point === null) {
-      const message = "[Grip] Invalid point. Type x,y, @dx,dy, @distance<angle, A (add vertex) or R (remove vertex).";
-      context.showMessage(message);
-      return { type: "error", message };
-    }
-
-    return this.commitGrip(point, context);
-  }
-
-  private previewGrip(point: Point2D, context: ToolContext): ToolResult {
-    const updated = this.grip === null ? null : applyGrip(this.grip, point);
-
-    // Geometria degenerada (ex.: arco por três pontos alinhados): mantém o último preview válido.
-    if (updated === null) {
-      return TOOL_RESULT_NONE;
-    }
-
-    const preview: CadPreview = { type: "ghostEntities", entities: [updated] };
-    context.setPreview(preview);
-    return { type: "preview", preview };
-  }
-
-  private commitGrip(point: Point2D, context: ToolContext): ToolResult {
     const grip = this.grip;
 
     if (grip === null) {
       return TOOL_RESULT_NONE;
     }
 
-    const updated = applyGrip(grip, point);
+    const command = input.trim().toLowerCase();
+    const operation = parseGripOperation(command);
+
+    if (command.length === 0) return this.setOperation(nextGripOperation(grip.operation), context);
+    if (operation !== null) return this.setOperation(operation, context);
+    if (command === "b" || command === "base") return this.requestBasePoint(context);
+    if (command === "c" || command === "copy") return this.toggleCopy(context);
+    if (command === "x" || command === "exit") return this.exitGrip(context, "[Grip] Exit.");
+    if (command === "a" || command === "add") return this.addVertex(context);
+    if (command === "r" || command === "remove" || command === "del" || command === "delete") return this.removeVertex(context);
+
+    // Rotate e Scale aceitam o valor direto: ângulo em graus (convenção do AutoCAD, anti-horário) e fator.
+    const value = Number(command);
+
+    if (!grip.awaitingBasePoint && command.length > 0 && Number.isFinite(value)) {
+      if (grip.operation === "rotate") {
+        return this.commitTransform({ kind: "rotate", angle: visualDegreesToWorldRadians(value) }, context);
+      }
+
+      if (grip.operation === "scale") {
+        if (!(value > 0)) return this.inputError(context, "[Grip] Scale factor must be greater than zero.");
+        return this.commitTransform({ kind: "scale", factor: value }, context);
+      }
+    }
+
+    // Pontos na unidade de trabalho: x,y absoluto; @dx,dy e @d<a relativos ao ponto base;
+    // uma distância segue a direção do cursor a partir dele.
+    const direction = { x: grip.lastPoint.x - grip.basePoint.x, y: grip.lastPoint.y - grip.basePoint.y };
+    const point = resolveDirectInput(
+      parseDirectInput(input),
+      grip.basePoint,
+      Math.hypot(direction.x, direction.y) > 0 ? direction : null,
+      context.unitScale
+    );
+
+    if (point === null) {
+      return this.inputError(context, "[Grip] Invalid input. Type a point (x,y, @dx,dy, @d<a), a value or an option.");
+    }
+
+    return this.acceptPoint(point, context);
+  }
+
+  // ----------------------------------------------------------------------------------------------
+  // Operações
+  // ----------------------------------------------------------------------------------------------
+
+  private acceptPoint(point: Point2D, context: ToolContext): ToolResult {
+    const grip = this.grip;
+
+    if (grip === null) {
+      return TOOL_RESULT_NONE;
+    }
+
+    if (grip.awaitingBasePoint) {
+      this.grip = { ...grip, basePoint: point, lastPoint: point, awaitingBasePoint: false, phase: "hot" };
+      context.showMessage(gripPrompt(this.grip));
+      return this.previewGrip(point, context);
+    }
+
+    if (grip.operation === "stretch") {
+      return this.commitStretch(point, context);
+    }
+
+    const transform = gripTransformFromPoint(grip.operation, grip.basePoint, point, context.unitScale);
+    return transform === null ? this.inputError(context, "[Grip] The point coincides with the base point.") : this.commitTransform(transform, context);
+  }
+
+  private previewGrip(point: Point2D, context: ToolContext): ToolResult {
+    const grip = this.grip;
+
+    if (grip === null) {
+      return TOOL_RESULT_NONE;
+    }
+
+    if (grip.awaitingBasePoint) {
+      context.clearPreview();
+      return TOOL_RESULT_NONE;
+    }
+
+    let entities: ReadonlyArray<CadEntity> | null;
+
+    if (grip.operation === "stretch") {
+      const stretched = stretchGrip(grip, point);
+      entities = stretched === null ? null : [stretched];
+    } else {
+      const transform = gripTransformFromPoint(grip.operation, grip.basePoint, point, context.unitScale);
+      entities = transform === null ? null : applyGripTransform(grip.targets, grip.basePoint, transform);
+    }
+
+    // Geometria degenerada (ex.: arco por três pontos alinhados): mantém o último preview válido.
+    if (entities === null) {
+      return TOOL_RESULT_NONE;
+    }
+
+    const preview: CadPreview = { type: "ghostEntities", entities: [...entities, rubberBand(grip.basePoint, point, grip.documentEntity.layerId)] };
+    context.setPreview(preview);
+    return { type: "preview", preview };
+  }
+
+  private commitStretch(point: Point2D, context: ToolContext): ToolResult {
+    const grip = this.grip!;
+    const updated = stretchGrip(grip, point);
 
     if (updated === null) {
-      const message = "[Grip] Invalid geometry for this point.";
-      context.showMessage(message);
-      return { type: "error", message };
+      return this.inputError(context, "[Grip] Invalid geometry for this point.");
+    }
+
+    if (grip.copy && updated.type !== "dimension") {
+      return this.commitCopies([updated], context);
     }
 
     this.grip = null;
-    return this.executeGripResult(grip.documentEntity, updated, context);
+    return this.executeStretch(grip.documentEntity, updated, context);
   }
 
-  private executeGripResult(original: GripEntity, updated: GripEntity, context: ToolContext): ToolResult {
+  private commitTransform(transform: GripTransform, context: ToolContext): ToolResult {
+    const grip = this.grip!;
+    const transformed = applyGripTransform(grip.targets, grip.basePoint, transform);
+
+    if (transformed.length === 0) {
+      return this.inputError(context, "[Grip] Nothing to transform.");
+    }
+
+    if (grip.copy) {
+      return this.commitCopies(transformed, context);
+    }
+
+    const originals = grip.targets.filter((entity) => transformed.some((updated) => updated.id === entity.id));
+    const previousSelection = context.selection.entityIds;
+    context.executeCommand(new ReplaceEntitiesCommand(originals, transformed, `${gripOperationLabel(grip.operation)}s entities by grip.`));
+    context.selectEntities(previousSelection);
+    context.clearPreview();
+    context.showMessage(`[Grip] ${gripOperationLabel(grip.operation)}: ${transformed.length} entit${transformed.length === 1 ? "y" : "ies"}.`);
+    this.grip = null;
+    return { type: "complete" };
+  }
+
+  // Cópias (opção Copy): as entidades transformadas entram com ids novos e o grip continua ativo.
+  private commitCopies(entities: ReadonlyArray<CadEntity>, context: ToolContext): ToolResult {
+    const copies = entities.map((entity) => ({ ...entity, id: newPieceId(entity.id, "copy") }) as CadEntity);
+    context.executeCommand(new CompositeCommand(copies.map((entity) => new CreateEntityCommand(entity)), "Copies entities by grip."));
+    this.grip = { ...this.grip!, phase: "hot" };
+    context.showMessage(`[Grip] ${copies.length} cop${copies.length === 1 ? "y" : "ies"} created. ${gripPrompt(this.grip)}`);
+    return this.previewGrip(this.grip.lastPoint, context);
+  }
+
+  private executeStretch(original: GripEntity, updated: GripEntity, context: ToolContext): ToolResult {
     const previousSelection = context.selection.entityIds;
 
     if (updated.type === "dimension") {
@@ -337,29 +506,69 @@ export class SelectTool implements CadTool {
     return { type: "complete" };
   }
 
+  private setOperation(operation: GripOperation, context: ToolContext): ToolResult {
+    if (this.grip === null) {
+      return TOOL_RESULT_NONE;
+    }
+
+    this.grip = { ...this.grip, operation, phase: "hot" };
+    this.suppressNextPointerUp = false;
+    context.showMessage(gripPrompt(this.grip));
+    return this.previewGrip(this.grip.lastPoint, context);
+  }
+
+  private requestBasePoint(context: ToolContext): ToolResult {
+    if (this.grip === null) {
+      return TOOL_RESULT_NONE;
+    }
+
+    this.grip = { ...this.grip, awaitingBasePoint: true, phase: "hot" };
+    context.clearPreview();
+    context.showMessage("[Grip] Specify base point (click or x,y).");
+    return TOOL_RESULT_NONE;
+  }
+
+  private toggleCopy(context: ToolContext): ToolResult {
+    if (this.grip === null) {
+      return TOOL_RESULT_NONE;
+    }
+
+    this.grip = { ...this.grip, copy: !this.grip.copy, phase: "hot" };
+    context.showMessage(gripPrompt(this.grip));
+    return this.previewGrip(this.grip.lastPoint, context);
+  }
+
+  private exitGrip(context: ToolContext, message: string): ToolResult {
+    this.grip = null;
+    this.suppressNextPointerUp = false;
+    context.clearPreview();
+    context.showMessage(message);
+    return { type: "cancel" };
+  }
+
+  private inputError(context: ToolContext, message: string): ToolResult {
+    context.showMessage(message);
+    return { type: "error", message };
+  }
+
   // Insere um vértice após o grip (polyline ou ponto de ajuste) e passa a editar o vértice novo.
   private addVertex(context: ToolContext): ToolResult {
     const grip = this.grip;
 
-    if (grip === null || !supportsEntityGrips(grip.baseEntity)) {
+    if (grip === null || grip.operation !== "stretch" || !vertexOptionsOf(grip).canAdd) {
       return this.vertexUnavailable(context, "add");
     }
 
-    const base = grip.baseEntity as GripEntityShape;
-
-    if (!gripVertexOptions(base, grip.gripId).canAdd) {
-      return this.vertexUnavailable(context, "add");
-    }
-
-    const added = addVertexAtGrip(base, grip.gripId, grip.lastPoint)!;
+    const added = addVertexAtGrip(grip.baseEntity as GripEntityShape, grip.gripId, grip.lastPoint)!;
     this.grip = {
       ...grip,
       baseEntity: added.entity as unknown as GripEntity,
       gripId: added.gripId,
+      gripPoint: grip.lastPoint,
       basePoint: grip.lastPoint,
-      mode: "hot"
+      phase: "hot"
     };
-    this.suppressNextPointerUp = grip.mode === "dragging";
+    this.suppressNextPointerUp = grip.phase === "dragging";
     context.showMessage("[Grip] Vertex added. Click or type the new vertex position. Press Esc to cancel.");
     return this.previewGrip(grip.lastPoint, context);
   }
@@ -367,7 +576,7 @@ export class SelectTool implements CadTool {
   private removeVertex(context: ToolContext): ToolResult {
     const grip = this.grip;
 
-    if (grip === null || !supportsEntityGrips(grip.baseEntity)) {
+    if (grip === null || grip.operation !== "stretch" || !supportsEntityGrips(grip.baseEntity)) {
       return this.vertexUnavailable(context, "remove");
     }
 
@@ -378,35 +587,71 @@ export class SelectTool implements CadTool {
     }
 
     this.grip = null;
-    this.suppressNextPointerUp = grip.mode === "dragging";
-    return this.executeGripResult(grip.documentEntity, updated as unknown as GripEntity, context);
+    this.suppressNextPointerUp = grip.phase === "dragging";
+    return this.executeStretch(grip.documentEntity, updated as unknown as GripEntity, context);
   }
 
   private vertexUnavailable(context: ToolContext, action: "add" | "remove"): ToolResult {
-    const message = action === "add"
-      ? "[Grip] Add vertex works on polyline vertices, polyline segment midpoints and spline fit points."
-      : "[Grip] Remove vertex works on polyline vertices and spline fit points (keeping the minimum count).";
-    context.showMessage(message);
-    return { type: "error", message };
+    const message = this.grip !== null && this.grip.operation !== "stretch"
+      ? "[Grip] Vertex options are available in Stretch mode."
+      : action === "add"
+        ? "[Grip] Add vertex works on polyline vertices, polyline segment midpoints and spline fit points."
+        : "[Grip] Remove vertex works on polyline vertices and spline fit points (keeping the minimum count).";
+    return this.inputError(context, message);
   }
 }
 
-function applyGrip(grip: GripEditState, point: Point2D): GripEntity | null {
+// Stretch: o grip vai para gripPoint + (ponto − base); com a base no próprio grip, o grip vai ao ponto.
+function stretchGrip(grip: GripEditState, point: Point2D): GripEntity | null {
+  const target = { x: grip.gripPoint.x + point.x - grip.basePoint.x, y: grip.gripPoint.y + point.y - grip.basePoint.y };
+
   if (grip.baseEntity.type === "dimension") {
-    return updateDimensionByGrip(grip.baseEntity as any, grip.gripId, point) as DimensionEntity;
+    return updateDimensionByGrip(grip.baseEntity as any, grip.gripId, target) as DimensionEntity;
   }
 
   if (!supportsEntityGrips(grip.baseEntity)) {
     return null;
   }
 
-  return updateEntityByGrip(grip.baseEntity as GripEntityShape, grip.gripId, point) as unknown as GripEntity | null;
+  return updateEntityByGrip(grip.baseEntity as GripEntityShape, grip.gripId, target) as unknown as GripEntity | null;
 }
 
-function hotGripMessage(grip: GripEditState): string {
-  const options = supportsEntityGrips(grip.baseEntity) ? gripVertexOptions(grip.baseEntity as GripEntityShape, grip.gripId) : { canAdd: false, canRemove: false };
-  const extras = [options.canAdd ? "A = add vertex" : null, options.canRemove ? "R/Delete = remove vertex" : null].filter((item) => item !== null);
-  return `[Grip] Specify point (click, x,y, @dx,dy or @d<a)${extras.length > 0 ? `, ${extras.join(", ")}` : ""}. Esc cancels.`;
+function vertexOptionsOf(grip: GripEditState): Readonly<{ canAdd: boolean; canRemove: boolean }> {
+  return supportsEntityGrips(grip.baseEntity)
+    ? gripVertexOptions(grip.baseEntity as GripEntityShape, grip.gripId)
+    : { canAdd: false, canRemove: false };
+}
+
+function gripPrompt(grip: GripEditState): string {
+  const vertex = grip.operation === "stretch" ? vertexOptionsOf(grip) : { canAdd: false, canRemove: false };
+  const request: Readonly<Record<GripOperation, string>> = {
+    stretch: "Specify stretch point",
+    move: "Specify move point",
+    rotate: "Specify rotation angle",
+    scale: "Specify scale factor",
+    mirror: "Specify second point"
+  };
+  const options = [
+    "Base point (B)",
+    "Copy (C)",
+    vertex.canAdd ? "Add vertex (A)" : null,
+    vertex.canRemove ? "Remove vertex (R)" : null,
+    "eXit (X)"
+  ].filter((option) => option !== null);
+  const title = `** ${grip.operation.toUpperCase()}${grip.copy ? " (multiple)" : ""} **`;
+  return `[Grip] ${title} ${request[grip.operation]} or [${options.join(" / ")}]. Space: next mode.`;
+}
+
+// Linha elástica do ponto base ao cursor, desenhada junto do preview (como no AutoCAD).
+function rubberBand(from: Point2D, to: Point2D, layerId: string): CadEntity {
+  return { id: "grip_rubber_band", layerId, type: "line", start: from, end: to };
+}
+
+// Selecionadas em camadas visíveis e desbloqueadas; a entidade do grip entra mesmo fora da seleção.
+function usableSelection(context: ToolContext, gripEntity: GripEntity): ReadonlyArray<CadEntity> {
+  const selected = new Set([...context.selection.entityIds, gripEntity.id]);
+  const usableLayers = new Set(context.document.layers.filter((layer) => layer.visible !== false && layer.locked !== true).map((layer) => layer.id));
+  return context.document.entities.filter((entity) => selected.has(entity.id) && (usableLayers.has(entity.layerId) || entity.layerId === ""));
 }
 
 // Entidades selecionadas cujos grips estão visíveis: a cota da seleção única ou as entidades com grips.
