@@ -58,6 +58,29 @@ describe("RotateTool", () => {
     });
   });
 
+  it("interprets a typed angle in the AutoCAD convention (counterclockwise on screen)", () => {
+    const context = createMockToolContext({ selection: { entityIds: ["line_001"] } });
+    const tool = new RotateTool();
+
+    tool.onPointerDown(createPointerEvent({ x: 0, y: 0 }), context);
+    tool.onCommandInput("90", context);
+    const counterclockwise = context.commands[0]!.execute(context.document).entities[0] as any;
+
+    // O Y do mundo cresce para baixo: 90° anti-horário na tela leva o fim da linha (100, 0) para (0, −100).
+    expect(context.commands[0]).toMatchObject({ angleRadians: -Math.PI / 2 });
+    expect(counterclockwise.end.x).toBeCloseTo(0, 9);
+    expect(counterclockwise.end.y).toBeCloseTo(-100, 9);
+
+    tool.onPointerDown(createPointerEvent({ x: 0, y: 0 }), context);
+    tool.onCommandInput("-90", context);
+    const clockwise = context.commands[1]!.execute(context.document).entities[0] as any;
+    expect(clockwise.end.y).toBeCloseTo(100, 9);
+
+    tool.onPointerDown(createPointerEvent({ x: 0, y: 0 }), context);
+    expect(tool.onCommandInput("90abc", context).type).toBe("none");
+    expect(context.commands).toHaveLength(2);
+  });
+
   it("cancels without emitting command", () => {
     const tool = new RotateTool();
     const context = createMockToolContext({

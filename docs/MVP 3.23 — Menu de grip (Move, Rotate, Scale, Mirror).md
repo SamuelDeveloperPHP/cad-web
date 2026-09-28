@@ -38,7 +38,7 @@ Completar a edição por grips (MVP 3.22) com os **modos de grip do AutoCAD**. C
 
 - Opção Reference do Rotate/Scale e Undo dentro do modo.
 - Vários grips quentes (Shift) e grips multifuncionais com menu ao passar o mouse.
-- A ferramenta Rotate (fora dos grips) interpreta o ângulo digitado no sentido do mundo (Y para baixo); os grips usam a convenção do AutoCAD. Vale alinhar a ferramenta Rotate num próximo ajuste.
+- ~~A ferramenta Rotate (fora dos grips) interpreta o ângulo digitado no sentido do mundo (Y para baixo)~~: corrigido logo após este MVP; ela também usa a convenção do AutoCAD.
 
 ## Testes
 
