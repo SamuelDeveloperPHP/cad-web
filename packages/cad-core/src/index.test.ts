@@ -10,6 +10,7 @@ import {
   ExtendLineCommand,
   FilletLineLineCommand,
   MoveEntitiesCommand,
+  ReplaceEntitiesCommand,
   TrimLineCommand,
   createEmptyDocument,
   createDimensionStyleFromPreset,
@@ -407,3 +408,19 @@ function createLine(id: string): LineEntity {
     end: { x: 10, y: 0 }
   };
 }
+
+describe("ReplaceEntitiesCommand", () => {
+  it("replaces several entities in place and restores the exact originals on undo", () => {
+    const a = { id: "a", layerId: "layer_0", type: "line" as const, start: { x: 0, y: 0 }, end: { x: 1, y: 0 } };
+    const b = { id: "b", layerId: "layer_0", type: "circle" as const, center: { x: 0, y: 0 }, radius: 1 };
+    const c = { id: "c", layerId: "layer_0", type: "line" as const, start: { x: 5, y: 5 }, end: { x: 6, y: 5 } };
+    const document = { ...createEmptyDocument("doc_replace_many"), entities: [a, b, c] };
+    const command = new ReplaceEntitiesCommand([a, c], [{ ...a, end: { x: 2, y: 0 } }, { ...c, start: { x: 0, y: 0 } }]);
+
+    const next = command.execute(document);
+    expect(next.entities.map((entity) => entity.id)).toEqual(["a", "b", "c"]);
+    expect(next.entities[0]).toMatchObject({ end: { x: 2, y: 0 } });
+    expect(next.entities[1]).toBe(b);
+    expect(command.undo(next).entities).toEqual(document.entities);
+  });
+});

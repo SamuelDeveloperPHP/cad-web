@@ -44,6 +44,13 @@ export function CadEditor() {
         return;
       }
 
+      // Com um grip ativo (a ferramenta oferece menu), números e coordenadas vão para a linha de comando:
+      // o foco muda no keydown e o caractere já cai no campo (ex.: "90" no Rotate, "@10,0" no Move).
+      if (/^[0-9@.,<\-]$/.test(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey && cad.getActiveToolContextMenu() !== null) {
+        window.document.getElementById("cad-command")?.focus();
+        return;
+      }
+
       cad.dispatchKeyDown(createToolKeyboardEvent(event));
     };
 

@@ -21,6 +21,7 @@ import {
   type CadPreview,
   type ToolContext,
   type ToolKeyboardEvent,
+  type ToolMenuItem,
   type ToolPointerEvent,
   type ToolResult
 } from "@cad-web/cad-tools";
@@ -119,6 +120,8 @@ export type CadStore = Readonly<{
   importDocument(document: CadDocument): void;
   cancelInteraction(): void;
   runCommandLine(command: string): void;
+  // Itens do menu de contexto da ferramenta ativa no estado atual (ex.: grip ativo); null = sem menu.
+  getActiveToolContextMenu(): ReadonlyArray<ToolMenuItem> | null;
   executeCommand(command: CadCommand): void;
   undo(): void;
   redo(): void;
@@ -786,6 +789,11 @@ export function useCadStore(): CadStore {
     [activeTool, clearDocument, createToolContext, document.entities.length, processToolResult, redo, runEraseTool, setActiveTool, showMessage, toggleAxisLines, toggleCursorGuides, toggleDynamicInput, toolRegistry, undo, zoomToExtents, zoomPrevious]
   );
 
+  const getActiveToolContextMenu = useCallback((): ReadonlyArray<ToolMenuItem> | null => {
+    const tool = activeTool !== "pan" ? toolRegistry.resolve(activeTool) : null;
+    return tool?.getContextMenu?.() ?? null;
+  }, [activeTool, toolRegistry]);
+
   // O ref é mantido sempre com o runCommandLine mais recente (fecha sobre a ferramenta ativa atual).
   runCommandLineRef.current = runCommandLine;
 
@@ -841,6 +849,7 @@ export function useCadStore(): CadStore {
       importDocument,
       cancelInteraction,
       runCommandLine,
+      getActiveToolContextMenu,
       executeCommand: applyCommand,
       undo,
       redo
@@ -864,6 +873,7 @@ export function useCadStore(): CadStore {
       panByScreenDelta,
       preview,
       runCommandLine,
+      getActiveToolContextMenu,
       selectedEntityIds,
       setActiveTool,
       snapSettings,

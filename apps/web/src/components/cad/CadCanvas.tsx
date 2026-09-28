@@ -25,6 +25,8 @@ import {
 import type { CadStore } from "../../state/useCadStore";
 import { createToolPointerEvent } from "../../tools/toolEvents";
 import { cadDiagnostics } from "../../diagnostics/CadDiagnosticsService";
+import type { ToolMenuItem } from "@cad-web/cad-tools";
+import { CadContextMenu } from "./CadContextMenu";
 import { DynamicInputOverlay } from "./DynamicInputOverlay";
 import {
   buildDynamicSubmission,
@@ -50,6 +52,8 @@ export function CadCanvas({ cad }: CadCanvasProps) {
   const panStateRef = useRef<Readonly<{ active: boolean; lastScreen: Point2D }> | null>(null);
   // O retângulo do Zoom Window é mantido em estado para desenhar um overlay enquanto o usuário arrasta.
   const [zoomWindowBox, setZoomWindowBox] = useState<Readonly<{ start: Point2D; current: Point2D }> | null>(null);
+  // Menu de contexto da ferramenta ativa (ex.: modos do grip), aberto com o botão direito.
+  const [contextMenu, setContextMenu] = useState<Readonly<{ x: number; y: number; items: ReadonlyArray<ToolMenuItem> }> | null>(null);
   // O ref mantém o store atual acessível dentro de listeners nativos e callbacks de animação.
   const cadRef = useRef(cad);
   cadRef.current = cad;
@@ -454,8 +458,32 @@ export function CadCanvas({ cad }: CadCanvasProps) {
             event.currentTarget.releasePointerCapture(event.pointerId);
           }
         }}
-        onContextMenu={(event) => event.preventDefault()}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          const items = cad.getActiveToolContextMenu();
+          const host = hostRef.current;
+
+          if (items === null || items.length === 0 || host === null) {
+            setContextMenu(null);
+            return;
+          }
+
+          const bounds = host.getBoundingClientRect();
+          setContextMenu({ x: event.clientX - bounds.left, y: event.clientY - bounds.top, items });
+        }}
       />
+      {contextMenu !== null && (
+        <CadContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={contextMenu.items}
+          onSelect={(item) => {
+            setContextMenu(null);
+            cad.runCommandLine(item.command);
+          }}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
       {zoomWindowBox !== null && (
         <div
           className="cad-zoom-window-rect"

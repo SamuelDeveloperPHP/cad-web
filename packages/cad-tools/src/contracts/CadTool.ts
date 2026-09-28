@@ -3,6 +3,15 @@ import type { ToolContext } from "./ToolContext";
 import type { ToolKeyboardEvent, ToolPointerEvent } from "./ToolEvent";
 import type { ToolResult } from "./ToolResult";
 
+// Item do menu de contexto (botão direito) oferecido pela ferramenta; command vai para onCommandInput.
+export type ToolMenuItem = Readonly<{
+  label: string;
+  command: string;
+  checked?: boolean;
+  disabled?: boolean;
+  separatorBefore?: boolean;
+}>;
+
 export interface CadTool {
   readonly id: string;
   readonly name: string;
@@ -32,6 +41,9 @@ export interface CadTool {
   // Opcional: quando true, a tecla vai direto para a ferramenta antes dos atalhos globais (ex.: Delete remove
   // o vértice do grip ativo em vez de apagar a entidade selecionada).
   claimsKeyDown?(event: ToolKeyboardEvent): boolean;
+
+  // Opcional: itens do menu de contexto no estado atual (ex.: modos do grip ativo); null = sem menu.
+  getContextMenu?(): ReadonlyArray<ToolMenuItem> | null;
 
   // Opcional: ponto de referência do desenho em andamento (ponto anterior), que habilita perpendicular e tangente.
   getSnapReferencePoint?(): Point2D | null;
