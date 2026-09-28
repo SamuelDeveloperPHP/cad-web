@@ -1,5 +1,5 @@
 import { rotateEntity, type CadEntity } from "@cad-web/cad-core";
-import { pointsNearlyEqual, subtractPoints, type Point2D } from "@cad-web/cad-geometry";
+import { pointsNearlyEqual, subtractPoints, visualDegreesToWorldRadians, type Point2D } from "@cad-web/cad-geometry";
 import { rotateEntitiesCommand } from "../commands/CadCommandTypes";
 import type { CadTool } from "../contracts/CadTool";
 import type { ToolContext } from "../contracts/ToolContext";
@@ -10,6 +10,9 @@ import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
 
 /**
  * Ferramenta responsável por rotacionar as entidades selecionadas em torno de um pivô.
+ * O ângulo digitado segue a convenção do AutoCAD: graus, positivo no sentido anti-horário da tela
+ * (o Y do mundo cresce para baixo, então o ângulo é convertido por visualDegreesToWorldRadians).
+ * O ângulo por clique é o da reta pivô → ponto, que já é o mesmo na tela.
  */
 export class RotateTool implements CadTool {
   readonly id = "rotate";
@@ -47,7 +50,7 @@ export class RotateTool implements CadTool {
     if (this.basePoint === null) {
       this.basePoint = point;
       this.currentPoint = point;
-      context.showMessage("Specify rotation angle or click destination point.");
+      context.showMessage("Specify rotation angle (degrees, counterclockwise) or click destination point.");
       return TOOL_RESULT_NONE;
     }
 
@@ -103,10 +106,11 @@ export class RotateTool implements CadTool {
 
   onCommandInput(input: string, context: ToolContext): ToolResult {
     if (this.basePoint !== null) {
-      const parsedValue = parseFloat(input);
-      if (!isNaN(parsedValue)) {
-        // Assume que a entrada numérica no console é em graus, converte para radianos
-        const angleRadians = (parsedValue * Math.PI) / 180;
+      const text = input.trim();
+      const parsedValue = Number(text);
+      if (text.length > 0 && Number.isFinite(parsedValue)) {
+        // Graus na convenção do AutoCAD (anti-horário na tela), convertidos para o ângulo do mundo.
+        const angleRadians = visualDegreesToWorldRadians(parsedValue);
         return this.confirmRotate(this.basePoint, angleRadians, context);
       } else if (input.trim().length === 0 && this.currentPoint !== null) {
         // Usuário apenas deu enter
