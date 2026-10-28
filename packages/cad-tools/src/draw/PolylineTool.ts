@@ -6,7 +6,7 @@ import type { ToolContext } from "../contracts/ToolContext";
 import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent";
 import { TOOL_RESULT_NONE, type ToolResult } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
-import { parseDirectInput, resolveDirectInput } from "./directInput";
+import { parseDirectInput, resolveDirectInput, userPointToWorld } from "./directInput";
 
 // O modulo descreve a ferramenta interativa Polyline, que cria sequencias de segmentos retos por cliques.
 // O fluxo segue o padrao das demais ferramentas: maquina de estados, preview ghost e geracao de comando apenas na finalizacao.
@@ -173,7 +173,7 @@ export class PolylineTool implements CadTool {
 
       if (parsed.kind === "absolute") {
         // A coordenada absoluta é digitada na unidade de trabalho; converte para a base (mm).
-        const firstPoint = { x: parsed.point.x * context.unitScale, y: parsed.point.y * context.unitScale };
+        const firstPoint = userPointToWorld(parsed.point, context.unitScale);
         this.points = [firstPoint];
         this.cursorPoint = firstPoint;
         this.phase = "drawing_polyline";

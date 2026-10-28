@@ -6,7 +6,7 @@ import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent
 import type { ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
-import { parseDirectInput } from "./directInput";
+import { parseDirectInput, userOffsetToWorld, userPointToWorld } from "./directInput";
 
 /**
  * Ferramenta responsável por desenhar retângulos.
@@ -81,7 +81,7 @@ export class RectangleTool implements CadTool {
       const parsed = parseDirectInput(input);
 
       if (parsed.kind === "absolute") {
-        this.startPoint = { x: parsed.point.x * context.unitScale, y: parsed.point.y * context.unitScale };
+        this.startPoint = userPointToWorld(parsed.point, context.unitScale);
         this.currentPoint = this.startPoint;
         context.showMessage("Specify other corner point or enter dimensions (e.g. 100,50).");
         return TOOL_RESULT_NONE;
@@ -94,11 +94,10 @@ export class RectangleTool implements CadTool {
       const dimensions = this.parseDimensions(input);
       
       if (dimensions) {
-        // Largura/altura são digitadas na unidade de trabalho; converte para a base (mm).
-        const targetPoint: Point2D = {
-          x: this.startPoint.x + dimensions.width * context.unitScale,
-          y: this.startPoint.y + dimensions.height * context.unitScale
-        };
+        // Largura/altura são digitadas na unidade de trabalho (altura positiva = para cima na tela, como no
+        // AutoCAD); converte para a base (mm) e para o referencial do mundo (Y para baixo).
+        const offset = userOffsetToWorld({ x: dimensions.width, y: dimensions.height }, context.unitScale);
+        const targetPoint: Point2D = { x: this.startPoint.x + offset.x, y: this.startPoint.y + offset.y };
         return this.confirmRectangle(targetPoint, context);
       } else if (input.trim() !== "") {
         return { type: "error", message: "Invalid dimensions. Use format '100,50', '100x50' or 'w=100 h=50'." };

@@ -70,8 +70,8 @@ describe("RectangleTool", () => {
     expect((context.commands[0] as any).entity).toMatchObject({
       type: "rectangle",
       x: 10, // start X
-      y: 10, // start Y
-      width: 100, // min max makes it 100
+      y: -40, // altura digitada positiva sobe na tela: o canto superior fica 50 acima do inicial (10)
+      width: 100,
       height: 50
     });
   });

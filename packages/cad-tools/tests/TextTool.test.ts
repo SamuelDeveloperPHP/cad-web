@@ -108,7 +108,7 @@ describe("TextTool", () => {
     tool.onCommandInput("", context);
     tool.onCommandInput("Ponto", context);
 
-    expect(createdText(context).position).toEqual({ x: 10, y: 20 });
+    expect(createdText(context).position).toEqual({ x: 10, y: -20 });
   });
 
   it("defaults the height to the active dimension style text height", () => {

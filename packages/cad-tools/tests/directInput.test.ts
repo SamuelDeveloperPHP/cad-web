@@ -90,7 +90,8 @@ describe("resolveDirectInput", () => {
       ref,
       { x: 1, y: 0 }
     );
-    expect(result).toEqual({ x: 15, y: 25 });
+    // Y digitado positivo = para cima na tela (AutoCAD): o Y do mundo (para baixo) troca de sinal.
+    expect(result).toEqual({ x: 15, y: -25 });
   });
 
   it("resolves relative offset from reference", () => {
@@ -99,7 +100,8 @@ describe("resolveDirectInput", () => {
       ref,
       null
     );
-    expect(result).toEqual({ x: 15, y: -3 });
+    // @5,-3: 5 à direita e 3 PARA BAIXO na tela, ou seja, Y do mundo +3.
+    expect(result).toEqual({ x: 15, y: 3 });
   });
 
   it("resolves polar from reference", () => {
@@ -148,13 +150,13 @@ describe("resolveDirectInput", () => {
 
     it("escala coordenadas absolutas pela unitScale", () => {
       const result = resolveDirectInput({ kind: "absolute", point: { x: 10, y: 20 } }, origin, null, 1000);
-      expect(result).toEqual({ x: 10000, y: 20000 });
+      expect(result).toEqual({ x: 10000, y: -20000 });
     });
 
     it("escala offset relativo pela unitScale", () => {
       const result = resolveDirectInput({ kind: "relative", offset: { x: 2, y: 1 } }, origin, null, 25.4);
       expect(result!.x).toBeCloseTo(50.8);
-      expect(result!.y).toBeCloseTo(25.4);
+      expect(result!.y).toBeCloseTo(-25.4);
     });
 
     it("escala a distância polar mas preserva o ângulo", () => {

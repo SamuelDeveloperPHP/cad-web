@@ -1,3 +1,4 @@
+import { userPointToWorld } from "../draw/directInput";
 import {
   ArrayEntitiesCommand,
   buildPathArrayEntities,
@@ -151,7 +152,7 @@ export class PathArrayTool implements CadTool {
     }
 
     if (this.phase === "specify_base_point") {
-      const point = parsePointInput(trimmed);
+      const point = parsePointInput(trimmed, context.unitScale);
 
       if (point === null) {
         context.showMessage("[PathArray] Specify base point");
@@ -559,7 +560,7 @@ function parseCountInput(rawInput: string): number | null {
   return value;
 }
 
-function parsePointInput(rawInput: string): Point2D | null {
+function parsePointInput(rawInput: string, unitScale: number): Point2D | null {
   // O parser aceita coordenadas no formato "x,y" para o basePoint via linha de comando.
   const match = rawInput.trim().match(/^([-+]?\d*\.?\d+(?:e[-+]?\d+)?)[\s,]+([-+]?\d*\.?\d+(?:e[-+]?\d+)?)$/i);
 
@@ -574,7 +575,8 @@ function parsePointInput(rawInput: string): Point2D | null {
     return null;
   }
 
-  return { x, y };
+  // Coordenada digitada na unidade de trabalho, com Y para cima (convenção do AutoCAD).
+  return userPointToWorld({ x, y }, unitScale);
 }
 
 function filterSelectableIds(context: ToolContext, ids: ReadonlyArray<EntityId>): ReadonlyArray<EntityId> {

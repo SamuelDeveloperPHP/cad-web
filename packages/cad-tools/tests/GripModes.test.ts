@@ -108,7 +108,7 @@ describe("grip modes", () => {
     expect(context.commands).toHaveLength(0);
     tool.onCommandInput("@0,10", context);
 
-    expect(context.commands[0]!.execute(document).entities[0]).toMatchObject({ start: { x: 0, y: 10 }, end: { x: 100, y: 10 } });
+    expect(context.commands[0]!.execute(document).entities[0]).toMatchObject({ start: { x: 0, y: -10 }, end: { x: 100, y: -10 } });
   });
 
   it("offers a context menu with the modes and ignores the right button while a grip is hot", () => {

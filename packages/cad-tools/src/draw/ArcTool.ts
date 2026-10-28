@@ -8,7 +8,7 @@ import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent
 import type { CadPreview, ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
-import { parseDirectInput, resolveDirectInput } from "./directInput";
+import { parseDirectInput, resolveDirectInput, userPointToWorld } from "./directInput";
 
 export type ArcToolMode = "threePoints" | "centerStartEnd";
 
@@ -109,7 +109,7 @@ export class ArcTool implements CadTool {
       const first = parseDirectInput(input);
 
       if (first.kind === "absolute") {
-        const point = { x: first.point.x * context.unitScale, y: first.point.y * context.unitScale };
+        const point = userPointToWorld(first.point, context.unitScale);
         this.points.push(point);
         this.cursorPoint = point;
         this.showStepMessage(context);

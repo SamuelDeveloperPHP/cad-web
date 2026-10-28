@@ -124,7 +124,8 @@ describe("LineTool", () => {
       entity: {
         type: "line",
         start: { x: 0, y: 0 },
-        end: { x: 10, y: 20 }
+        // 10,20 digitado: Y para cima na tela, portanto Y do mundo negativo.
+        end: { x: 10, y: -20 }
       }
     });
   });

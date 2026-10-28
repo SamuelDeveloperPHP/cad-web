@@ -72,6 +72,21 @@ function parseRelativeOrPolar(text: string): DirectInputResult {
   return { kind: "invalid" };
 }
 
+/**
+ * Convenção de coordenadas digitadas, a do AutoCAD: X para a direita e Y para CIMA na tela. O desenho é
+ * guardado com Y para baixo (referencial do Canvas, sem migração dos arquivos), então todo Y digitado
+ * troca de sinal ao entrar no documento (e o Y mostrado ao usuário troca de novo ao sair: status e painel).
+ * Os valores estão na unidade de trabalho; unitScale os converte para a unidade base (mm).
+ */
+export function userPointToWorld(point: Point2D, unitScale = 1): Point2D {
+  return { x: point.x * unitScale, y: point.y === 0 ? 0 : -point.y * unitScale };
+}
+
+// Deslocamento digitado (dx, dy com Y para cima) no referencial do mundo.
+export function userOffsetToWorld(offset: Vector2D, unitScale = 1): Vector2D {
+  return userPointToWorld(offset, unitScale);
+}
+
 export function resolveDirectInput(
   result: DirectInputResult,
   referencePoint: Point2D,
@@ -101,13 +116,12 @@ export function resolveDirectInput(
     }
 
     case "absolute":
-      return { x: result.point.x * unitScale, y: result.point.y * unitScale };
+      return userPointToWorld(result.point, unitScale);
 
-    case "relative":
-      return {
-        x: referencePoint.x + result.offset.x * unitScale,
-        y: referencePoint.y + result.offset.y * unitScale
-      };
+    case "relative": {
+      const offset = userOffsetToWorld(result.offset, unitScale);
+      return { x: referencePoint.x + offset.x, y: referencePoint.y + offset.y };
+    }
 
     case "polar": {
       // O ângulo digitado segue a convenção do AutoCAD (graus, anti-horário na tela, 0° = Leste);

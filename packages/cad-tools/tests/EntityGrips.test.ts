@@ -51,9 +51,10 @@ describe("SelectTool entity grips", () => {
 
     tool.onPointerDown(at(0, 0), context);
     tool.onPointerUp(at(0, 0), context);
-    expect(tool.claimsCommandInput("@5,-10")).toBe(true);
-    tool.onCommandInput("@5,-10", context);
+    expect(tool.claimsCommandInput("@5,10")).toBe(true);
+    tool.onCommandInput("@5,10", context);
 
+    // @5,10: 5 à direita e 10 para cima na tela (Y do mundo negativo).
     expect(context.commands[0]!.execute(document).entities[0]).toMatchObject({ start: { x: 5, y: -10 }, end: { x: 100, y: 0 } });
   });
 

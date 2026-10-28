@@ -76,7 +76,9 @@ export function buildDynamicSubmission(
 
     // As dimensões digitadas são positivas; o sinal segue o quadrante atual do cursor.
     const signX = metrics.dx >= 0 ? 1 : -1;
-    const signY = metrics.dyWorld >= 0 ? 1 : -1;
+    // Y digitado positivo = para cima na tela (AutoCAD); o Y do mundo cresce para baixo, então o cursor
+    // acima da referência (dyWorld negativo) é altura positiva.
+    const signY = metrics.dyWorld <= 0 ? 1 : -1;
     return `${signX * Math.abs(width)},${signY * Math.abs(height)}`;
   }
 

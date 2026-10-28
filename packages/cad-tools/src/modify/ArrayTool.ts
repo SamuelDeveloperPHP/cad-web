@@ -504,7 +504,8 @@ export class ArrayTool implements CadTool {
       rows: this.params.rows,
       columns: this.params.columns,
       spacingX: this.params.spacingX,
-      spacingY: this.params.spacingY
+      // Espaçamento de linhas positivo sobe na tela (convenção do AutoCAD); o Y do mundo cresce para baixo.
+      spacingY: this.params.spacingY === 0 ? 0 : -this.params.spacingY
     };
   }
 

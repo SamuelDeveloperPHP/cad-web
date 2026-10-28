@@ -14,7 +14,7 @@ import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent
 import type { CadPreview, ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
-import { parseDirectInput } from "./directInput";
+import { parseDirectInput, userPointToWorld } from "./directInput";
 
 type TextStage = "point" | "height" | "rotation" | "content";
 
@@ -142,7 +142,7 @@ export class TextTool implements CadTool {
       if (parsed.kind === "absolute") {
         // Coordenadas digitadas estão na unidade de trabalho.
         return this.acceptInsertionPoint(
-          { x: parsed.point.x * context.unitScale, y: parsed.point.y * context.unitScale },
+          userPointToWorld(parsed.point, context.unitScale),
           context,
           false
         );

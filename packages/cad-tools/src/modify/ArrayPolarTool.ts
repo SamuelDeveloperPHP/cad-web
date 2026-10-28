@@ -1,3 +1,4 @@
+import { userPointToWorld } from "../draw/directInput";
 import {
   ArrayEntitiesCommand,
   arrayCadEntitiesPolar,
@@ -153,7 +154,7 @@ export class ArrayPolarTool implements CadTool {
     }
 
     if (this.phase === "specify_center") {
-      const point = parsePointInput(trimmed);
+      const point = parsePointInput(trimmed, context.unitScale);
 
       if (point === null) {
         context.showMessage("[ArrayPolar] Specify center point");
@@ -676,7 +677,7 @@ function polarKeyToPhase(rawKey: string): ArrayPolarPhase | null {
   return null;
 }
 
-function parsePointInput(rawInput: string): Point2D | null {
+function parsePointInput(rawInput: string, unitScale: number): Point2D | null {
   // O parser aceita coordenadas no formato "x,y" para definir o centro via linha de comando.
   const match = rawInput.trim().match(/^([-+]?\d*\.?\d+(?:e[-+]?\d+)?)[\s,]+([-+]?\d*\.?\d+(?:e[-+]?\d+)?)$/i);
 
@@ -691,7 +692,8 @@ function parsePointInput(rawInput: string): Point2D | null {
     return null;
   }
 
-  return { x, y };
+  // Coordenada digitada na unidade de trabalho, com Y para cima (convenção do AutoCAD).
+  return userPointToWorld({ x, y }, unitScale);
 }
 
 function filterSelectableIds(context: ToolContext, ids: ReadonlyArray<EntityId>): ReadonlyArray<EntityId> {
