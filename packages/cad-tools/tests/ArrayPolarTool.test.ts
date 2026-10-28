@@ -30,6 +30,30 @@ describe("ArrayPolarTool", () => {
     expect(lines).toHaveLength(6);
   });
 
+  it("distributes copies counterclockwise on screen for a positive fill angle (AutoCAD)", () => {
+    const tool = new ArrayPolarTool();
+    const document = createDocumentWithEntities([
+      { id: "line_a", layerId: "source", type: "line", start: { x: 5, y: 0 }, end: { x: 7, y: 0 } }
+    ]);
+    const context = createMockToolContext({ document, selection: { entityIds: ["line_a"] } });
+
+    tool.activate(context);
+    tool.onPointerDown(createPointerEvent({ x: 0, y: 0 }), context);
+    tool.onCommandInput("3", context);
+    tool.onCommandInput("180", context);
+    tool.onCommandInput("yes", context);
+    tool.onCommandInput("", context);
+
+    const lines = context.commands[0]!.execute(document).entities.filter((entity) => entity.id !== "line_a") as LineEntity[];
+    const starts = lines.map((line) => line.start);
+
+    // 3 itens em 180°: a 2ª cópia fica a 90° (para cima na tela, Y do mundo negativo) e a 3ª a 180°.
+    expect(starts[0]!.x).toBeCloseTo(0, 9);
+    expect(starts[0]!.y).toBeCloseTo(-5, 9);
+    expect(starts[1]!.x).toBeCloseTo(-5, 9);
+    expect(starts[1]!.y).toBeCloseTo(0, 9);
+  });
+
   it("accepts a compact input with count and angle", () => {
     const tool = new ArrayPolarTool();
     const document = createDocumentWithEntities([

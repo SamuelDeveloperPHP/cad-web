@@ -88,9 +88,9 @@ export function buildDynamicSubmission(
     return null;
   }
 
-  // O ângulo é digitado na convenção visual do AutoCAD (Y para cima); o polar do desenho usa Y do mundo
-  // (para baixo na tela), então o sinal é invertido para o ponto cair exatamente onde o cursor indica.
-  return `@${finalDist}<${-finalAngle}`;
+  // O ângulo está na convenção visual do AutoCAD, a mesma do polar digitado (@dist<ângulo): o ponto cai
+  // exatamente onde o cursor indica, sem inverter o sinal.
+  return `@${finalDist}<${finalAngle}`;
 }
 
 // A função devolve os valores ao vivo formatados para exibição como placeholder de cada campo.

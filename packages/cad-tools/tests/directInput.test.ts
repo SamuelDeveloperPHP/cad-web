@@ -109,8 +109,9 @@ describe("resolveDirectInput", () => {
       null
     );
     expect(result).not.toBeNull();
+    // 90° é para cima na tela (AutoCAD): o Y do mundo diminui.
     expect(result!.x).toBeCloseTo(0);
-    expect(result!.y).toBeCloseTo(10);
+    expect(result!.y).toBeCloseTo(-10);
   });
 
   it("resolves polar at 0 degrees", () => {
@@ -122,6 +123,15 @@ describe("resolveDirectInput", () => {
     expect(result).not.toBeNull();
     expect(result!.x).toBeCloseTo(15);
     expect(result!.y).toBeCloseTo(0);
+  });
+
+  it("resolves polar 45 and -45 degrees counterclockwise on screen", () => {
+    const up = resolveDirectInput({ kind: "polar", distance: Math.SQRT2, angleDeg: 45 }, origin, null)!;
+    const down = resolveDirectInput({ kind: "polar", distance: Math.SQRT2, angleDeg: -45 }, origin, null)!;
+
+    expect(up.x).toBeCloseTo(1);
+    expect(up.y).toBeCloseTo(-1);
+    expect(down.y).toBeCloseTo(1);
   });
 
   it("returns null for empty and invalid kinds", () => {
@@ -150,7 +160,7 @@ describe("resolveDirectInput", () => {
     it("escala a distância polar mas preserva o ângulo", () => {
       const result = resolveDirectInput({ kind: "polar", distance: 10, angleDeg: 90 }, origin, null, 1000);
       expect(result!.x).toBeCloseTo(0);
-      expect(result!.y).toBeCloseTo(10000);
+      expect(result!.y).toBeCloseTo(-10000);
     });
   });
 });

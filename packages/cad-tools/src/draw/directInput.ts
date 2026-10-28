@@ -1,4 +1,4 @@
-import { normalize, type Point2D, type Vector2D } from "@cad-web/cad-geometry";
+import { normalize, visualDegreesToWorldRadians, type Point2D, type Vector2D } from "@cad-web/cad-geometry";
 
 export type DirectInputResult =
   | { kind: "distance"; value: number }
@@ -110,7 +110,9 @@ export function resolveDirectInput(
       };
 
     case "polar": {
-      const angleRad = (result.angleDeg * Math.PI) / 180;
+      // O ângulo digitado segue a convenção do AutoCAD (graus, anti-horário na tela, 0° = Leste);
+      // o Y do mundo cresce para baixo, então o ângulo é convertido para o referencial do mundo.
+      const angleRad = visualDegreesToWorldRadians(result.angleDeg);
       const distance = result.distance * unitScale;
       return {
         x: referencePoint.x + distance * Math.cos(angleRad),
