@@ -35,7 +35,8 @@ Ignoradas e contadas no relatório: `POINT`, `XLINE`, `RAY`, `ATTRIB`/`ATTDEF` (
 
 ## Interface
 
-- Botão **Imp DXF** na faixa de arquivo: escolhe o `.dxf`, importa, **enquadra o desenho** e mostra um resumo dispensável (objetos, blocos, camadas, unidade e fator para mm, tipos ignorados e avisos). Erros aparecem no mesmo painel.
+- Menu **Importar** (ícone de seta para cima, no acesso rápido do topo, ao lado de Abrir/Salvar): JSON, SVG e **DXF**; o menu **Exportar** ao lado traz JSON e SVG. Ficam sempre visíveis; o grupo Arquivo do ribbon (botões Imp/Exp) sai da tela em janelas estreitas.
+- Botão **Imp DXF** também na faixa de arquivo do ribbon: escolhe o `.dxf`, importa, **enquadra o desenho** e mostra um resumo dispensável (objetos, blocos, camadas, unidade e fator para mm, tipos ignorados e avisos). Erros aparecem no mesmo painel.
 - A importação substitui o desenho atual, como a importação de JSON e SVG (sem undo).
 
 ## Arquivos
