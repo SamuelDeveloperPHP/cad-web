@@ -17,6 +17,7 @@ import {
   type Viewport
 } from "@cad-web/cad-renderer";
 import {
+  InsertTool,
   ObjectSnapService,
   type CadPreview,
   type ToolContext,
@@ -42,7 +43,7 @@ import {
 } from "../services/guideSettingsStorage";
 import { createWebToolRegistry } from "../tools/toolRegistry";
 
-export type ActiveCadTool = "select" | "line" | "polyline" | "rectangle" | "circle" | "arc" | "ellipse" | "ellipseArc" | "spline" | "text" | "move" | "mirror" | "rotate" | "scale" | "stretch" | "offset" | "trim" | "extend" | "fillet" | "chamfer" | "array" | "arrayPolar" | "arrayPath" | "explode" | "erase" | "pan" | "zoomWindow" | "dimLinear" | "dimAligned" | "dimRadius" | "dimDiameter" | "dimAngular";
+export type ActiveCadTool = "select" | "line" | "polyline" | "rectangle" | "circle" | "arc" | "ellipse" | "ellipseArc" | "spline" | "text" | "block" | "insert" | "move" | "mirror" | "rotate" | "scale" | "stretch" | "offset" | "trim" | "extend" | "fillet" | "chamfer" | "array" | "arrayPolar" | "arrayPath" | "explode" | "erase" | "pan" | "zoomWindow" | "dimLinear" | "dimAligned" | "dimRadius" | "dimDiameter" | "dimAngular";
 
 const ACTIVE_CAD_TOOLS: ReadonlySet<string> = new Set<ActiveCadTool>([
   "select",
@@ -55,6 +56,8 @@ const ACTIVE_CAD_TOOLS: ReadonlySet<string> = new Set<ActiveCadTool>([
   "ellipseArc",
   "spline",
   "text",
+  "block",
+  "insert",
   "move",
   "mirror",
   "rotate",
@@ -97,6 +100,8 @@ export type CadStore = Readonly<{
   canRedo: boolean;
   message: string;
   setActiveTool(tool: ActiveCadTool): void;
+  // Ativa a ferramenta Insert já com o bloco escolhido (painel de blocos).
+  startBlockInsert(name: string): void;
   setViewport(viewport: Viewport): void;
   setScreenSize(size: ScreenSize): void;
   setZoomScale(scale: number): void;
@@ -410,6 +415,19 @@ export function useCadStore(): CadStore {
       }
     },
     [activeTool, createToolContext, toolRegistry]
+  );
+
+  const startBlockInsert = useCallback(
+    (name: string) => {
+      const insertTool = toolRegistry.resolve("insert");
+
+      if (insertTool !== null && "presetBlock" in insertTool) {
+        (insertTool as InsertTool).presetBlock(name);
+      }
+
+      setActiveTool("insert");
+    },
+    [setActiveTool, toolRegistry]
   );
 
   const dispatchToActiveTool = useCallback(
@@ -826,6 +844,7 @@ export function useCadStore(): CadStore {
       canRedo: historyAvailability.canRedo,
       message,
       setActiveTool,
+      startBlockInsert,
       setViewport,
       setScreenSize,
       setZoomScale,
@@ -876,6 +895,7 @@ export function useCadStore(): CadStore {
       getActiveToolContextMenu,
       selectedEntityIds,
       setActiveTool,
+      startBlockInsert,
       snapSettings,
       snapResult,
       guideSettings,

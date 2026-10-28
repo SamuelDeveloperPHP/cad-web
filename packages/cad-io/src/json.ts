@@ -1,4 +1,4 @@
-import type { CadDocument, CadEntity, DimensionStyle } from "@cad-web/cad-core";
+import type { BlockDefinition, CadDocument, CadEntity, DimensionStyle } from "@cad-web/cad-core";
 
 export const CAD_IO_APPLICATION = "CAD-WEB";
 export const CAD_IO_SCHEMA_VERSION = "1.0.0";
@@ -25,6 +25,8 @@ export type CadJsonDocument = Readonly<{
   activeLayerId: string;
   dimensionStyles?: ReadonlyArray<DimensionStyle>;
   activeDimensionStyleId?: string;
+  // Definições de bloco (opcional: documentos sem blocos não trazem o campo).
+  blocks?: ReadonlyArray<BlockDefinition>;
   entities: ReadonlyArray<CadEntity>;
 }>;
 
@@ -58,6 +60,7 @@ export function toCadJsonDocument(document: CadDocument, options: CadJsonExportO
     activeLayerId: document.activeLayerId,
     dimensionStyles: document.dimensionStyles,
     activeDimensionStyleId: document.activeDimensionStyleId,
+    ...(document.blocks !== undefined && document.blocks.length > 0 ? { blocks: document.blocks } : {}),
     entities: document.entities
   };
 }
@@ -90,6 +93,9 @@ export function* createCadJsonChunks(
   }
   if (nativeDocument.activeDimensionStyleId) {
     yield `${indent}"activeDimensionStyleId": ${JSON.stringify(nativeDocument.activeDimensionStyleId)}${separator}`;
+  }
+  if (nativeDocument.blocks) {
+    yield `${indent}"blocks": ${JSON.stringify(nativeDocument.blocks)}${separator}`;
   }
   yield `${indent}"entities": [${newline}`;
 
@@ -144,6 +150,43 @@ export function validateCadDocument(document: CadDocument): void {
   for (let index = 0; index < document.entities.length; index += 1) {
     validateCadEntity(document.entities[index], `$.entities[${index}]`);
   }
+
+  validateBlockDefinitions(document.blocks);
+}
+
+function validateBlockDefinitions(blocks: unknown): void {
+  if (blocks === undefined) {
+    return;
+  }
+
+  if (!Array.isArray(blocks)) {
+    throw new CadIoValidationError("CAD document blocks must be an array", "$.blocks");
+  }
+
+  const names = new Set<string>();
+
+  blocks.forEach((block: unknown, index: number) => {
+    const path = `$.blocks[${index}]`;
+
+    if (!isRecord(block)) {
+      throw new CadIoValidationError("Block definition must be an object", path);
+    }
+
+    assertString(block.name, `${path}.name`);
+
+    if (block.name.trim().length === 0 || names.has(block.name)) {
+      throw new CadIoValidationError("Block names must be non-empty and unique", `${path}.name`);
+    }
+
+    names.add(block.name);
+    validatePoint(block.basePoint, `${path}.basePoint`);
+
+    if (!Array.isArray(block.entities)) {
+      throw new CadIoValidationError("Block entities must be an array", `${path}.entities`);
+    }
+
+    block.entities.forEach((entity: CadEntity, entityIndex: number) => validateCadEntity(entity, `${path}.entities[${entityIndex}]`));
+  });
 }
 
 function fromNativeCadJsonDocument(source: Record<string, unknown>): CadDocument {
@@ -169,6 +212,7 @@ function fromNativeCadJsonDocument(source: Record<string, unknown>): CadDocument
     activeLayerId: (source.activeLayerId as string) ?? "layer_0",
     dimensionStyles: (source.dimensionStyles as ReadonlyArray<DimensionStyle>) ?? [createFallbackDimensionStyle()],
     activeDimensionStyleId: (source.activeDimensionStyleId as string) ?? "dimstyle_standard",
+    ...(source.blocks !== undefined ? { blocks: source.blocks as ReadonlyArray<BlockDefinition> } : {}),
     entities: source.entities as ReadonlyArray<CadEntity>
   };
 
@@ -388,6 +432,26 @@ function validateCadEntity(entity: CadEntity | undefined, path: string): void {
         throw new CadIoValidationError("Spline fitPoints must have at least 2 points", `${path}.fitPoints`);
       }
       fitPoints.forEach((point: unknown, index: number) => validatePoint(point, `${path}.fitPoints[${index}]`));
+    }
+
+    return;
+  }
+
+  if (entity.type === "block") {
+    assertString(entity.blockName, `${path}.blockName`);
+    validatePoint(entity.position, `${path}.position`);
+
+    for (const field of ["rotation", "scaleX", "scaleY"] as const) {
+      if (entity[field] !== undefined) {
+        assertFiniteNumber(entity[field], `${path}.${field}`);
+      }
+    }
+
+    // Escala zero degeneraria a geometria (e a matriz da referência).
+    for (const field of ["scaleX", "scaleY"] as const) {
+      if (entity[field] === 0) {
+        throw new CadIoValidationError("Block scale must not be zero", `${path}.${field}`);
+      }
     }
 
     return;

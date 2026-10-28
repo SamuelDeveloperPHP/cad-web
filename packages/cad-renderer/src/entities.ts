@@ -1,4 +1,4 @@
-import { entityBoundingBox, getDocumentSpatialIndex, resolveDimensionStyle, type CadDocument, type TextEntity } from "@cad-web/cad-core";
+import { entityBoundingBox, expandBlockReference, getDocumentSpatialIndex, resolveDimensionStyle, type CadDocument, type CadEntity, type TextEntity } from "@cad-web/cad-core";
 import { estimateTextLineWidth, textLayout, rotationMatrix, transformPoint, ellipseArcPoints, buildLinearDimensionGeometry, buildAlignedDimensionGeometry, buildRadiusDimensionGeometry, buildDiameterDimensionGeometry, buildAngularDimensionGeometry, type Point2D } from "@cad-web/cad-geometry";
 import { screenToWorld, worldToScreen } from "./viewport";
 import { DEFAULT_RENDER_STYLE, type RenderStyle, type Viewport } from "./types";
@@ -51,7 +51,42 @@ export function renderDocument2D(
 
   const layerMap = new Map(document.layers.map(l => [l.id, l]));
 
-  for (const entity of visibleEntities) {
+  // Referências de bloco são desenhadas pela geometria expandida (cacheada por referência); cada entidade
+  // expandida carrega a camada herdada, então a visibilidade vale por entidade no laço abaixo.
+  const drawList: CadEntity[] = [];
+
+  for (const candidate of visibleEntities) {
+    if (candidate.type !== "block") {
+      drawList.push(candidate);
+      continue;
+    }
+
+    const blockLayer = layerMap.get(candidate.layerId || "layer_0");
+    if (blockLayer && !blockLayer.visible) continue;
+
+    const blockBounds = entityBoundingBox(candidate, document.blocks);
+    const blockExtent = Math.max((blockBounds.maxX - blockBounds.minX) * viewport.scale, (blockBounds.maxY - blockBounds.minY) * viewport.scale);
+
+    // LOD: um bloco sub-pixel vira um ponto, sem expandir a geometria.
+    if (blockExtent < LOD_DOT_THRESHOLD_PX) {
+      const center = worldToScreen({ x: (blockBounds.minX + blockBounds.maxX) / 2, y: (blockBounds.minY + blockBounds.maxY) / 2 }, viewport);
+      context.fillStyle = style.overrideStroke === true ? style.strokeColor : candidate.color || blockLayer?.color || style.strokeColor;
+      context.fillRect(center.x, center.y, 1, 1);
+      renderedEntities += 1;
+      continue;
+    }
+
+    // Cada entidade expandida só é desenhada se cruzar a janela de visualização (culling interno do bloco).
+    for (const child of expandBlockReference(document.blocks, candidate)) {
+      const childBounds = entityBoundingBox(child);
+
+      if (childBounds.minX <= viewportBounds.maxX && childBounds.maxX >= viewportBounds.minX && childBounds.minY <= viewportBounds.maxY && childBounds.maxY >= viewportBounds.minY) {
+        drawList.push(child);
+      }
+    }
+  }
+
+  for (const entity of drawList) {
     const layer = layerMap.get(entity.layerId || "layer_0");
     if (layer && !layer.visible) continue;
 

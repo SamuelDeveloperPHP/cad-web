@@ -44,6 +44,8 @@ const toolLabels: Record<ActiveCadTool, string> = {
   ellipseArc: "Ellipse Arc",
   text: "Text",
   spline: "Spline",
+  block: "Block",
+  insert: "Insert",
   move: "Move",
   mirror: "Mirror",
   rotate: "Rotate",

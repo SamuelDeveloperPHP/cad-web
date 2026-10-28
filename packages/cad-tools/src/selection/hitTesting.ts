@@ -1,4 +1,4 @@
-import { getDocumentSpatialIndex, resolveDimensionStyle, type CadDocument, type DimensionEntity, type EntityId } from "@cad-web/cad-core";
+import { expandBlockReference, getDocumentSpatialIndex, resolveDimensionStyle, type CadDocument, type CadEntity, type DimensionEntity, type EntityId } from "@cad-web/cad-core";
 import {
   buildAlignedDimensionGeometry,
   buildAngularDimensionGeometry,
@@ -44,7 +44,36 @@ export function findNearestEntityId(document: CadDocument, options: HitTestOptio
   }
 
   for (const entity of candidates) {
-    let candidateDistance = Number.POSITIVE_INFINITY;
+    const candidateDistance = entityDistance(entity, options.worldPoint, document);
+
+    if (candidateDistance <= options.toleranceWorld && candidateDistance < nearestDistance) {
+      nearestId = entity.id;
+      nearestDistance = candidateDistance;
+    }
+  }
+
+  return nearestId;
+}
+
+/**
+ * Distância do ponto à geometria da entidade (infinito quando o tipo não é selecionável pelo contorno).
+ * Referências de bloco valem a menor distância entre as peças expandidas (em camadas visíveis).
+ */
+export function entityDistance(entity: CadEntity, point: Point2D, document: CadDocument): number {
+  const options = { worldPoint: point };
+  let candidateDistance = Number.POSITIVE_INFINITY;
+
+  if (entity.type === "block") {
+    const hidden = new Set(document.layers.filter((layer) => !layer.visible).map((layer) => layer.id));
+
+    for (const child of expandBlockReference(document.blocks, entity)) {
+      if (!hidden.has(child.layerId || "layer_0")) {
+        candidateDistance = Math.min(candidateDistance, entityDistance(child, point, document));
+      }
+    }
+
+    return candidateDistance;
+  }
 
     if (entity.type === "line") {
       candidateDistance = distancePointToSegment(options.worldPoint, entity.start, entity.end);
@@ -93,16 +122,10 @@ export function findNearestEntityId(document: CadDocument, options: HitTestOptio
       // O texto é apanhado clicando em qualquer ponto do seu bloco, não só no contorno.
       candidateDistance = distancePointToText(options.worldPoint, entity);
     } else {
-      continue;
+      return Number.POSITIVE_INFINITY;
     }
 
-    if (candidateDistance <= options.toleranceWorld && candidateDistance < nearestDistance) {
-      nearestId = entity.id;
-      nearestDistance = candidateDistance;
-    }
-  }
-
-  return nearestId;
+  return candidateDistance;
 }
 
 function distancePointToPolyline(point: Point2D, points: ReadonlyArray<Point2D>, closed: boolean): number {

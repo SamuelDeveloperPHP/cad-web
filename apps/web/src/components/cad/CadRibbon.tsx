@@ -15,6 +15,8 @@ import {
   RotateCcw,
   Route,
   Bomb,
+  Box,
+  Component,
   Eraser,
   Eye,
   EyeOff,
@@ -100,6 +102,11 @@ const modifyTools: ReadonlyArray<RibbonTool> = [
   { id: "erase", label: "Erase", icon: Eraser }
 ];
 
+const blockTools: ReadonlyArray<RibbonTool> = [
+  { id: "block", label: "Block", icon: Box },
+  { id: "insert", label: "Insert", icon: Component }
+];
+
 const dimensionTools: ReadonlyArray<RibbonTool> = [
   { id: "dimLinear", label: "Linear", icon: Ruler },
   { id: "dimAligned", label: "Aligned", icon: Ruler },
@@ -125,6 +132,12 @@ export function CadRibbon(props: CadRibbonProps) {
 
       <RibbonGroup title="Modificar">
         {modifyTools.map((tool) => (
+          <RibbonToolButton key={tool.id} tool={tool} activeTool={props.activeTool} onToolChange={props.onToolChange} />
+        ))}
+      </RibbonGroup>
+
+      <RibbonGroup title="Blocos">
+        {blockTools.map((tool) => (
           <RibbonToolButton key={tool.id} tool={tool} activeTool={props.activeTool} onToolChange={props.onToolChange} />
         ))}
       </RibbonGroup>

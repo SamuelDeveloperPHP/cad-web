@@ -1,4 +1,5 @@
 import type {
+  BlockDefinition,
   CadDisplayUnit,
   CadDocument,
   CadEntity,
@@ -50,6 +51,7 @@ type SvgContext = Readonly<{
 type DocumentMeta = Partial<Pick<CadDocument, "units" | "displayUnit" | "activeLayerId" | "activeDimensionStyleId">> & {
   layers?: ReadonlyArray<CadLayer>;
   dimensionStyles?: ReadonlyArray<DimensionStyle>;
+  blocks?: unknown;
 };
 
 const INHERITED_PROPERTIES = [
@@ -704,6 +706,8 @@ class SvgImporter {
       ? this.meta!.activeDimensionStyleId!
       : dimensionStyles[0]!.id;
 
+    const blocks = sanitizeBlocks(this.meta?.blocks);
+
     const document: CadDocument = {
       schemaVersion: CAD_IO_SCHEMA_VERSION,
       id: this.documentId ?? "svg_import",
@@ -713,6 +717,7 @@ class SvgImporter {
       activeLayerId,
       dimensionStyles,
       activeDimensionStyleId,
+      ...(blocks.length > 0 ? { blocks } : {}),
       entities: this.entities
     };
 
@@ -1265,6 +1270,37 @@ function isValidEntity(entity: CadEntity): boolean {
   } catch {
     return false;
   }
+}
+
+// Definições de bloco do payload nativo: mantém as válidas (nome único, ponto base, entidades válidas).
+function sanitizeBlocks(value: unknown): ReadonlyArray<BlockDefinition> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const names = new Set<string>();
+  const blocks: BlockDefinition[] = [];
+
+  for (const candidate of value) {
+    if (!isRecord(candidate) || typeof candidate.name !== "string" || candidate.name.trim() === "" || names.has(candidate.name) || !Array.isArray(candidate.entities)) {
+      continue;
+    }
+
+    const basePoint = candidate.basePoint;
+
+    if (!isRecord(basePoint) || !Number.isFinite(basePoint.x) || !Number.isFinite(basePoint.y)) {
+      continue;
+    }
+
+    names.add(candidate.name);
+    blocks.push({
+      name: candidate.name,
+      basePoint: { x: basePoint.x as number, y: basePoint.y as number },
+      entities: (candidate.entities as ReadonlyArray<CadEntity>).filter((entity) => isRecord(entity) && isValidEntity(entity))
+    });
+  }
+
+  return blocks;
 }
 
 function isDimensionStyleLike(value: unknown): value is DimensionStyle {
