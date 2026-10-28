@@ -121,7 +121,7 @@ export class StretchTool implements CadTool {
     const candidates = context.document.entities.filter(
       (entity) =>
         !lockedLayerIds.has(entity.layerId || "layer_0") &&
-        boundingBoxesIntersect(entityBoundingBox(entity), bounds)
+        boundingBoxesIntersect(entityBoundingBox(entity, context.document.blocks), bounds)
     );
 
     if (candidates.length === 0) {

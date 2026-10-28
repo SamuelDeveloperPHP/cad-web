@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ReplaceEntityCommand, UpdateEntityCommand, UpdateEntitiesBatchCommand, resolveDimensionStyle, type ArcEntity, type CadEntity, type EllipseEntity, type SplineEntity, type TextEntity } from "@cad-web/cad-core";
+import { blockReferenceScale, findBlockDefinition, ReplaceEntityCommand, UpdateEntityCommand, UpdateEntitiesBatchCommand, resolveDimensionStyle, type ArcEntity, type BlockReferenceEntity, type CadEntity, type EllipseEntity, type SplineEntity, type TextEntity } from "@cad-web/cad-core";
 import { lineLength, rectangleArea, rectanglePerimeter, circleArea, circleCircumference, formatMeasurement, buildAngularDimensionGeometry, getPolylineLength, DIMENSION_ARROW_TYPES, arcAnglesFromVisual, arcVisualAngles, ellipseArcVisualAngles, ellipseArcParamsFromVisual, ellipseArcLength, normalizeEllipseAxes, bezierChainLength, fitPointsToBezierChain, visualDegreesToWorldRadians, worldRadiansToVisualDegrees, type DimensionArrowType } from "@cad-web/cad-geometry";
 import { workingLengthFormat } from "../../services/workingUnits";
 
@@ -502,6 +502,29 @@ export function CadPropertiesPanel({ cad }: { cad: CadStore }) {
                 <PropertyRow label={unitLabel("End Y")}><PropertyInput value={userY.format(spline.controlPoints.at(-1)!.y)} readOnly /></PropertyRow>
               </>
             )}
+          </>
+        );
+      })()}
+
+      {entity.type === "block" && (() => {
+        const reference = entity as BlockReferenceEntity;
+        const definition = findBlockDefinition(cad.document.blocks, reference.blockName);
+        const scale = blockReferenceScale(reference);
+        const update = (patch: Partial<BlockReferenceEntity>) => handleUpdateSingle(reference.id, patch as any);
+        // Escala zero degeneraria a geometria: o valor digitado inválido mantém o atual.
+        const parseScale = (val: string, current: number) => {
+          const value = parseNumber(val, current);
+          return value === 0 ? current : value;
+        };
+        return (
+          <>
+            <PropertyRow label="Block"><PropertyInput value={reference.blockName} readOnly /></PropertyRow>
+            <PropertyRow label="Objects"><PropertyInput value={definition === undefined ? "Definition not found" : String(definition.entities.length)} readOnly /></PropertyRow>
+            <PropertyRow label={unitLabel("Position X")}><PropertyInput value={len.format(reference.position.x)} readOnly={isLocked} type="number" onChange={val => update({ position: { ...reference.position, x: len.parse(val, reference.position.x) } })} /></PropertyRow>
+            <PropertyRow label={unitLabel("Position Y")}><PropertyInput value={userY.format(reference.position.y)} readOnly={isLocked} type="number" onChange={val => update({ position: { ...reference.position, y: userY.parse(val, reference.position.y) } })} /></PropertyRow>
+            <PropertyRow label="Rotation (°)"><PropertyInput value={worldRadiansToVisualDegrees(reference.rotation ?? 0).toFixed(2)} readOnly={isLocked} type="number" onChange={val => update({ rotation: visualDegreesToWorldRadians(parseNumber(val, worldRadiansToVisualDegrees(reference.rotation ?? 0))) })} /></PropertyRow>
+            <PropertyRow label="Scale X"><PropertyInput value={scale.x} readOnly={isLocked} type="number" onChange={val => update({ scaleX: parseScale(val, scale.x) })} /></PropertyRow>
+            <PropertyRow label="Scale Y"><PropertyInput value={scale.y} readOnly={isLocked} type="number" onChange={val => update({ scaleY: parseScale(val, scale.y) })} /></PropertyRow>
           </>
         );
       })()}

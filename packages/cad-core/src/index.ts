@@ -1,5 +1,6 @@
 import { addVector, boundingBoxContainsPoint, fitPointsToBezierChain, reflectAngleAcrossAxis, reflectionMatrix, rotationMatrix, scaleMatrix, transformPoint, type BoundingBox, type DimensionArrowType, type Point2D, type TextHorizontalAlign, type TextVerticalAlign } from "@cad-web/cad-geometry";
 import { createDimensionStyleFromPreset, getDimensionStylePresetById } from "./dimensionStylePresets";
+import { mirrorBlockReference } from "./blocks";
 
 export type EntityId = string;
 
@@ -153,7 +154,25 @@ export type DimensionEntity = BaseEntity & Readonly<{
   textOverride?: string;
 }>;
 
-export type CadEntity = LineEntity | RectangleEntity | CircleEntity | ArcEntity | EllipseEntity | PolylineEntity | DimensionEntity | TextEntity | SplineEntity;
+// Referência a uma definição de bloco (document.blocks): o ponto base do bloco vai para position, com a rotação
+// (radianos do mundo) e as escalas X/Y aplicadas (negativo espelha). Ver blocks.ts.
+export type BlockReferenceEntity = BaseEntity & Readonly<{
+  type: "block";
+  blockName: string;
+  position: Point2D;
+  rotation?: number;
+  scaleX?: number;
+  scaleY?: number;
+}>;
+
+// Definição reutilizável: geometria nas coordenadas originais e o ponto base (origem da inserção).
+export type BlockDefinition = Readonly<{
+  name: string;
+  basePoint: Point2D;
+  entities: ReadonlyArray<CadEntity>;
+}>;
+
+export type CadEntity = LineEntity | RectangleEntity | CircleEntity | ArcEntity | EllipseEntity | PolylineEntity | DimensionEntity | TextEntity | SplineEntity | BlockReferenceEntity;
 
 export type CadLayer = Readonly<{
   id: string;
@@ -177,6 +196,8 @@ export type CadDocument = Readonly<{
   activeLayerId: string;
   dimensionStyles: ReadonlyArray<DimensionStyle>;
   activeDimensionStyleId: string;
+  // Definições de bloco; ausente em documentos anteriores (nenhuma definição).
+  blocks?: ReadonlyArray<BlockDefinition>;
 }>;
 
 export interface CadCommand {
@@ -1339,6 +1360,10 @@ function moveEntities(
 }
 
 export function moveEntity(entity: CadEntity, displacement: Point2D): CadEntity {
+  if (entity.type === "block") {
+    return { ...entity, position: addVector(entity.position, displacement) };
+  }
+
   if (entity.type === "line") {
     return {
       ...entity,
@@ -1465,6 +1490,15 @@ function rotateEntities(
 }
 
 export function rotateEntity(entity: CadEntity, pivot: Point2D, angleRadians: number): CadEntity {
+  if (entity.type === "block") {
+    // O ponto base acompanha a rotação em torno do pivô e a referência gira junto.
+    return {
+      ...entity,
+      position: transformPoint(entity.position, rotationMatrix(angleRadians, pivot)),
+      rotation: (entity.rotation ?? 0) + angleRadians
+    };
+  }
+
   if (entity.type === "line") {
     const matrix = rotationMatrix(angleRadians, pivot);
     return {
@@ -1562,6 +1596,15 @@ export function scaleEntity(entity: CadEntity, pivot: Point2D, factor: number): 
 
   const matrix = scaleMatrix(factor, factor, pivot);
 
+  if (entity.type === "block") {
+    return {
+      ...entity,
+      position: transformPoint(entity.position, matrix),
+      scaleX: (entity.scaleX ?? 1) * factor,
+      scaleY: (entity.scaleY ?? 1) * factor
+    };
+  }
+
   if (entity.type === "line") {
     return {
       ...entity,
@@ -1647,6 +1690,11 @@ function assertPositiveScaleFactor(factor: number): void {
 export function mirrorEntity(entity: CadEntity, axisStart: Point2D, axisEnd: Point2D): CadEntity | null {
   const matrix = reflectionMatrix(axisStart, axisEnd);
   const axisAngle = Math.atan2(axisEnd.y - axisStart.y, axisEnd.x - axisStart.x);
+
+  if (entity.type === "block") {
+    // Reflexão × (rotação · escalas) é sempre decomponível: o espelho vira rotação e sinal na escala Y.
+    return mirrorBlockReference(entity, matrix);
+  }
 
   if (entity.type === "line") {
     return {
@@ -1771,6 +1819,13 @@ export function stretchEntity(entity: CadEntity, window: BoundingBox, displaceme
     boundingBoxContainsPoint(window, point)
       ? { x: point.x + displacement.x, y: point.y + displacement.y }
       : point;
+
+  if (entity.type === "block") {
+    // Como o AutoCAD: a referência inteira se move quando o ponto de inserção está na janela.
+    return boundingBoxContainsPoint(window, entity.position)
+      ? { ...entity, position: move(entity.position) }
+      : entity;
+  }
 
   if (entity.type === "line") {
     const startInside = boundingBoxContainsPoint(window, entity.start);
@@ -2432,3 +2487,4 @@ export class AssignDimensionStyleCommand implements CadCommand {
 export * from "./dimensionStylePresets";
 export * from "./spatial";
 export * from "./array";
+export * from "./blocks";

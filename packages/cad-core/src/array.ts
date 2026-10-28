@@ -99,6 +99,10 @@ export function cloneCadEntityWithOffset(
     };
   }
 
+  if (entity.type === "block") {
+    return { ...entity, id: newId, position: offsetPoint(entity.position, offset) };
+  }
+
   if (entity.type === "spline") {
     return {
       ...entity,
@@ -335,6 +339,15 @@ export function rotateCadEntityAroundCenter(
     };
   }
 
+  if (entity.type === "block") {
+    return {
+      ...entity,
+      id: newId,
+      position: rotatePointAroundCenter(entity.position, center, angleRadians),
+      rotation: (entity.rotation ?? 0) + angleRadians
+    };
+  }
+
   if (entity.type === "spline") {
     const rotate = (point: Point2D) => rotatePointAroundCenter(point, center, angleRadians);
     return {
@@ -527,7 +540,7 @@ function referencePointForEntity(entity: CadEntity): Point2D {
     return entity.center;
   }
 
-  if (entity.type === "text") {
+  if (entity.type === "text" || entity.type === "block") {
     return entity.position;
   }
 

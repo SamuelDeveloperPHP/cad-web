@@ -1,4 +1,4 @@
-import { resolveDimensionStyle, type ArcEntity, type CadDocument, type CadEntity, type CircleEntity, type EllipseEntity, type LineEntity, type PolylineEntity, type RectangleEntity, type SplineEntity, type TextEntity } from "@cad-web/cad-core";
+import { expandBlockReference, resolveDimensionStyle, type ArcEntity, type BlockReferenceEntity, type CadDocument, type CadEntity, type CircleEntity, type EllipseEntity, type LineEntity, type PolylineEntity, type RectangleEntity, type SplineEntity, type TextEntity } from "@cad-web/cad-core";
 import type { CadJsonExportOptions } from "./json";
 import { CAD_IO_APPLICATION, CAD_IO_SCHEMA_VERSION, validateCadDocument } from "./json";
 
@@ -47,7 +47,8 @@ export function* createSvgExportChunks(
         layers: document.layers,
         activeLayerId: document.activeLayerId,
         dimensionStyles: document.dimensionStyles,
-        activeDimensionStyleId: document.activeDimensionStyleId
+        activeDimensionStyleId: document.activeDimensionStyleId,
+        ...(document.blocks !== undefined && document.blocks.length > 0 ? { blocks: document.blocks } : {})
       }))}"`
     : "";
 
@@ -149,7 +150,23 @@ function serializeEntityToSvg(entity: CadEntity, precision: number, document: an
     return serializeSplineToSvg(entity, precision);
   }
 
+  if (entity.type === "block") {
+    return serializeBlockReferenceToSvg(entity, precision, document);
+  }
+
   return "";
+}
+
+/**
+ * A referência de bloco vira um grupo com a geometria expandida (visível em qualquer programa); o JSON da
+ * referência em data-cad-entity (e as definições em data-cad-document) permitem a ida e volta exata no CAD-WEB.
+ */
+function serializeBlockReferenceToSvg(entity: BlockReferenceEntity, precision: number, document: CadDocument): string {
+  const children = expandBlockReference(document.blocks, entity)
+    .map((child) => decorateEntityElement(serializeEntityToSvg(child, precision, document), child, false, 0))
+    .filter((markup) => markup !== "");
+
+  return `<g data-block-name="${escapeSvgAttribute(entity.blockName)}">${children.length > 0 ? `\n      ${children.join("\n      ")}\n    ` : ""}</g>`;
 }
 
 /**
@@ -529,6 +546,16 @@ function calculateEntityBounds(entity: CadEntity, document?: CadDocument): SvgBo
 
   if (entity.type === "spline") {
     return bezierChainBoundingBox(entity.controlPoints);
+  }
+
+  if (entity.type === "block") {
+    let bounds: SvgBounds | null = null;
+
+    for (const child of expandBlockReference(document?.blocks, entity)) {
+      bounds = mergeBounds(bounds, calculateEntityBounds(child, document));
+    }
+
+    return bounds ?? { minX: entity.position.x, minY: entity.position.y, maxX: entity.position.x, maxY: entity.position.y };
   }
 
   return {

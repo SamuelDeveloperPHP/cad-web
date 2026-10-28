@@ -7,7 +7,7 @@ import {
   type SnapResult,
   type SnapSettings
 } from "@cad-web/cad-geometry";
-import { getDocumentSpatialIndex } from "@cad-web/cad-core";
+import { entityBoundingBox, expandBlockReference, getDocumentSpatialIndex, type CadEntity } from "@cad-web/cad-core";
 import type { ToolContext } from "../contracts/ToolContext";
 import type { ToolPointerEvent } from "../contracts/ToolEvent";
 import type { SnapService } from "../contracts/ToolContext";
@@ -49,6 +49,23 @@ export class ObjectSnapService implements SnapService {
 
     if (invisibleLayerIds.size > 0) {
       candidates = candidates.filter((e) => !invisibleLayerIds.has(e.layerId || "layer_0"));
+    }
+
+    // Referências de bloco viram a geometria expandida (só as peças perto do cursor): os snaps pegam as
+    // extremidades, centros e interseções do desenho do bloco. Peças em camadas ocultas ficam de fora.
+    if (candidates.some((entity) => entity.type === "block")) {
+      const hidden = invisibleLayerIds;
+      candidates = candidates.flatMap((entity): ReadonlyArray<CadEntity> => {
+        if (entity.type !== "block") {
+          return [entity];
+        }
+
+        return expandBlockReference(context.document.blocks, entity).filter((child) => {
+          const box = entityBoundingBox(child);
+          return !hidden.has(child.layerId || "layer_0")
+            && box.minX <= searchBox.maxX && box.maxX >= searchBox.minX && box.minY <= searchBox.maxY && box.maxY >= searchBox.minY;
+        });
+      });
     }
 
     // As entidades extras da ferramenta ativa entram junto dos candidatos do índice espacial.

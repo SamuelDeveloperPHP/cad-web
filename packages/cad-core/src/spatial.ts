@@ -13,7 +13,8 @@ import {
   type BoundingBox,
   type Point2D
 } from "@cad-web/cad-geometry";
-import type { CadDocument, CadEntity, DimensionEntity, DimensionStyle } from "./index";
+import { expandBlockReference } from "./blocks";
+import type { BlockDefinition, BlockReferenceEntity, CadDocument, CadEntity, DimensionEntity, DimensionStyle } from "./index";
 
 /**
  * A função calcula o retângulo envolvente de todas as entidades do documento.
@@ -24,7 +25,7 @@ export function documentBoundingBox(document: CadDocument): BoundingBox | null {
   let bounds: BoundingBox | null = null;
 
   for (const entity of document.entities) {
-    const entityBounds = entityBoundingBox(entity);
+    const entityBounds = entityBoundingBox(entity, document.blocks);
 
     if (bounds === null) {
       bounds = entityBounds;
@@ -45,10 +46,17 @@ export function documentBoundingBox(document: CadDocument): BoundingBox | null {
 // O cache associa cada entidade imutável ao seu envoltório. Como as entidades nunca são mutadas,
 // mover/editar produz um novo objeto e a entrada anterior é naturalmente descartada pelo coletor.
 const boundingBoxCache = new WeakMap<CadEntity, BoundingBox>();
+// Referências de bloco dependem da definição: o cache guarda também a definição usada.
+const blockBoundingBoxCache = new WeakMap<BlockReferenceEntity, Readonly<{ definition: BlockDefinition | undefined; box: BoundingBox }>>();
 
 // A função devolve o envoltório da entidade, calculando-o uma única vez por objeto e reaproveitando o cache.
 // O envoltório retornado é compartilhado (imutável por convenção): os chamadores apenas leem, nunca alteram.
-export function entityBoundingBox(entity: CadEntity): BoundingBox {
+// Referências de bloco precisam das definições (blocks) para o envoltório da geometria expandida.
+export function entityBoundingBox(entity: CadEntity, blocks?: ReadonlyArray<BlockDefinition>): BoundingBox {
+  if (entity.type === "block") {
+    return blockReferenceBoundingBox(entity, blocks);
+  }
+
   const cached = boundingBoxCache.get(entity);
   if (cached !== undefined) {
     return cached;
@@ -57,6 +65,34 @@ export function entityBoundingBox(entity: CadEntity): BoundingBox {
   const box = computeEntityBoundingBox(entity);
   boundingBoxCache.set(entity, box);
   return box;
+}
+
+function blockReferenceBoundingBox(reference: BlockReferenceEntity, blocks: ReadonlyArray<BlockDefinition> | undefined): BoundingBox {
+  const definition = blocks?.find((block) => block.name === reference.blockName);
+  const cached = blockBoundingBoxCache.get(reference);
+
+  if (cached !== undefined && cached.definition === definition) {
+    return cached.box;
+  }
+
+  let box: BoundingBox | null = null;
+
+  for (const entity of expandBlockReference(blocks, reference)) {
+    const entityBounds = entityBoundingBox(entity, blocks);
+    box = box === null
+      ? entityBounds
+      : {
+          minX: Math.min(box.minX, entityBounds.minX),
+          minY: Math.min(box.minY, entityBounds.minY),
+          maxX: Math.max(box.maxX, entityBounds.maxX),
+          maxY: Math.max(box.maxY, entityBounds.maxY)
+        };
+  }
+
+  // Definição ausente ou vazia: caixa mínima no ponto de inserção, para a referência continuar selecionável.
+  const resolved = box ?? { minX: reference.position.x - 1, minY: reference.position.y - 1, maxX: reference.position.x + 1, maxY: reference.position.y + 1 };
+  blockBoundingBoxCache.set(reference, { definition, box: resolved });
+  return resolved;
 }
 
 function computeEntityBoundingBox(entity: CadEntity): BoundingBox {
@@ -229,10 +265,15 @@ export class GridSpatialIndex {
   private readonly cells = new Map<string, Set<CadEntity>>();
   private readonly entityCount = 0;
 
-  constructor(private readonly cellSize: number = 100) {}
+  // As definições são lembradas na construção do índice para o envoltório das referências de bloco.
+  private blocks: ReadonlyArray<BlockDefinition> | undefined;
 
-  public insert(entity: CadEntity): void {
-    const bbox = entityBoundingBox(entity);
+  constructor(private readonly cellSize: number = 100, blocks?: ReadonlyArray<BlockDefinition>) {
+    this.blocks = blocks;
+  }
+
+  public insert(entity: CadEntity, blocks?: ReadonlyArray<BlockDefinition>): void {
+    const bbox = entityBoundingBox(entity, blocks);
     const minCx = Math.floor(bbox.minX / this.cellSize);
     const minCy = Math.floor(bbox.minY / this.cellSize);
     const maxCx = Math.floor(bbox.maxX / this.cellSize);
@@ -268,7 +309,7 @@ export class GridSpatialIndex {
         const cell = this.cells.get(key);
         if (cell) {
           for (const entity of cell) {
-            const eBbox = entityBoundingBox(entity);
+            const eBbox = entityBoundingBox(entity, this.blocks);
             if (
               eBbox.minX <= bbox.maxX &&
               eBbox.maxX >= bbox.minX &&
@@ -298,9 +339,9 @@ export function getDocumentSpatialIndex(document: CadDocument): GridSpatialIndex
   let index = spatialIndexCache.get(document.entities);
   
   if (!index) {
-    index = new GridSpatialIndex(100);
+    index = new GridSpatialIndex(100, document.blocks);
     for (const entity of document.entities) {
-      index.insert(entity);
+      index.insert(entity, document.blocks);
     }
     spatialIndexCache.set(document.entities, index);
   }

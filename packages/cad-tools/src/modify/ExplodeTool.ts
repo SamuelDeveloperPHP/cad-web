@@ -1,5 +1,6 @@
 import {
   ExplodeEntitiesCommand,
+  explodeBlockReference,
   type CadDocument,
   type CadEntity,
   type EntityId,
@@ -107,7 +108,7 @@ export class ExplodeTool implements CadTool {
         continue;
       }
 
-      const pair = explodeEntityToPair(entity);
+      const pair = explodeEntityToPair(entity, context.document);
 
       if (pair === null) {
         unsupportedCount += 1;
@@ -126,7 +127,7 @@ export class ExplodeTool implements CadTool {
 
       // Como no AutoCAD, elipses, círculos, arcos, linhas e textos já são primitivas e não se decompõem.
       const message = unsupportedCount > 0
-        ? "[Explode] Nothing to explode: only rectangles and polylines can be exploded (splines, ellipses, circles, arcs, lines and texts are already primitives)"
+        ? "[Explode] Nothing to explode: only blocks, rectangles and polylines can be exploded (splines, ellipses, circles, arcs, lines and texts are already primitives)"
         : "[Explode] Nothing to explode";
       context.showMessage(message);
       return { type: "error", message };
@@ -172,8 +173,14 @@ function collectSelectedEntities(document: CadDocument, ids: ReadonlyArray<Entit
   return result;
 }
 
-function explodeEntityToPair(entity: CadEntity): ExplodeEntityPair | null {
+function explodeEntityToPair(entity: CadEntity, document: CadDocument): ExplodeEntityPair | null {
   // O metodo decide se o tipo da entidade e suportado e gera o par original/resultado para o command.
+  if (entity.type === "block") {
+    // Um nível, como no AutoCAD: blocos aninhados continuam sendo referências.
+    const results = explodeBlockReference(document.blocks, entity, (source, index) => createExplodeId(source.type, entity.id, index));
+    return results.length === 0 ? null : { originalEntity: entity, resultEntities: results };
+  }
+
   if (entity.type === "rectangle") {
     return explodeRectangle(entity);
   }
@@ -237,6 +244,10 @@ function buildLineEntity(
     ...(source.lineThickness !== undefined ? { lineThickness: source.lineThickness } : {}),
     ...(source.lineType !== undefined ? { lineType: source.lineType } : {})
   };
+}
+
+function createExplodeId(prefix: string, sourceId: EntityId, index: number): EntityId {
+  return createExplodeLineId(sourceId, index).replace("line_explode_", `${prefix}_explode_`);
 }
 
 function createExplodeLineId(sourceId: EntityId, index: number): EntityId {

@@ -1,15 +1,17 @@
-import { ChevronLeft, ChevronRight, Layers, Settings2, SlidersHorizontal } from "lucide-react";
+import { Box, ChevronLeft, ChevronRight, Layers, Settings2, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 import type { CadStore } from "../../state/useCadStore";
+import { CadBlockPanel } from "./CadBlockPanel";
 import { CadDimensionStylesPanel } from "./CadDimensionStylesPanel";
 import { CadLayerPanel } from "./CadLayerPanel";
 import { CadPropertiesPanel } from "./CadPropertiesPanel";
 
-type Tab = "properties" | "layers" | "dimstyles";
+type Tab = "properties" | "layers" | "blocks" | "dimstyles";
 
 const tabs = [
   { id: "properties", label: "Props", title: "Propriedades", icon: SlidersHorizontal },
   { id: "layers", label: "Layers", title: "Camadas", icon: Layers },
+  { id: "blocks", label: "Blocks", title: "Blocos", icon: Box },
   { id: "dimstyles", label: "Dims", title: "Estilos de cota", icon: Settings2 }
 ] as const;
 
@@ -69,6 +71,7 @@ export function CadRightPanel({ cad }: { cad: CadStore }) {
       <div className="cad-right-panel-content">
         {activeTab === "properties" && <CadPropertiesPanel cad={cad} />}
         {activeTab === "layers" && <CadLayerPanel cad={cad} />}
+        {activeTab === "blocks" && <CadBlockPanel cad={cad} />}
         {activeTab === "dimstyles" && <CadDimensionStylesPanel cad={cad} />}
       </div>
     </aside>

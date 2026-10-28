@@ -42,7 +42,7 @@ export function entitiesInSelectionBox(
       continue;
     }
 
-    const bbox = entityBoundingBox(entity);
+    const bbox = entityBoundingBox(entity, document.blocks);
     const hit =
       mode === "window"
         ? bbox.minX >= bounds.minX && bbox.maxX <= bounds.maxX && bbox.minY >= bounds.minY && bbox.maxY <= bounds.maxY

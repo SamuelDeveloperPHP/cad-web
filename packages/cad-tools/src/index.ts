@@ -15,6 +15,8 @@ export * from "./draw/PolylineTool";
 export * from "./draw/RectangleTool";
 export * from "./draw/TextTool";
 export * from "./draw/SplineTool";
+export * from "./draw/InsertTool";
+export * from "./modify/BlockTool";
 export { userOffsetToWorld, userPointToWorld } from "./draw/directInput";
 export * from "./modify/EraseTool";
 export * from "./modify/MirrorTool";
