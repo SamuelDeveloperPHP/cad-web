@@ -1,8 +1,8 @@
 import { CreateLayerCommand, ToggleLayerLockCommand, ToggleLayerVisibilityCommand } from "@cad-web/cad-core";
 import { ChangeDisplayUnitCommand } from "@cad-web/cad-tools";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCadStore } from "../../state/useCadStore";
-import { downloadCadDocument, downloadSvgDocument, readCadDocumentFile, readSvgDocumentFile } from "../../services/cadJsonExport";
+import { downloadCadDocument, downloadSvgDocument, readCadDocumentFile, readDxfDocumentFile, readSvgDocumentFile } from "../../services/cadJsonExport";
 import { createToolKeyboardEvent } from "../../tools/toolEvents";
 import { CadCanvas } from "./CadCanvas";
 import { CadCommandLine } from "./CadCommandLine";
@@ -28,6 +28,9 @@ const ESCAPE_KEY_EVENT = {
 export function CadEditor() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const svgFileInputRef = useRef<HTMLInputElement | null>(null);
+  const dxfFileInputRef = useRef<HTMLInputElement | null>(null);
+  // Resumo da última importação DXF (o que entrou, o que foi ignorado e avisos), fechado pelo usuário.
+  const [dxfReport, setDxfReport] = useState<Readonly<{ title: string; lines: ReadonlyArray<string>; error: boolean }> | null>(null);
   const cad = useCadStore();
 
   useEffect(() => {
@@ -70,6 +73,10 @@ export function CadEditor() {
 
   const handleImportSvgClick = () => {
     svgFileInputRef.current?.click();
+  };
+
+  const handleImportDxfClick = () => {
+    dxfFileInputRef.current?.click();
   };
 
   const handleCreateLayer = () => {
@@ -129,6 +136,7 @@ export function CadEditor() {
         }}
         onImport={handleImportClick}
         onImportSvg={handleImportSvgClick}
+        onImportDxf={handleImportDxfClick}
         activeLayerName={activeLayerName}
         activeLayerVisible={activeLayer?.visible ?? true}
         activeLayerLocked={activeLayer?.locked ?? false}
@@ -222,9 +230,50 @@ export function CadEditor() {
             return;
           }
 
-          void readSvgDocumentFile(file).then(cad.importDocument);
+          void readSvgDocumentFile(file).then((document) => cad.importDocument(document));
         }}
       />
+      <input
+        ref={dxfFileInputRef}
+        className="hidden-input"
+        type="file"
+        accept=".dxf,image/vnd.dxf,application/dxf"
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = "";
+
+          if (file === undefined) {
+            return;
+          }
+
+          readDxfDocumentFile(file)
+            .then(({ document, report }) => {
+              cad.importDocument(document, { zoomToFit: true });
+              const skipped = Object.entries(report.skipped).map(([type, count]) => `${count} × ${type}`);
+              setDxfReport({
+                title: `DXF imported: ${file.name}`,
+                error: false,
+                lines: [
+                  `${report.entities} objects, ${report.blocks} blocks, ${report.layers} layers (units: ${report.sourceUnit}${report.scaleToMillimeters === 1 ? "" : `, ×${report.scaleToMillimeters} to mm`}).`,
+                  ...(skipped.length > 0 ? [`Ignored: ${skipped.join(", ")}.`] : []),
+                  ...report.warnings
+                ]
+              });
+            })
+            .catch((error: unknown) => {
+              setDxfReport({ title: "DXF import failed", error: true, lines: [error instanceof Error ? error.message : "Unexpected error while reading the file."] });
+            });
+        }}
+      />
+      {dxfReport !== null && (
+        <aside className={`cad-import-report ${dxfReport.error ? "error" : ""}`} role="status" aria-live="polite">
+          <div className="cad-import-report-title">
+            <strong>{dxfReport.title}</strong>
+            <button type="button" onClick={() => setDxfReport(null)} aria-label="Close import report">×</button>
+          </div>
+          {dxfReport.lines.map((line) => <p key={line}>{line}</p>)}
+        </aside>
+      )}
     </section>
   );
 }

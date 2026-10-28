@@ -56,6 +56,7 @@ type CadRibbonProps = Readonly<{
   onExportSvg(): void;
   onImport(): void;
   onImportSvg(): void;
+  onImportDxf(): void;
   activeLayerName: string;
   activeLayerVisible: boolean;
   activeLayerLocked: boolean;
@@ -230,6 +231,10 @@ export function CadRibbon(props: CadRibbonProps) {
         <button className="cad-ribbon-btn" type="button" onClick={props.onImportSvg} title="Importar SVG">
           <Download size={20} />
           <span>Imp SVG</span>
+        </button>
+        <button className="cad-ribbon-btn" type="button" onClick={props.onImportDxf} title="Importar DXF (ASCII, R12 e 2000+)">
+          <Download size={20} />
+          <span>Imp DXF</span>
         </button>
         <button className="cad-ribbon-btn" type="button" onClick={props.onExportSvg} title="Exportar SVG">
           <Upload size={20} />

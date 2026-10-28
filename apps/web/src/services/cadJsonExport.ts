@@ -1,5 +1,5 @@
 import type { CadDocument } from "@cad-web/cad-core";
-import { parseCadDocument, parseSvgDocument, serializeCadDocument, serializeCadDocumentToSvg } from "@cad-web/cad-io";
+import { parseCadDocument, parseDxfDocumentWithReport, parseSvgDocument, serializeCadDocument, serializeCadDocumentToSvg, type DxfImportResult } from "@cad-web/cad-io";
 
 export function downloadCadDocument(document: CadDocument): void {
   const blob = new Blob([serializeCadDocument(document)], {
@@ -25,6 +25,11 @@ export function downloadSvgDocument(document: CadDocument): void {
 
 export async function readCadDocumentFile(file: File): Promise<CadDocument> {
   return parseCadDocument(await file.text());
+}
+
+// DXF ASCII (R12 e 2000+): a decodificação (UTF-8 ou página de código ANSI) é feita pelo importador.
+export async function readDxfDocumentFile(file: File): Promise<DxfImportResult> {
+  return parseDxfDocumentWithReport(new Uint8Array(await file.arrayBuffer()), { documentId: `dxf_${Date.now()}` });
 }
 
 export async function readSvgDocumentFile(file: File): Promise<CadDocument> {

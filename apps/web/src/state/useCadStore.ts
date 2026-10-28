@@ -122,7 +122,8 @@ export type CadStore = Readonly<{
   dispatchPointerUp(event: ToolPointerEvent): void;
   dispatchKeyDown(event: ToolKeyboardEvent): void;
   clearDocument(): void;
-  importDocument(document: CadDocument): void;
+  // zoomToFit enquadra o desenho importado (útil para arquivos vindos de outros programas, como o DXF).
+  importDocument(document: CadDocument, options?: Readonly<{ zoomToFit?: boolean }>): void;
   cancelInteraction(): void;
   runCommandLine(command: string): void;
   // Itens do menu de contexto da ferramenta ativa no estado atual (ex.: grip ativo); null = sem menu.
@@ -686,13 +687,18 @@ export function useCadStore(): CadStore {
     void clearPersistedDocument();
   }, [applyCommand]);
 
-  const importDocument = useCallback((nextDocument: CadDocument) => {
+  const importDocument = useCallback((nextDocument: CadDocument, options: Readonly<{ zoomToFit?: boolean }> = {}) => {
     history.replaceDocument(nextDocument);
     publishDocument(nextDocument);
     setSelectedEntityIds([]);
     setPreview(null);
     setSnapResult(null);
-  }, [history, publishDocument]);
+
+    if (options.zoomToFit === true) {
+      const bounds = documentBoundingBox(nextDocument);
+      setViewport(bounds === null ? viewportCenteredOnOrigin(screenSize, DEFAULT_VIEWPORT_SCALE) : zoomExtents({ bounds, screenSize, paddingPixels: 48 }));
+    }
+  }, [history, publishDocument, screenSize]);
 
   const cancelInteraction = useCallback(() => {
     const context = createToolContext();
