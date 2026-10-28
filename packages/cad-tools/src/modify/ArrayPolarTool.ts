@@ -9,6 +9,7 @@ import {
 } from "@cad-web/cad-core";
 import {
   buildPolarArrayAngles,
+  visualDegreesToWorldRadians,
   validatePolarArrayParams,
   type PolarArrayParams,
   type Point2D
@@ -517,7 +518,8 @@ export class ArrayPolarTool implements CadTool {
 
     return {
       count: this.params.count,
-      fillAngleRadians: degreesToRadians(this.params.fillAngleDegrees)
+      // Ângulo positivo = anti-horário na tela (convenção do AutoCAD); o Y do mundo cresce para baixo.
+      fillAngleRadians: visualDegreesToWorldRadians(this.params.fillAngleDegrees)
     };
   }
 
@@ -773,8 +775,4 @@ function buildLimitedPolarPreview(
 
 function previewIdFactory(sourceEntity: CadEntity, _angleRadians: number, sequence: number): EntityId {
   return `arraypolar_preview_${sourceEntity.id}_${sequence}`;
-}
-
-function degreesToRadians(degrees: number): number {
-  return (degrees * Math.PI) / 180;
 }

@@ -157,8 +157,9 @@ describe("LineTool", () => {
 
     expect(result.type).toBe("command");
     const end = (context.commands[0] as any).entity.end;
+    // @10<90: 90° anti-horário na tela (AutoCAD), ou seja, Y do mundo negativo.
     expect(end.x).toBeCloseTo(0);
-    expect(end.y).toBeCloseTo(10);
+    expect(end.y).toBeCloseTo(-10);
   });
 
   it("rejects invalid text input", () => {
