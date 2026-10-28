@@ -7,7 +7,7 @@ import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent
 import type { ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
-import { parseDirectInput, resolveDirectInput } from "./directInput";
+import { parseDirectInput, resolveDirectInput, userPointToWorld } from "./directInput";
 
 type EllipsePhase = "center" | "axisStart" | "axisEnd" | "majorAxis" | "minorAxis";
 
@@ -132,7 +132,7 @@ export class EllipseTool implements CadTool {
 
     if (this.phase === "center") {
       if (parsed.kind === "absolute") {
-        this.center = { x: parsed.point.x * context.unitScale, y: parsed.point.y * context.unitScale };
+        this.center = userPointToWorld(parsed.point, context.unitScale);
         this.phase = "majorAxis";
         context.showMessage("Specify end of major axis.");
         return TOOL_RESULT_NONE;
@@ -143,7 +143,7 @@ export class EllipseTool implements CadTool {
 
     if (this.phase === "axisStart") {
       if (parsed.kind === "absolute") {
-        this.axisStart = { x: parsed.point.x * context.unitScale, y: parsed.point.y * context.unitScale };
+        this.axisStart = userPointToWorld(parsed.point, context.unitScale);
         this.phase = "axisEnd";
         context.showMessage("Specify other endpoint of axis.");
         return TOOL_RESULT_NONE;

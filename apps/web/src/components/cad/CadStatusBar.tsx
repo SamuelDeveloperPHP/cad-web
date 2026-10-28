@@ -104,7 +104,8 @@ export function CadStatusBar({
       <div className="cad-statusbar-group">
         <StatusItem label="Tool" value={toolLabels[activeTool]} strong />
         <StatusItem label="X" value={formatCoord(mouseWorld.x)} monospace />
-        <StatusItem label="Y" value={formatCoord(mouseWorld.y)} monospace />
+        {/* Y com o eixo para cima (AutoCAD); o documento guarda Y para baixo. */}
+        <StatusItem label="Y" value={formatCoord(mouseWorld.y === 0 ? 0 : -mouseWorld.y)} monospace />
         <ZoomControl
           zoom={zoom}
           units={documentUnits}

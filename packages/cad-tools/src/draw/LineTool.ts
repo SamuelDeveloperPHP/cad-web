@@ -7,7 +7,7 @@ import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent
 import type { ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
-import { parseDirectInput, resolveDirectInput } from "./directInput";
+import { parseDirectInput, resolveDirectInput, userPointToWorld } from "./directInput";
 
 export class LineTool implements CadTool {
   readonly id = "line";
@@ -97,7 +97,7 @@ export class LineTool implements CadTool {
       const first = parseDirectInput(input);
 
       if (first.kind === "absolute") {
-        this.startPoint = { x: first.point.x * context.unitScale, y: first.point.y * context.unitScale };
+        this.startPoint = userPointToWorld(first.point, context.unitScale);
         this.currentPoint = this.startPoint;
         context.showMessage("Specify next point.");
         return TOOL_RESULT_NONE;

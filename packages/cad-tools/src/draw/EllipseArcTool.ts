@@ -13,7 +13,7 @@ import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent
 import type { ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
-import { parseDirectInput, resolveDirectInput } from "./directInput";
+import { parseDirectInput, resolveDirectInput, userPointToWorld } from "./directInput";
 import { perpendicularMinorPoint } from "./EllipseTool";
 
 type EllipseArcPhase = "center" | "majorAxis" | "minorAxis" | "startAngle" | "endAngle";
@@ -130,7 +130,7 @@ export class EllipseArcTool implements CadTool {
 
     if (this.phase === "center") {
       if (parsed.kind === "absolute") {
-        this.center = { x: parsed.point.x * context.unitScale, y: parsed.point.y * context.unitScale };
+        this.center = userPointToWorld(parsed.point, context.unitScale);
         this.phase = "majorAxis";
         context.showMessage("Specify end of major axis.");
         return TOOL_RESULT_NONE;

@@ -47,7 +47,7 @@ describe("SplineTool", () => {
     expect(result.type).toBe("command");
     const entity = (context.commands[0] as any).entity as SplineEntity;
     expect(entity.closed).toBe(true);
-    expect(entity.fitPoints).toEqual([{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 20 }, { x: 0, y: 20 }]);
+    expect(entity.fitPoints).toEqual([{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: -20 }, { x: 0, y: -20 }]);
     expect(entity.controlPoints.at(-1)).toEqual(entity.controlPoints[0]);
   });
 

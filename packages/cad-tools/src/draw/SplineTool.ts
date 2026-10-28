@@ -7,7 +7,7 @@ import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent
 import type { CadPreview, ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
-import { parseDirectInput, resolveDirectInput } from "./directInput";
+import { parseDirectInput, resolveDirectInput, userPointToWorld } from "./directInput";
 
 const CLOSE_OPTIONS = ["c", "close", "fechar"];
 const UNDO_OPTIONS = ["u", "undo", "desfazer"];
@@ -106,7 +106,7 @@ export class SplineTool implements CadTool {
 
     if (last === undefined) {
       return parsed.kind === "absolute"
-        ? this.addPoint({ x: parsed.point.x * context.unitScale, y: parsed.point.y * context.unitScale }, context)
+        ? this.addPoint(userPointToWorld(parsed.point, context.unitScale), context)
         : { type: "error", message: "[Spline] Specify the first point as x,y or click on the drawing." };
     }
 

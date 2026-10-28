@@ -13,7 +13,7 @@ describe("typed first point", () => {
     const result = tool.onCommandInput("5,2", context);
 
     expect(result.type).toBe("command");
-    expect((context.commands[0] as any).entity).toMatchObject({ start: { x: 10, y: 20 }, end: { x: 50, y: 20 } });
+    expect((context.commands[0] as any).entity).toMatchObject({ start: { x: 10, y: -20 }, end: { x: 50, y: -20 } });
   });
 
   it("CircleTool accepts x,y for the center", () => {
@@ -24,7 +24,7 @@ describe("typed first point", () => {
     tool.onCommandInput("3,4", context);
     tool.onCommandInput("5", context);
 
-    expect((context.commands[0] as any).entity).toMatchObject({ center: { x: 3, y: 4 }, radius: 5 });
+    expect((context.commands[0] as any).entity).toMatchObject({ center: { x: 3, y: -4 }, radius: 5 });
   });
 
   it("RectangleTool accepts x,y for the first corner", () => {
@@ -35,7 +35,7 @@ describe("typed first point", () => {
     tool.onCommandInput("10,10", context);
     tool.onCommandInput("20,5", context);
 
-    expect((context.commands[0] as any).entity).toMatchObject({ x: 10, y: 10, width: 20, height: 5 });
+    expect((context.commands[0] as any).entity).toMatchObject({ x: 10, y: -15, width: 20, height: 5 });
   });
 
   it("ArcTool accepts typed points from the first one", () => {
