@@ -114,6 +114,13 @@ export function CadEditor() {
             downloadCadDocument(cad.document);
           }
         }}
+        onImportSvg={handleImportSvgClick}
+        onImportDxf={handleImportDxfClick}
+        onExportSvg={() => {
+          if (confirmLargeExport()) {
+            downloadSvgDocument(cad.document);
+          }
+        }}
         onUndo={cad.undo}
         onRedo={cad.redo}
       />

@@ -1,4 +1,4 @@
-import { ChevronDown, FilePlus2, FolderOpen, Redo2, Save, Undo2 } from "lucide-react";
+import { ChevronDown, FileDown, FilePlus2, FileUp, FolderOpen, Redo2, Save, Undo2 } from "lucide-react";
 
 type CadTopMenuProps = Readonly<{
   documentName: string;
@@ -7,6 +7,9 @@ type CadTopMenuProps = Readonly<{
   onNew(): void;
   onOpen(): void;
   onSave(): void;
+  onImportSvg(): void;
+  onImportDxf(): void;
+  onExportSvg(): void;
   onUndo(): void;
   onRedo(): void;
 }>;
@@ -51,6 +54,27 @@ export function CadTopMenu(props: CadTopMenuProps) {
         <button className="cad-qat-btn" type="button" onClick={props.onSave} title="Salvar (exportar JSON)">
           <Save size={17} />
         </button>
+        <span className="cad-qat-sep" />
+        {/* Importar e exportar ficam aqui para estarem sempre visíveis (o grupo Arquivo do ribbon sai da tela em janelas estreitas). */}
+        <div className="cad-qat-menu">
+          <button className="cad-qat-btn" type="button" aria-haspopup="menu" title="Importar arquivo (JSON, SVG, DXF)">
+            <FileUp size={17} />
+          </button>
+          <div className="cad-qat-dropdown" role="menu">
+            <button type="button" role="menuitem" onClick={props.onOpen}>Importar JSON</button>
+            <button type="button" role="menuitem" onClick={props.onImportSvg}>Importar SVG</button>
+            <button type="button" role="menuitem" onClick={props.onImportDxf}>Importar DXF</button>
+          </div>
+        </div>
+        <div className="cad-qat-menu">
+          <button className="cad-qat-btn" type="button" aria-haspopup="menu" title="Exportar arquivo (JSON, SVG)">
+            <FileDown size={17} />
+          </button>
+          <div className="cad-qat-dropdown" role="menu">
+            <button type="button" role="menuitem" onClick={props.onSave}>Exportar JSON</button>
+            <button type="button" role="menuitem" onClick={props.onExportSvg}>Exportar SVG</button>
+          </div>
+        </div>
         <span className="cad-qat-sep" />
         <button className="cad-qat-btn" type="button" onClick={props.onUndo} disabled={!props.canUndo} title="Desfazer">
           <Undo2 size={17} />
