@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_SNAP_SETTINGS,
   findBestSnap,
+  getIntersectionSnapCandidates,
   type SnapEntity,
   type SnapSettings,
   type SnapViewport
@@ -374,3 +375,57 @@ function createLine(): SnapEntity {
     end: { x: 10, y: 0 }
   };
 }
+
+describe("intersection snap restricted to the cursor window", () => {
+  // Zigue-zague longo: cada polyline tem centenas de segmentos, mas só alguns ficam perto do cursor.
+  function zigzag(id: string, y0: number, count: number, xOffset = 0): SnapEntity {
+    return {
+      id,
+      type: "polyline",
+      closed: false,
+      points: Array.from({ length: count }, (_unused, index) => ({ x: xOffset + index * 2, y: y0 + (index % 2 === 0 ? 0 : 3) }))
+    } as SnapEntity;
+  }
+
+  const intersectionOnly: SnapSettings = {
+    ...DEFAULT_SNAP_SETTINGS,
+    endpoint: false,
+    midpoint: false,
+    center: false,
+    quadrant: false,
+    insertion: false,
+    perpendicular: false,
+    tangent: false,
+    nearest: false,
+    intersection: true,
+    tolerancePx: 12
+  };
+
+  it("acha a mesma interseção que a busca sem janela", () => {
+    const crossing = zigzag("a", 0, 400);
+    // Deslocada 1 em X e em Y: os dois zigue-zagues se cruzam a cada passo.
+    const other = zigzag("b", 1, 400, 1);
+    const everything = getIntersectionSnapCandidates(crossing, other, { x: 0, y: 0 }, viewport);
+    const target = everything.find((candidate) => candidate.point.x > 200)!;
+    const cursor = { x: target.point.x + 0.05, y: target.point.y + 0.05 };
+    const screen = { x: cursor.x * viewport.scale, y: cursor.y * viewport.scale };
+
+    const result = findBestSnap(cursor, screen, [crossing, other], intersectionOnly, viewport);
+    const full = getIntersectionSnapCandidates(crossing, other, screen, viewport)
+      .filter((candidate) => candidate.distancePx <= intersectionOnly.tolerancePx)
+      .sort((left, right) => left.distancePx - right.distancePx)[0];
+
+    expect(result.snapped).toBe(true);
+    expect(result.point).toEqual(full?.point);
+  });
+
+  it("compara polylines de milhares de segmentos sem custo quadrático", () => {
+    const entities = Array.from({ length: 20 }, (_unused, index) => zigzag(`p${index}`, index * 0.3, 1500));
+    const cursor = { x: 1500, y: 1 };
+    const startedAt = performance.now();
+    findBestSnap(cursor, { x: cursor.x * viewport.scale, y: cursor.y * viewport.scale }, entities, intersectionOnly, viewport);
+
+    // Sem a janela seriam 190 pares × 1500² segmentos (~427 milhões de testes).
+    expect(performance.now() - startedAt).toBeLessThan(500);
+  });
+});

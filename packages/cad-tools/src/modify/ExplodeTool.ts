@@ -7,7 +7,8 @@ import {
   type ExplodeEntityPair,
   type LineEntity,
   type PolylineEntity,
-  type RectangleEntity
+  type RectangleEntity,
+  getEntityById
 } from "@cad-web/cad-core";
 import { explodePolylineToLines, explodeRectangleToLines, type SegmentGeometry } from "@cad-web/cad-geometry";
 import type { CadTool } from "../contracts/CadTool";
@@ -160,7 +161,7 @@ function collectSelectedEntities(document: CadDocument, ids: ReadonlyArray<Entit
       continue;
     }
 
-    const entity = document.entities.find((candidate) => candidate.id === id);
+    const entity = getEntityById(document, id);
 
     if (entity === undefined) {
       continue;

@@ -5,7 +5,8 @@ import {
   estimateArrayEntityCount,
   type CadEntity,
   type EntityId,
-  type LineEntity
+  type LineEntity,
+  getEntityById
 } from "@cad-web/cad-core";
 import {
   buildRectangularArrayOffsets,
@@ -683,7 +684,7 @@ function filterSelectableIds(context: ToolContext, ids: ReadonlyArray<EntityId>)
       continue;
     }
 
-    const entity = context.document.entities.find((candidate) => candidate.id === id);
+    const entity = getEntityById(context.document, id);
 
     if (entity === undefined) {
       continue;
