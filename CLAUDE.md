@@ -28,7 +28,7 @@ Regras específicas por área: `apps/web/AGENTS.md` e `packages/cad-tools/AGENTS
 - MVP anterior: `docs/MVP 3.14 — Performance 1 — Persistência IndexedDB e render em rAF.md` (persistência assíncrona em IndexedDB com debounce, migrando o legado do localStorage; render em duas camadas — base estática + overlay dinâmico — agendado em requestAnimationFrame; só `apps/web`).
 - Ajustes de UX adicionados: `docs/MVP 3.7.1 — Controles de Zoom (digitar e centralizar).md`, `docs/MVP 3.7.2 — Zoom completo (Window, Previous, In-Out).md` (zoom digitado, extents, window, previous e in/out) `docs/MVP 3.8.1 — Seleção por área, snap de fechamento e Stretch vinculado.md` (snap na polyline, seleção por janela/cruzamento com tracejado, Stretch vinculado à seleção por área) `docs/MVP 3.8.2 — Stretch associativo de cotas.md` (as cotas acompanham o Stretch e o valor recalcula) `docs/MVP 3.8.3 — ESC encerra o comando e mover cotas em qualquer direção.md` (Esc volta para Select liberando o objeto; cotas movem em +X/+Y/−X/−Y no Move) `docs/MVP 3.9 — EllipseTool - Elipse.md` (elipse nativa) `docs/MVP 3.10 — Arco de elipse.md` (arco de elipse) `docs/MVP 3.11 — Snaps de elipse e arco de elipse.md` (snaps de elipse/arco + tipo Quadrant) `docs/MVP 3.12 — Snap de interseção.md` (snap de interseção entre pares) e `docs/MVP 3.13 — Snaps de perpendicular e tangente.md` (snaps deferidos com ponto de referência).
 - Próximo MVP recomendado: rodada de testes dos engenheiros; depois exportação DXF (5.4), atributos de bloco (5.1), biblioteca de blocos por disciplina (5.2), edição de bloco e edição de texto no canvas (duplo clique).
-- `apps/api` (Laravel) ainda não foi iniciado; contém apenas README.
+- `apps/api` (Node.js + Express + TypeScript): esqueleto inicial criado — servidor Express (`src/server.ts`/`app.ts`), config de ambiente (`env.ts`), rota `GET /health`, middlewares de 404 e erro, e testes (Vitest + Supertest). É um workspace (`@cad-web/api`) nas project references e no CI. O backend SaaS (auth, tenants, branches, commits, merge requests) será desenvolvido por MVP a partir daqui. O backend trata o documento como JSON opaco versionado e nunca importa o kernel (`packages/*`).
 - Roadmap completo por disciplina (fases 1 a 5): `docs/00 - ROADMAP — MVPs por disciplina de engenharia.md`.
 - CI: `.github/workflows/ci.yml` roda build, typecheck, testes, build do web e checagem de fronteiras a cada push e pull request.
 
@@ -56,7 +56,7 @@ Cada agente trabalha em uma única área e respeita as fronteiras de pacote. Ord
 | `cad-renderer` | `packages/cad-renderer`  | Canvas, viewport, grid, overlays, performance de render                     |
 | `cad-io`       | `packages/cad-io`        | JSON nativo, SVG, migrações de schema, round trip                           |
 | `web-ui`       | `apps/web`               | Integração de ferramentas na UI, painéis, store, UX                         |
-| `api-laravel`  | `apps/api`               | Backend SaaS: tenants, auth, branches, commits, merge requests              |
+| `api-express`  | `apps/api`               | Backend SaaS (Node.js + Express): tenants, auth, branches, commits, merge requests |
 | `cad-reviewer` | repositório (só lê)      | Revisão de fronteiras, undo/redo, serialização, tolerância, testes          |
 
 Exemplo de uso: "use o agente mvp-planner para planejar o MVP 3.6 ArcTool", depois "use o agente cad-geometry para implementar o passo 1 do plano".

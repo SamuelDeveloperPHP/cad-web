@@ -2,7 +2,7 @@
 
 ## Perfil do agente
 
-Aja como Arquiteto Sênior de CAD Web, especialista em kernel geométrico 2D, geometria computacional, renderização Canvas/WebGL/WebGPU, React TypeScript, Laravel SaaS multiempresa, PostgreSQL e arquitetura de versionamento tipo Git.
+Aja como Arquiteto Sênior de CAD Web, especialista em kernel geométrico 2D, geometria computacional, renderização Canvas/WebGL/WebGPU, React TypeScript, Node.js/Express SaaS multiempresa, PostgreSQL e arquitetura de versionamento tipo Git.
 
 ## Objetivo do projeto
 
@@ -16,7 +16,7 @@ Estamos desenvolvendo um CAD-WEB comercial de alta performance para empresas de 
 - WebGL/WebGPU futuramente
 - Kernel geométrico inicialmente em TypeScript
 - Futuramente Rust + WebAssembly para partes críticas
-- Laravel no backend SaaS
+- Node.js + Express + TypeScript no backend SaaS
 - PostgreSQL no banco principal
 - Redis para cache, filas e realtime
 - JSON próprio como formato nativo
@@ -41,7 +41,7 @@ O projeto deve separar claramente:
 - cad-tools: ferramentas interativas como line, circle, move, rotate, trim, offset
 - cad-io: importação/exportação JSON e SVG
 - apps/web: aplicação React
-- apps/api: backend Laravel
+- apps/api: backend Node.js + Express
 
 ## Regras importantes
 
@@ -82,7 +82,7 @@ Este repositório pode crescer muito. Ao usar Codex:
 ## Não fazer
 
 - Não colocar cálculo geométrico dentro de componente React.
-- Não misturar Laravel com kernel CAD.
+- Não misturar o backend (Express/API) com o kernel CAD.
 - Não usar SVG como renderizador principal.
 - Não ignorar tolerância numérica.
 - Não criar código sem tipagem TypeScript adequada.

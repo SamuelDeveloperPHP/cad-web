@@ -4,7 +4,7 @@ Pacote de ferramentas interativas do CAD-WEB Engenharia SaaS.
 
 ## Objetivo
 
-O `cad-tools` transforma eventos de ponteiro, teclado e linha de comando em previews temporarios e comandos controlados. Ele nao altera entidades diretamente, nao desenha Canvas e nao depende de React, DOM, Laravel ou banco de dados.
+O `cad-tools` transforma eventos de ponteiro, teclado e linha de comando em previews temporarios e comandos controlados. Ele nao altera entidades diretamente, nao desenha Canvas e nao depende de React, DOM, backend ou banco de dados.
 
 ## Estrutura Inicial
 

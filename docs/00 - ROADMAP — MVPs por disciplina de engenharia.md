@@ -43,7 +43,7 @@ Cada MVP indica o agente responsável (`.claude/agents/`). O `mvp-planner` detal
 | 5.2 | Biblioteca de blocos por disciplina | Painel de biblioteca com categorias (elétrica, hidráulica, mecânica, civil); arquivos JSON de biblioteca em `packages/cad-library` (pacote novo) | cad-io, web-ui, mvp-planner                 |
 | 5.3 | Importação DXF                | Leitura de DXF ASCII (R12 e 2000+): LINE, POLYLINE/LWPOLYLINE, CIRCLE, ARC, ELLIPSE, TEXT/MTEXT, HATCH básico, INSERT, BLOCK, LAYER, LTYPE | cad-io (módulo `dxf.ts`), cad-core          |
 | 5.4 | Exportação DXF                | Escrita de DXF 2000 com as mesmas entidades; garante round trip com AutoCAD                         | cad-io                                      |
-| 5.5 | Migração dos blocos existentes | Script que converte a biblioteca DXF/DWG atual da empresa em bibliotecas JSON; DWG exige conversão prévia para DXF (ODA File Converter ou equivalente) | cad-io, api-laravel                         |
+| 5.5 | Migração dos blocos existentes | Script que converte a biblioteca DXF/DWG atual da empresa em bibliotecas JSON; DWG exige conversão prévia para DXF (ODA File Converter ou equivalente) | cad-io, api-express                         |
 | 5.6 | Templates por disciplina      | Documento inicial com layers, cores, line types e estilos de cota padronizados por disciplina (normas ABNT NBR 8403, 10067, 13142) | cad-core, cad-io, web-ui                    |
 
 ## Fase 3 — Civil e terraplanagem
@@ -70,16 +70,16 @@ Cada MVP indica o agente responsável (`.claude/agents/`). O `mvp-planner` detal
 
 | MVP | Nome                          | Entrega principal                                                                                   | Agentes                                     |
 | --- | ----------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| 8.0 | Backend Laravel base          | Estrutura Laravel, PostgreSQL, Redis, Docker; autenticação (Sanctum), empresas (tenants), usuários e papéis | api-laravel                                 |
-| 8.1 | Projetos e desenhos           | CRUD de projetos e desenhos por empresa; upload/download do JSON nativo; isolamento por tenant testado | api-laravel                                 |
-| 8.2 | Branches e commits            | Branch por usuário/disciplina/revisão, commit com snapshot JSON imutável, histórico e diff de entidades | api-laravel, cad-io (diff em `cad-core`)   |
-| 8.3 | Merge requests e aprovação    | Fluxo de revisão técnica: abrir, comentar, aprovar, mesclar; auditoria completa                     | api-laravel, web-ui                         |
-| 8.4 | Integração do app com a API   | Login, abrir/salvar desenho remoto, seletor de branch, commit pela UI; `localStorage` vira cache     | web-ui, api-laravel                         |
-| 8.5 | Permissões por disciplina     | Papéis (desenhista, projetista, coordenador, revisor, admin, cliente) e permissões por projeto e layer | api-laravel, web-ui                         |
+| 8.0 | Backend Node/Express base     | Estrutura Node.js/Express, PostgreSQL, Redis, Docker; autenticação (JWT/sessão), empresas (tenants), usuários e papéis | api-express                                 |
+| 8.1 | Projetos e desenhos           | CRUD de projetos e desenhos por empresa; upload/download do JSON nativo; isolamento por tenant testado | api-express                                 |
+| 8.2 | Branches e commits            | Branch por usuário/disciplina/revisão, commit com snapshot JSON imutável, histórico e diff de entidades | api-express, cad-io (diff em `cad-core`)   |
+| 8.3 | Merge requests e aprovação    | Fluxo de revisão técnica: abrir, comentar, aprovar, mesclar; auditoria completa                     | api-express, web-ui                         |
+| 8.4 | Integração do app com a API   | Login, abrir/salvar desenho remoto, seletor de branch, commit pela UI; `localStorage` vira cache     | web-ui, api-express                         |
+| 8.5 | Permissões por disciplina     | Papéis (desenhista, projetista, coordenador, revisor, admin, cliente) e permissões por projeto e layer | api-express, web-ui                         |
 | 8.6 | Testes end-to-end             | Playwright cobrindo fluxos críticos: desenhar, cotar, salvar, reabrir, exportar, commit e merge      | web-ui, cad-reviewer                        |
-| 8.7 | Observabilidade e backup      | Logs estruturados, métricas, rastreamento de erros, backup automático do PostgreSQL e do storage     | api-laravel                                 |
-| 8.8 | Homologação                   | Ambiente de homologação em Docker/Nginx; roteiro de aceite por disciplina com desenhos reais da empresa | api-laravel, web-ui, mvp-planner            |
-| 9.0 | Colaboração em tempo real     | Presença, cursores e bloqueio de entidades por usuário via WebSockets                                 | api-laravel, web-ui                         |
+| 8.7 | Observabilidade e backup      | Logs estruturados, métricas, rastreamento de erros, backup automático do PostgreSQL e do storage     | api-express                                 |
+| 8.8 | Homologação                   | Ambiente de homologação em Docker/Nginx; roteiro de aceite por disciplina com desenhos reais da empresa | api-express, web-ui, mvp-planner            |
+| 9.0 | Colaboração em tempo real     | Presença, cursores e bloqueio de entidades por usuário via WebSockets                                 | api-express, web-ui                         |
 
 ## Critérios de saída de cada fase
 
