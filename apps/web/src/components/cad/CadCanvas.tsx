@@ -1,6 +1,8 @@
 import { convertUnit, type Point2D } from "@cad-web/cad-geometry";
 import {
   configureCanvasForDevicePixelRatio,
+  DEFAULT_RENDER_STYLE,
+  DocumentRenderJob,
   renderAngleArc2D,
   renderAxisLines2D,
   renderCursorGuides2D,
@@ -17,6 +19,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
@@ -26,7 +29,9 @@ import type { CadStore } from "../../state/useCadStore";
 import { createToolPointerEvent } from "../../tools/toolEvents";
 import { cadDiagnostics } from "../../diagnostics/CadDiagnosticsService";
 import type { ToolMenuItem } from "@cad-web/cad-tools";
+import type { CadEntity } from "@cad-web/cad-core";
 import { CadContextMenu } from "./CadContextMenu";
+import { ProgressiveLayer } from "./progressiveLayer";
 import { DynamicInputOverlay } from "./DynamicInputOverlay";
 import {
   buildDynamicSubmission,
@@ -47,6 +52,11 @@ export function CadCanvas({ cad }: CadCanvasProps) {
   // dinâmico (seleção, grips, preview e marcador de snap). Assim, mover o mouse ou desenhar um preview
   // redesenha apenas o overlay, sem repintar todo o documento — o gargalo do zoom aberto com muitas entidades.
   const baseCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const selectionCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  // A base (grade + documento) e o destaque da seleção são camadas progressivas: desenhadas em fatias de tempo
+  // num buffer de trás e copiadas para o canvas visível só quando prontas.
+  const baseLayerRef = useRef<ProgressiveLayer | null>(null);
+  const selectionLayerRef = useRef<ProgressiveLayer | null>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const panStateRef = useRef<Readonly<{ active: boolean; lastScreen: Point2D }> | null>(null);
@@ -71,21 +81,45 @@ export function CadCanvas({ cad }: CadCanvasProps) {
   const screenSizeRef = useRef(screenSize);
   screenSizeRef.current = screenSize;
 
-  // Os identificadores dos frames pendentes permitem coalescer várias mudanças de estado em um único desenho por frame.
-  const baseFrameRef = useRef<number | null>(null);
+  // O identificador do frame pendente permite coalescer várias mudanças de estado em um único desenho por frame.
   const overlayFrameRef = useRef<number | null>(null);
 
+  // Pede o desenho da base para o documento/viewport atuais (cancela o que estiver em andamento).
   const scheduleBaseDraw = useCallback(() => {
-    if (baseFrameRef.current !== null) {
+    const layer = baseLayerRef.current;
+
+    if (layer === null) {
       return;
     }
 
-    baseFrameRef.current = requestAnimationFrame(() => {
-      baseFrameRef.current = null;
-      const canvas = baseCanvasRef.current;
-      if (canvas !== null) {
-        drawBaseLayer(canvas, cadRef.current, screenSizeRef.current);
+    const store = cadRef.current;
+    const screen = screenSizeRef.current;
+
+    layer.request(store.viewport, (context) => {
+      renderGrid2D(context, store.viewport, screen);
+      return new DocumentRenderJob(context, store.document, store.viewport, DEFAULT_RENDER_STYLE, { screenSize: screen });
+    });
+  }, []);
+
+  // Pede o desenho do destaque da seleção; só reage a documento, seleção e viewport (não ao movimento do mouse).
+  const scheduleSelectionDraw = useCallback(() => {
+    const layer = selectionLayerRef.current;
+
+    if (layer === null) {
+      return;
+    }
+
+    const store = cadRef.current;
+    const screen = screenSizeRef.current;
+
+    layer.request(store.viewport, (context) => {
+      const selected = selectedEntitiesOf(store.document.entities, store.selectedEntityIds);
+
+      if (selected.length === 0) {
+        return null;
       }
+
+      return new DocumentRenderJob(context, { ...store.document, entities: selected }, store.viewport, SELECTION_RENDER_STYLE, { screenSize: screen });
     });
   }, []);
 
@@ -133,31 +167,55 @@ export function CadCanvas({ cad }: CadCanvasProps) {
     cad.setScreenSize(screenSize);
   }, [cad, screenSize]);
 
-  // Redimensionar os canvases (que zera o bitmap e reaplica a escala do DPR) só acontece quando o tamanho muda,
-  // e não a cada frame; em seguida ambos os canvases são redesenhados.
-  useEffect(() => {
+  // As camadas progressivas existem enquanto o componente estiver montado; ao desmontar, o desenho em andamento é cancelado.
+  useLayoutEffect(() => {
     const base = baseCanvasRef.current;
+    const selection = selectionCanvasRef.current;
+
+    if (base === null || selection === null) {
+      return;
+    }
+
+    baseLayerRef.current = new ProgressiveLayer(base, (stats) => cadDiagnostics.reportFrame(stats));
+    selectionLayerRef.current = new ProgressiveLayer(selection);
+
+    return () => {
+      baseLayerRef.current?.dispose();
+      selectionLayerRef.current?.dispose();
+      baseLayerRef.current = null;
+      selectionLayerRef.current = null;
+    };
+  }, []);
+
+  // Redimensionar os canvases (que zera o bitmap e reaplica a escala do DPR) só acontece quando o tamanho muda,
+  // e não a cada frame; em seguida todas as camadas são redesenhadas.
+  useEffect(() => {
     const overlay = overlayCanvasRef.current;
 
-    if (base !== null) {
-      configureCanvasForDevicePixelRatio(base, screenSize);
-    }
+    baseLayerRef.current?.resize(screenSize);
+    selectionLayerRef.current?.resize(screenSize);
 
     if (overlay !== null) {
       configureCanvasForDevicePixelRatio(overlay, screenSize);
     }
 
     scheduleBaseDraw();
+    scheduleSelectionDraw();
     scheduleOverlayDraw();
-  }, [screenSize, scheduleBaseDraw, scheduleOverlayDraw]);
+  }, [screenSize, scheduleBaseDraw, scheduleSelectionDraw, scheduleOverlayDraw]);
 
-  // A base é repintada apenas quando o documento ou o viewport mudam (edição, pan, zoom).
-  useEffect(() => {
+  // A base é repintada apenas quando o documento ou o viewport mudam (edição, pan, zoom). O pedido é feito em
+  // useLayoutEffect para a transformação CSS de acompanhamento valer já no quadro em que o viewport mudou.
+  useLayoutEffect(() => {
     scheduleBaseDraw();
   }, [cad.document, cad.viewport, scheduleBaseDraw]);
 
-  // O overlay é repintado a cada interação (seleção, preview, snap) e também quando o documento/viewport mudam,
-  // pois o destaque de seleção e os grips seguem a geometria e o enquadramento.
+  // O destaque da seleção também é uma camada em cache: não é redesenhado a cada movimento do mouse.
+  useLayoutEffect(() => {
+    scheduleSelectionDraw();
+  }, [cad.document, cad.viewport, cad.selectedEntityIds, scheduleSelectionDraw]);
+
+  // O overlay (mira, grips, preview, snap) é leve e repintado a cada interação.
   useEffect(() => {
     scheduleOverlayDraw();
   }, [
@@ -174,13 +232,9 @@ export function CadCanvas({ cad }: CadCanvasProps) {
 
   useEffect(() => {
     return () => {
-      // Ao cancelar os frames pendentes é essencial zerar os refs: caso contrário, num remonte
+      // Ao cancelar o frame pendente é essencial zerar o ref: caso contrário, num remonte
       // (por exemplo o duplo-mount do StrictMode em dev) o agendador veria um id não-nulo e
       // abortaria o agendamento para sempre, deixando o canvas em branco.
-      if (baseFrameRef.current !== null) {
-        cancelAnimationFrame(baseFrameRef.current);
-        baseFrameRef.current = null;
-      }
       if (overlayFrameRef.current !== null) {
         cancelAnimationFrame(overlayFrameRef.current);
         overlayFrameRef.current = null;
@@ -412,6 +466,7 @@ export function CadCanvas({ cad }: CadCanvasProps) {
   return (
     <div ref={hostRef} className={`cad-canvas-host ${cad.activeTool === "zoomWindow" ? "zoom-window-mode" : ""}`}>
       <canvas ref={baseCanvasRef} className="cad-canvas cad-canvas-base" />
+      <canvas ref={selectionCanvasRef} className="cad-canvas cad-canvas-selection" />
       <canvas
         ref={overlayCanvasRef}
         className="cad-canvas cad-canvas-overlay"
@@ -524,20 +579,6 @@ function updateDraftField(
   return [draft[0], transform(draft[1])];
 }
 
-// A função desenha a camada base: grade e documento completo. É a etapa cara, executada só quando muda documento/viewport.
-function drawBaseLayer(canvas: HTMLCanvasElement, cad: CadStore, screenSize: ScreenSize): void {
-  const context = canvas.getContext("2d");
-
-  if (context === null) {
-    return;
-  }
-
-  context.clearRect(0, 0, screenSize.width, screenSize.height);
-  renderGrid2D(context, cad.viewport, screenSize);
-  const stats = renderDocument2D(context, cad.document, cad.viewport);
-  cadDiagnostics.reportFrame(stats);
-}
-
 // A função desenha a camada de overlay: destaque de seleção, grips de cota, preview e marcador de snap ativo.
 function drawOverlayLayer(canvas: HTMLCanvasElement, cad: CadStore, screenSize: ScreenSize): void {
   const context = canvas.getContext("2d");
@@ -557,7 +598,6 @@ function drawOverlayLayer(canvas: HTMLCanvasElement, cad: CadStore, screenSize: 
     renderCursorGuides2D(context, worldToScreen(cad.mouseWorld, cad.viewport), screenSize);
   }
 
-  renderSelectedEntities(context, cad);
   renderDimensionGrips2D(context, cad.document, cad.selectedEntityIds, cad.viewport);
   // Os grips das entidades só são editáveis na ferramenta Select; nas demais ferramentas eles não aparecem.
   if (cad.activeTool === "select") {
@@ -571,21 +611,27 @@ function drawOverlayLayer(canvas: HTMLCanvasElement, cad: CadStore, screenSize: 
   }
 }
 
-function renderSelectedEntities(context: CanvasRenderingContext2D, cad: CadStore): void {
-  const selectedEntities = cad.document.entities.filter((entity) => cad.selectedEntityIds.includes(entity.id));
+// Estilo do destaque da seleção: verde tracejado, sobrescrevendo cor, espessura e tipo de linha das entidades.
+const SELECTION_RENDER_STYLE = {
+  strokeColor: "#22c55e",
+  lineWidth: 2,
+  overrideStroke: true,
+  lineDash: [6, 4]
+} as const;
 
-  if (selectedEntities.length === 0) {
-    return;
+// As entidades selecionadas, na ordem do documento, memoizadas pelos arrays de entrada. A identidade estável do
+// resultado mantém o índice espacial da seleção em cache enquanto documento e seleção não mudam (pan e zoom).
+let selectedCache: Readonly<{ entities: ReadonlyArray<CadEntity>; ids: ReadonlyArray<string>; result: ReadonlyArray<CadEntity> }> | null = null;
+
+function selectedEntitiesOf(entities: ReadonlyArray<CadEntity>, ids: ReadonlyArray<string>): ReadonlyArray<CadEntity> {
+  if (selectedCache !== null && selectedCache.entities === entities && selectedCache.ids === ids) {
+    return selectedCache.result;
   }
 
-  context.save();
-  renderDocument2D(context, { ...cad.document, entities: selectedEntities }, cad.viewport, {
-    strokeColor: "#22c55e",
-    lineWidth: 2,
-    overrideStroke: true,
-    lineDash: [6, 4]
-  });
-  context.restore();
+  const wanted = new Set(ids);
+  const result = ids.length === 0 ? [] : entities.filter((entity) => wanted.has(entity.id));
+  selectedCache = { entities, ids, result };
+  return result;
 }
 
 function renderPreview(context: CanvasRenderingContext2D, cad: CadStore): void {

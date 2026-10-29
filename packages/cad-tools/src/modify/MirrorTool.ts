@@ -6,6 +6,7 @@ import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent
 import type { CadPreview, ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
+import { sampleGhostEntities } from "./ghostPreview";
 
 /**
  * Ferramenta responsável por espelhar as entidades selecionadas em torno de um eixo.
@@ -74,7 +75,7 @@ export class MirrorTool implements CadTool {
       return TOOL_RESULT_NONE;
     }
 
-    const preview: CadPreview = { type: "ghostEntities", entities: mirrored };
+    const preview: CadPreview = { type: "ghostEntities", entities: sampleGhostEntities(mirrored) };
     context.setPreview(preview);
     return { type: "preview", preview };
   }

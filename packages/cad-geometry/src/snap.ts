@@ -241,6 +241,65 @@ export function getIntersectionSnapCandidates(
   entityA: SnapEntity,
   entityB: SnapEntity,
   screenPoint: Point2D,
+  viewport: SnapViewport,
+  // Janela (mundo) em torno do cursor: só interseções dentro dela podem virar snap, então primitivas fora são ignoradas.
+  window?: SnapWindow
+): ReadonlyArray<SnapCandidate> {
+  return intersectionCandidatesFromPrimitives(
+    entityA,
+    windowedPrimitives(entityA, window),
+    entityB,
+    windowedPrimitives(entityB, window),
+    screenPoint,
+    viewport
+  );
+}
+
+// Máximo de testes primitiva×primitiva por consulta de snap de interseção (~dezenas de ms no pior caso).
+const MAX_INTERSECTION_TESTS = 250_000;
+
+export type SnapWindow = Readonly<{ minX: number; minY: number; maxX: number; maxY: number }>;
+
+// Primitivas da entidade que cruzam a janela (todas, quando não há janela). Segmentos e círculos são testados pelo envoltório.
+function windowedPrimitives(entity: SnapEntity, window: SnapWindow | undefined): ReadonlyArray<IntersectPrimitive> {
+  const primitives = snapEntityToPrimitives(entity);
+
+  if (window === undefined) {
+    return primitives;
+  }
+
+  return primitives.filter((primitive) => primitiveTouchesWindow(primitive, window));
+}
+
+function primitiveTouchesWindow(primitive: IntersectPrimitive, window: SnapWindow): boolean {
+  if (primitive.kind === "segment") {
+    return (
+      Math.min(primitive.a.x, primitive.b.x) <= window.maxX && Math.max(primitive.a.x, primitive.b.x) >= window.minX &&
+      Math.min(primitive.a.y, primitive.b.y) <= window.maxY && Math.max(primitive.a.y, primitive.b.y) >= window.minY
+    );
+  }
+
+  if (primitive.kind === "circle") {
+    return (
+      primitive.center.x - primitive.radius <= window.maxX && primitive.center.x + primitive.radius >= window.minX &&
+      primitive.center.y - primitive.radius <= window.maxY && primitive.center.y + primitive.radius >= window.minY
+    );
+  }
+
+  // Elipse: o círculo de raio igual ao maior semi-eixo contém a curva (teste conservador).
+  const reach = Math.max(primitive.ellipse.radiusX, primitive.ellipse.radiusY);
+  return (
+    primitive.ellipse.center.x - reach <= window.maxX && primitive.ellipse.center.x + reach >= window.minX &&
+    primitive.ellipse.center.y - reach <= window.maxY && primitive.ellipse.center.y + reach >= window.minY
+  );
+}
+
+function intersectionCandidatesFromPrimitives(
+  entityA: SnapEntity,
+  primitivesA: ReadonlyArray<IntersectPrimitive>,
+  entityB: SnapEntity,
+  primitivesB: ReadonlyArray<IntersectPrimitive>,
+  screenPoint: Point2D,
   viewport: SnapViewport
 ): ReadonlyArray<SnapCandidate> {
   const candidates: SnapCandidate[] = [];
@@ -248,9 +307,9 @@ export function getIntersectionSnapCandidates(
   // Spline contra outra geometria: a raiz é refinada na própria curva (bisseção), sem erro de corda.
   if ((entityA.type === "spline") !== (entityB.type === "spline")) {
     const spline = (entityA.type === "spline" ? entityA : entityB) as SnapSplineEntity;
-    const other = entityA.type === "spline" ? entityB : entityA;
+    const otherPrimitives = entityA.type === "spline" ? primitivesB : primitivesA;
 
-    for (const primitive of snapEntityToPrimitives(other)) {
+    for (const primitive of otherPrimitives) {
       for (const u of bezierChainIntersectionParams(spline.controlPoints, primitive)) {
         candidates.push(createSnapCandidate("intersection", evaluateBezierChain(spline.controlPoints, u), `${entityA.id}×${entityB.id}`, screenPoint, viewport));
       }
@@ -258,9 +317,6 @@ export function getIntersectionSnapCandidates(
 
     return candidates;
   }
-
-  const primitivesA = snapEntityToPrimitives(entityA);
-  const primitivesB = snapEntityToPrimitives(entityB);
 
   for (const primitiveA of primitivesA) {
     for (const primitiveB of primitivesB) {
@@ -607,15 +663,40 @@ export function findBestSnap(
   }
 
   if (settings.intersection) {
-    // A interseção é um snap entre pares de entidades; percorre cada par uma única vez.
-    for (let i = 0; i < entities.length; i += 1) {
+    // A interseção é um snap entre pares de entidades; percorre cada par uma única vez. Só interessam as primitivas
+    // dentro da tolerância do cursor (as demais gerariam candidatos fora do alcance), o que evita o custo quadrático
+    // de comparar todos os segmentos de polylines e splines longas entre si.
+    const reach = snapToleranceWorld(settings, viewport);
+    const window: SnapWindow = { minX: rawPoint.x - reach, minY: rawPoint.y - reach, maxX: rawPoint.x + reach, maxY: rawPoint.y + reach };
+    const primitives = entities.map((entity) => windowedPrimitives(entity, window));
+    // Orçamento de testes segmento×segmento: com o zoom muito aberto a janela cobre desenhos inteiros e o cálculo
+    // exato travaria a interface. As entidades chegam da mais próxima para a mais distante, então o corte descarta
+    // as menos relevantes (os demais snaps continuam valendo).
+    let remainingTests = MAX_INTERSECTION_TESTS;
+
+    outer: for (let i = 0; i < entities.length; i += 1) {
+      const primitivesA = primitives[i]!;
+
+      if (primitivesA.length === 0) {
+        continue;
+      }
+
       for (let j = i + 1; j < entities.length; j += 1) {
+        const primitivesB = primitives[j]!;
         const entityA = entities[i];
         const entityB = entities[j];
 
-        if (entityA !== undefined && entityB !== undefined) {
-          candidates.push(...getIntersectionSnapCandidates(entityA, entityB, screenPoint, viewport));
+        if (primitivesB.length === 0 || entityA === undefined || entityB === undefined) {
+          continue;
         }
+
+        remainingTests -= primitivesA.length * primitivesB.length;
+
+        if (remainingTests < 0) {
+          break outer;
+        }
+
+        candidates.push(...intersectionCandidatesFromPrimitives(entityA, primitivesA, entityB, primitivesB, screenPoint, viewport));
       }
     }
   }

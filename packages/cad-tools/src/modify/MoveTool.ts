@@ -1,4 +1,4 @@
-import { moveEntity, type CadEntity } from "@cad-web/cad-core";
+import { getEntityById, moveEntity, type CadEntity } from "@cad-web/cad-core";
 import { pointsNearlyEqual, subtractPoints, type Point2D } from "@cad-web/cad-geometry";
 import { moveEntitiesCommand } from "../commands/CadCommandTypes";
 import type { CadTool } from "../contracts/CadTool";
@@ -7,6 +7,7 @@ import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent
 import type { ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
+import { sampleGhostEntities } from "./ghostPreview";
 
 export class MoveTool implements CadTool {
   readonly id = "move";
@@ -59,7 +60,7 @@ export class MoveTool implements CadTool {
     const displacement = subtractPoints(point, this.basePoint);
     const preview = {
       type: "ghostEntities" as const,
-      entities: getSelectedEntities(context).map((entity) => moveEntity(entity, displacement))
+      entities: sampleGhostEntities(getSelectedEntities(context)).map((entity) => moveEntity(entity, displacement))
     };
 
     // A ferramenta entrega entidades fantasmas; o renderer decide como desenhar o preview.
@@ -107,7 +108,7 @@ export class MoveTool implements CadTool {
     );
 
     const validEntityIds = context.selection.entityIds.filter((id) => {
-      const entity = context.document.entities.find((e) => e.id === id);
+      const entity = getEntityById(context.document, id);
       return entity && !lockedLayerIds.has(entity.layerId || "layer_0");
     });
 

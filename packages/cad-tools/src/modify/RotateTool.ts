@@ -1,4 +1,4 @@
-import { rotateEntity, type CadEntity } from "@cad-web/cad-core";
+import { getEntityById, rotateEntity, type CadEntity } from "@cad-web/cad-core";
 import { pointsNearlyEqual, subtractPoints, visualDegreesToWorldRadians, type Point2D } from "@cad-web/cad-geometry";
 import { rotateEntitiesCommand } from "../commands/CadCommandTypes";
 import type { CadTool } from "../contracts/CadTool";
@@ -7,6 +7,7 @@ import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent
 import type { ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
+import { sampleGhostEntities } from "./ghostPreview";
 
 /**
  * Ferramenta responsável por rotacionar as entidades selecionadas em torno de um pivô.
@@ -77,7 +78,7 @@ export class RotateTool implements CadTool {
     
     const preview = {
       type: "ghostEntities" as const,
-      entities: getSelectedEntities(context).map((entity) => rotateEntity(entity, this.basePoint!, angleRadians))
+      entities: sampleGhostEntities(getSelectedEntities(context)).map((entity) => rotateEntity(entity, this.basePoint!, angleRadians))
     };
 
     // Atualiza preview na tela
@@ -127,7 +128,7 @@ export class RotateTool implements CadTool {
     );
 
     const validEntityIds = context.selection.entityIds.filter((id) => {
-      const entity = context.document.entities.find((e) => e.id === id);
+      const entity = getEntityById(context.document, id);
       return entity && !lockedLayerIds.has(entity.layerId || "layer_0");
     });
 

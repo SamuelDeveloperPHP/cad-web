@@ -6,7 +6,8 @@ import {
   rotateCadEntityAroundCenter,
   translateCadEntityWithoutRotation,
   type CadEntity,
-  type EntityId
+  type EntityId,
+  getEntityById
 } from "@cad-web/cad-core";
 import {
   buildPolarArrayAngles,
@@ -708,7 +709,7 @@ function filterSelectableIds(context: ToolContext, ids: ReadonlyArray<EntityId>)
       continue;
     }
 
-    const entity = context.document.entities.find((candidate) => candidate.id === id);
+    const entity = getEntityById(context.document, id);
 
     if (entity === undefined) {
       continue;

@@ -1,5 +1,6 @@
 import type { CadDocument } from "@cad-web/cad-core";
-import { parseCadDocument, serializeCadDocument } from "@cad-web/cad-io";
+import { createCadJsonChunks, parseCadDocument } from "@cad-web/cad-io";
+import { parseJsonDocument } from "./documentParser";
 
 // A chave legada em localStorage é mantida apenas para migração e como fallback quando não há IndexedDB.
 export const CAD_DOCUMENT_STORAGE_KEY = "cad-web:mvp-document";
@@ -163,7 +164,8 @@ export async function loadPersistedDocument(): Promise<CadDocument | null> {
     try {
       const raw = await idbGet(IDB_DOCUMENT_KEY);
       if (raw !== null) {
-        return parseCadDocument(raw);
+        // O JSON de um desenho grande é analisado em um Worker para não congelar a interface na abertura.
+        return await parseJsonDocument(raw);
       }
     } catch {
       // Falha no IndexedDB cai para o documento legado em localStorage.
@@ -173,10 +175,45 @@ export async function loadPersistedDocument(): Promise<CadDocument | null> {
   return loadStoredDocument();
 }
 
+// Fatia máxima (ms) de serialização contínua antes de devolver o controle à interface.
+const SERIALIZE_SLICE_MS = 8;
+
+// Devolve o controle ao navegador (entrada do usuário e desenho) antes de continuar o trabalho longo.
+function yieldToMain(): Promise<void> {
+  const scheduler = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler;
+
+  if (scheduler?.yield !== undefined) {
+    return scheduler.yield();
+  }
+
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+/**
+ * Serializa o documento em fatias de ~8 ms, cedendo o controle entre elas: o JSON de um desenho grande não vira
+ * uma tarefa longa que congela pan, zoom e digitação. O documento é imutável, então ceder no meio é seguro.
+ * Usa JSON compacto, menor e mais rápido de gravar e ler do que o exportado para arquivo.
+ */
+export async function serializeDocumentCooperatively(document: CadDocument): Promise<string> {
+  const parts: string[] = [];
+  let sliceStart = performance.now();
+
+  for (const chunk of createCadJsonChunks(document, { pretty: false })) {
+    parts.push(chunk);
+
+    if (performance.now() - sliceStart > SERIALIZE_SLICE_MS) {
+      await yieldToMain();
+      sliceStart = performance.now();
+    }
+  }
+
+  return parts.join("");
+}
+
 // A função persiste o documento no IndexedDB, escapando da cota de ~5MB do localStorage.
-// A serialização (potencialmente cara) fica fora do caminho de interação por acontecer no agendador com debounce.
+// A serialização é cooperativa e fica fora do caminho de interação por acontecer no agendador com debounce.
 export async function persistDocument(document: CadDocument): Promise<void> {
-  const serialized = serializeCadDocument(document);
+  const serialized = await serializeDocumentCooperatively(document);
 
   if (isIndexedDbAvailable()) {
     await idbPut(IDB_DOCUMENT_KEY, serialized);
@@ -221,6 +258,11 @@ export type DocumentPersister = Readonly<{
 }>;
 
 // A fábrica cria um gravador com debounce: agrupa rajadas de edições em uma única gravação assíncrona.
+// Em desenhos grandes a gravação é mais cara, então o debounce cresce com o tamanho para não competir com a edição.
+export function persistenceDelayMs(entityCount: number, baseDelayMs = 500): number {
+  return baseDelayMs + Math.min(4500, Math.floor(entityCount / 20));
+}
+
 export function createDocumentPersister(delayMs = 500): DocumentPersister {
   let timer: number | null = null;
   let pending: CadDocument | null = null;
@@ -246,7 +288,7 @@ export function createDocumentPersister(delayMs = 500): DocumentPersister {
       if (timer !== null) {
         window.clearTimeout(timer);
       }
-      timer = window.setTimeout(run, delayMs);
+      timer = window.setTimeout(run, persistenceDelayMs(document.entities.length, delayMs));
     },
     flush(): Promise<void> {
       if (timer !== null) {

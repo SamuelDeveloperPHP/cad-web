@@ -1,6 +1,6 @@
 import type { CadDocument } from "@cad-web/cad-core";
 import { clearCanvasLayer } from "./canvas";
-import { renderDocument2D } from "./entities";
+import { renderDocument2D } from "./renderJob";
 import { computeAdaptiveGrid, renderGrid2D } from "./grid";
 import type { CanvasLayerState, RenderStyle, ScreenSize, Viewport } from "./types";
 

@@ -1,3 +1,4 @@
+import { getEntityById } from "@cad-web/cad-core";
 import type { CadTool } from "../contracts/CadTool";
 import type { ToolContext } from "../contracts/ToolContext";
 import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent";
@@ -60,7 +61,7 @@ export class EraseTool implements CadTool {
     );
 
     const validEntityIds = context.selection.entityIds.filter((id) => {
-      const entity = context.document.entities.find((e) => e.id === id);
+      const entity = getEntityById(context.document, id);
       return entity && !lockedLayerIds.has(entity.layerId || "layer_0");
     });
 
