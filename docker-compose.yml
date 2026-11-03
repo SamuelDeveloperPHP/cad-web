@@ -1,0 +1,47 @@
+# Ambiente generico para subir o backend com PostgreSQL e Redis.
+# Funciona em qualquer host com Docker; o provedor final pode ser escolhido depois.
+#   docker compose up --build
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: cad
+      POSTGRES_PASSWORD: cad
+      POSTGRES_DB: cad_web
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U cad -d cad_web']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: '3333'
+      DATABASE_URL: postgres://cad:cad@db:5432/cad_web
+      REDIS_URL: redis://redis:6379
+      LOG_LEVEL: info
+      # Troque por um segredo forte e secreto em producao real.
+      JWT_SECRET: ${JWT_SECRET:-troque-este-segredo-em-producao-0123456789}
+    # Aplica as migrations e so entao sobe o servidor.
+    command: sh -c "node dist/db/migrate.js && node dist/server.js"
+    ports:
+      - '3333:3333'
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

@@ -1,0 +1,17 @@
+# Artefatos que nao devem entrar no contexto de build do Docker.
+node_modules
+**/node_modules
+dist
+**/dist
+dist-types
+**/dist-types
+*.tsbuildinfo
+.git
+.github
+.vscode
+coverage
+**/coverage
+*.log
+.env
+.env.*
+!.env.example

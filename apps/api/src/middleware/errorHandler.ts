@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { env } from '../env.js';
 
 // Trata erros nao capturados e devolve uma resposta JSON padronizada.
 // Mantem a assinatura de quatro argumentos que o Express exige para
@@ -9,10 +10,16 @@ export function errorHandler(
   res: Response,
   _next: NextFunction,
 ): void {
-  const message = err instanceof Error ? err.message : 'Erro interno inesperado';
-
-  // Registra o erro completo no servidor sem expor detalhes ao cliente.
+  // Registra o erro completo no servidor.
   console.error('[api] erro nao tratado:', err);
+
+  // Em producao, nao expoe detalhes internos ao cliente; so uma mensagem generica.
+  const message =
+    env.nodeEnv === 'production'
+      ? 'Erro interno inesperado'
+      : err instanceof Error
+        ? err.message
+        : 'Erro interno inesperado';
 
   res.status(500).json({ error: 'InternalServerError', message });
 }

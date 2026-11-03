@@ -56,7 +56,8 @@ export async function signToken(claims: TokenClaims, secret: string): Promise<st
 /** Valida um JWT e devolve as claims; lanca se invalido, adulterado ou expirado. */
 export async function verifyToken(token: string, secret: string): Promise<TokenClaims> {
   const key = new TextEncoder().encode(secret);
-  const { payload } = await jwtVerify(token, key);
+  // Fixa o algoritmo esperado para evitar ataques de confusao de algoritmo.
+  const { payload } = await jwtVerify(token, key, { algorithms: [JWT_ALG] });
 
   const sub = payload.sub;
   const tid = payload['tid'];

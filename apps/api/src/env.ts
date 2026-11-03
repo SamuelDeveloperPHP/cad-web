@@ -11,6 +11,10 @@ export interface AppEnv {
   readonly databaseUrl: string | undefined;
   /** Segredo usado para assinar os tokens JWT (obrigatorio para subir). */
   readonly jwtSecret: string | undefined;
+  /** Origens permitidas no CORS; ausente reflete a origem da requisicao. */
+  readonly corsOrigins: readonly string[] | undefined;
+  /** Nivel de log do pino (trace, debug, info, warn, error, fatal). */
+  readonly logLevel: string;
 }
 
 /** Le e valida as variaveis de ambiente, usando padroes de desenvolvimento. */
@@ -24,11 +28,21 @@ export function loadEnv(): AppEnv {
     throw new Error(`PORT invalida: "${rawPort}"`);
   }
 
+  // Aceita uma lista de origens separadas por virgula.
+  const corsRaw = process.env.CORS_ORIGINS;
+  const corsOrigins = corsRaw
+    ? corsRaw.split(',').map((origin) => origin.trim()).filter((origin) => origin.length > 0)
+    : undefined;
+
+  const logLevel = process.env.LOG_LEVEL ?? 'info';
+
   return {
     port,
     nodeEnv,
     databaseUrl: process.env.DATABASE_URL,
     jwtSecret: process.env.JWT_SECRET,
+    corsOrigins,
+    logLevel,
   };
 }
 
