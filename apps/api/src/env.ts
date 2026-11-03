@@ -7,6 +7,10 @@ export interface AppEnv {
   readonly port: number;
   /** Ambiente de execucao (development, test, production). */
   readonly nodeEnv: string;
+  /** String de conexao com o PostgreSQL (obrigatoria para subir o servidor). */
+  readonly databaseUrl: string | undefined;
+  /** Segredo usado para assinar os tokens JWT (obrigatorio para subir). */
+  readonly jwtSecret: string | undefined;
 }
 
 /** Le e valida as variaveis de ambiente, usando padroes de desenvolvimento. */
@@ -20,7 +24,12 @@ export function loadEnv(): AppEnv {
     throw new Error(`PORT invalida: "${rawPort}"`);
   }
 
-  return { port, nodeEnv };
+  return {
+    port,
+    nodeEnv,
+    databaseUrl: process.env.DATABASE_URL,
+    jwtSecret: process.env.JWT_SECRET,
+  };
 }
 
 /** Expoe uma instancia unica das configuracoes para uso em todo o backend. */
