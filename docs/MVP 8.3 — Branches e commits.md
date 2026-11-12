@@ -67,9 +67,17 @@ npx vitest run --root packages/cad-core   # diff.test.ts
 npx tsc -b
 ```
 
+## Complemento — UI de histórico (app web)
+
+`apps/web/src/components/cad/CadHistorySection.tsx` (dentro do painel Nuvem,
+quando há um desenho aberto): lista de branches, botões Commit e Branch, lista de
+commits (mensagem, autor, data), abrir um commit no editor (`importDocument`) e
+"ver mudanças" (diff vs. commit anterior usando `diffDocuments` do cad-core).
+`apiClient.ts` ganhou os métodos de branches/commits/checkout. Validado por um
+E2E de navegador (Chromium + PostgreSQL real): criar empresa → projeto → salvar
+→ commitar → ver o commit no histórico → diff `+1 / −0 / ~0`.
+
 ## Próximos passos
 
-- UI de histórico no app web: commitar, listar, abrir um commit, criar branch e
-  ver o diff (usando `diffDocuments`).
 - Merge requests e aprovação (MVP 8.4 / fase 8.3 do roadmap).
 - Diffs maiores: paginação do histórico e resumo de alterações por camada.

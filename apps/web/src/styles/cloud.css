@@ -256,3 +256,77 @@
   gap: 6px;
   margin-top: 4px;
 }
+
+/* Secao de historico (branches e commits). */
+.cad-hist-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.cad-hist-branches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.cad-hist-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 12px;
+  background: var(--cad-surface);
+  border: 1px solid var(--cad-border-soft);
+  border-radius: 999px;
+  color: var(--cad-text-muted);
+  cursor: pointer;
+}
+
+.cad-hist-branch.active {
+  background: var(--cad-active-bg);
+  border-color: var(--cad-active-border);
+  color: var(--cad-text-strong);
+}
+
+.cad-hist-commit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--cad-surface);
+  border: 1px solid var(--cad-border-soft);
+  border-radius: 6px;
+}
+
+.cad-hist-commit-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cad-hist-msg {
+  font-size: 13px;
+  color: var(--cad-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cad-hist-meta {
+  font-size: 11px;
+  color: var(--cad-text-muted);
+}
+
+.cad-hist-diff {
+  font-size: 11px;
+  color: var(--cad-accent-hover);
+  font-variant-numeric: tabular-nums;
+}
+
+.cad-hist-commit-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}

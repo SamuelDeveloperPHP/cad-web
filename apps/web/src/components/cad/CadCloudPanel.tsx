@@ -12,9 +12,10 @@ import {
   type ApiTenant,
   type ApiUser,
 } from "../../services/apiClient";
+import { CadHistorySection } from "./CadHistorySection";
 
 // Parte do store usada pelo painel: ler o documento atual e carregar outro.
-interface CloudPanelCad {
+export interface CloudPanelCad {
   document: CadDocument;
   importDocument(document: CadDocument, options?: Readonly<{ zoomToFit?: boolean }>): void;
 }
@@ -365,6 +366,15 @@ export function CadCloudPanel({ cad, open, onClose }: CadCloudPanelProps) {
                     </button>
                   </div>
                 </section>
+              )}
+
+              {currentDrawing !== null && (
+                <CadHistorySection
+                  cad={cad}
+                  drawingId={currentDrawing.id}
+                  onError={setError}
+                  onNotice={setNotice}
+                />
               )}
             </>
           )}

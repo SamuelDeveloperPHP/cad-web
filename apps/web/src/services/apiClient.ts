@@ -66,6 +66,35 @@ export interface AuthResponse {
   tenant: ApiTenant;
 }
 
+export interface ApiBranch {
+  id: string;
+  drawingId: string;
+  name: string;
+  headCommitId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiCommitMeta {
+  id: string;
+  parentId: string | null;
+  branchId: string;
+  message: string;
+  authorId: string | null;
+  authorEmail: string | null;
+  createdAt: string;
+}
+
+export interface ApiCommit {
+  id: string;
+  parentId: string | null;
+  branchId: string;
+  drawingId: string;
+  message: string;
+  document: Record<string, unknown>;
+  createdAt: string;
+}
+
 /** Erro de API com o status HTTP, para a interface decidir a mensagem. */
 export class ApiError extends Error {
   readonly status: number;
@@ -188,5 +217,47 @@ export const api = {
       body: { name, document },
       auth: true,
     });
+  },
+  listBranches(drawingId: string): Promise<{ branches: ApiBranch[] }> {
+    return apiFetch<{ branches: ApiBranch[] }>(`/api/v1/drawings/${drawingId}/branches`, {
+      auth: true,
+    });
+  },
+  createBranch(
+    drawingId: string,
+    name: string,
+    fromCommitId?: string,
+  ): Promise<{ branch: ApiBranch }> {
+    return apiFetch<{ branch: ApiBranch }>(`/api/v1/drawings/${drawingId}/branches`, {
+      method: "POST",
+      body: { name, fromCommitId },
+      auth: true,
+    });
+  },
+  createCommit(
+    drawingId: string,
+    branchId: string,
+    message: string,
+  ): Promise<{ commit: ApiCommitMeta }> {
+    return apiFetch<{ commit: ApiCommitMeta }>(`/api/v1/drawings/${drawingId}/commits`, {
+      method: "POST",
+      body: { branchId, message },
+      auth: true,
+    });
+  },
+  checkout(drawingId: string, commitId: string): Promise<{ drawing: ApiDrawing }> {
+    return apiFetch<{ drawing: ApiDrawing }>(`/api/v1/drawings/${drawingId}/checkout`, {
+      method: "POST",
+      body: { commitId },
+      auth: true,
+    });
+  },
+  listBranchCommits(branchId: string): Promise<{ commits: ApiCommitMeta[] }> {
+    return apiFetch<{ commits: ApiCommitMeta[] }>(`/api/v1/branches/${branchId}/commits`, {
+      auth: true,
+    });
+  },
+  getCommit(commitId: string): Promise<{ commit: ApiCommit }> {
+    return apiFetch<{ commit: ApiCommit }>(`/api/v1/commits/${commitId}`, { auth: true });
   },
 };
