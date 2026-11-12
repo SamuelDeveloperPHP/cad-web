@@ -330,3 +330,56 @@
   gap: 2px;
   flex-shrink: 0;
 }
+
+/* Secao de merge requests. */
+.cad-mr-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cad-mr-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--cad-surface);
+  border: 1px solid var(--cad-border-soft);
+  border-radius: 6px;
+}
+
+.cad-mr-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cad-mr-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.cad-mr-status {
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.03em;
+}
+
+.cad-mr-status.open {
+  color: var(--cad-accent-hover);
+}
+
+.cad-mr-status.approved {
+  color: var(--cad-success);
+}
+
+.cad-mr-status.merged {
+  color: var(--cad-text-strong);
+}
+
+.cad-mr-status.rejected {
+  color: var(--cad-danger);
+}

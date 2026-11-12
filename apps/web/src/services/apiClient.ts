@@ -95,6 +95,35 @@ export interface ApiCommit {
   createdAt: string;
 }
 
+export interface ApiMergeRequest {
+  id: string;
+  drawingId: string;
+  sourceBranchId: string;
+  targetBranchId: string;
+  title: string;
+  status: string;
+  authorId: string | null;
+  authorEmail?: string | null;
+  mergeCommitId: string | null;
+  createdAt: string;
+}
+
+export interface ApiReview {
+  id: string;
+  decision: string;
+  comment: string | null;
+  reviewerEmail: string | null;
+  createdAt: string;
+}
+
+export interface ApiMergeRequestDetail {
+  mergeRequest: ApiMergeRequest;
+  sourceHeadCommitId: string | null;
+  targetHeadCommitId: string | null;
+  baseCommitId: string | null;
+  reviews: ApiReview[];
+}
+
 /** Erro de API com o status HTTP, para a interface decidir a mensagem. */
 export class ApiError extends Error {
   readonly status: number;
@@ -259,5 +288,44 @@ export const api = {
   },
   getCommit(commitId: string): Promise<{ commit: ApiCommit }> {
     return apiFetch<{ commit: ApiCommit }>(`/api/v1/commits/${commitId}`, { auth: true });
+  },
+  listMergeRequests(drawingId: string): Promise<{ mergeRequests: ApiMergeRequest[] }> {
+    return apiFetch<{ mergeRequests: ApiMergeRequest[] }>(
+      `/api/v1/drawings/${drawingId}/merge-requests`,
+      { auth: true },
+    );
+  },
+  createMergeRequest(
+    drawingId: string,
+    body: { sourceBranchId: string; targetBranchId: string; title: string; description?: string },
+  ): Promise<{ mergeRequest: ApiMergeRequest }> {
+    return apiFetch<{ mergeRequest: ApiMergeRequest }>(
+      `/api/v1/drawings/${drawingId}/merge-requests`,
+      { method: "POST", body, auth: true },
+    );
+  },
+  getMergeRequest(id: string): Promise<ApiMergeRequestDetail> {
+    return apiFetch<ApiMergeRequestDetail>(`/api/v1/merge-requests/${id}`, { auth: true });
+  },
+  reviewMergeRequest(
+    id: string,
+    decision: "approved" | "rejected",
+    comment?: string,
+  ): Promise<{ status: string }> {
+    return apiFetch<{ status: string }>(`/api/v1/merge-requests/${id}/reviews`, {
+      method: "POST",
+      body: { decision, comment },
+      auth: true,
+    });
+  },
+  mergeMergeRequest(
+    id: string,
+    document: Record<string, unknown>,
+  ): Promise<{ mergeRequest: ApiMergeRequest }> {
+    return apiFetch<{ mergeRequest: ApiMergeRequest }>(`/api/v1/merge-requests/${id}/merge`, {
+      method: "POST",
+      body: { document },
+      auth: true,
+    });
   },
 };

@@ -13,6 +13,7 @@ import {
   type ApiUser,
 } from "../../services/apiClient";
 import { CadHistorySection } from "./CadHistorySection";
+import { CadMergeRequestsSection } from "./CadMergeRequestsSection";
 
 // Parte do store usada pelo painel: ler o documento atual e carregar outro.
 export interface CloudPanelCad {
@@ -370,6 +371,15 @@ export function CadCloudPanel({ cad, open, onClose }: CadCloudPanelProps) {
 
               {currentDrawing !== null && (
                 <CadHistorySection
+                  cad={cad}
+                  drawingId={currentDrawing.id}
+                  onError={setError}
+                  onNotice={setNotice}
+                />
+              )}
+
+              {currentDrawing !== null && (
+                <CadMergeRequestsSection
                   cad={cad}
                   drawingId={currentDrawing.id}
                   onError={setError}

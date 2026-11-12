@@ -63,9 +63,17 @@ npx vitest run --root packages/cad-core   # merge.test.ts
 npx tsc -b
 ```
 
+## Complemento — UI de merge requests (app web)
+
+`apps/web/src/components/cad/CadMergeRequestsSection.tsx` (no painel Nuvem, com um
+desenho aberto): formulário origem→destino + título, lista de MRs com estado,
+aprovar/rejeitar e mesclar. O merge roda no cliente com `mergeDocuments`: sem
+conflito envia o documento mesclado; com conflito, mostra a contagem e oferece
+"aceitar origem". `apiClient.ts` ganhou os métodos de MR. Validado por E2E de
+navegador (Chromium + PostgreSQL real): criar branch → abrir MR → aprovar →
+mesclar (commit de merge com dois pais no destino).
+
 ## Próximos passos
 
-- Complemento: UI de merge requests no app web (criar, revisar, mesclar com
-  resolução de conflitos).
 - RBAC: só revisores/coordenadores aprovam e mesclam.
 - Resolução de conflitos assistida (escolher lado por entidade).
