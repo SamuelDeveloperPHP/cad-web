@@ -1,4 +1,5 @@
 import type { CadDocument, CadEntity } from "./index";
+import { stableStringify } from "./jsonStable";
 
 /** Resultado da comparacao entre dois documentos, entidade a entidade (por id). */
 export type DocumentDiff = Readonly<{
@@ -6,22 +7,6 @@ export type DocumentDiff = Readonly<{
   removed: ReadonlyArray<CadEntity>;
   modified: ReadonlyArray<Readonly<{ before: CadEntity; after: CadEntity }>>;
 }>;
-
-// Serializa de forma estavel (chaves ordenadas) para comparar entidades sem
-// depender da ordem das propriedades no objeto.
-function stableStringify(value: unknown): string {
-  if (value === null || typeof value !== "object") {
-    return JSON.stringify(value) ?? "null";
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map(stableStringify).join(",")}]`;
-  }
-  const record = value as Record<string, unknown>;
-  const entries = Object.keys(record)
-    .sort()
-    .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`);
-  return `{${entries.join(",")}}`;
-}
 
 // Indexa as entidades pelo id para comparar os dois documentos em O(n).
 function entitiesById(entities: ReadonlyArray<CadEntity>): Map<string, CadEntity> {

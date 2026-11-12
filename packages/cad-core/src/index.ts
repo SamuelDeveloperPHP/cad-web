@@ -201,6 +201,12 @@ export type CadDocument = Readonly<{
 }>;
 
 export { diffDocuments, type DocumentDiff } from "./diff";
+export {
+  mergeDocuments,
+  type MergeResult,
+  type MergeConflict,
+  type MergeConflictKind,
+} from "./merge";
 
 export interface CadCommand {
   readonly id: string;

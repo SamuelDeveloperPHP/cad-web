@@ -86,6 +86,11 @@ npm run migrate -w @cad-web/api      # aplica as migrations no DATABASE_URL
 | POST   | `/api/v1/drawings/:id/checkout`     | sim | Restaura o documento para um commit    |
 | GET    | `/api/v1/branches/:id/commits`      | sim | Historico da branch (head -> raiz)     |
 | GET    | `/api/v1/commits/:id`               | sim | Commit com o documento (snapshot)      |
+| POST   | `/api/v1/drawings/:id/merge-requests` | sim | Abre um merge request (origem->destino) |
+| GET    | `/api/v1/drawings/:id/merge-requests` | sim | Lista os merge requests do desenho     |
+| GET    | `/api/v1/merge-requests/:id`        | sim | Detalhe do MR (heads, base/LCA, revisoes) |
+| POST   | `/api/v1/merge-requests/:id/reviews`| sim | Aprova ou rejeita o MR (auditoria)     |
+| POST   | `/api/v1/merge-requests/:id/merge`  | sim | Mescla: grava o commit de merge        |
 
 Autenticacao por `Authorization: Bearer <token>`. Tudo isolado por `tenant_id`.
 O corpo JSON tem limite por rota: 64 KB em auth, 256 KB em projetos e 25 MB em

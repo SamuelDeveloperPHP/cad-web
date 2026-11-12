@@ -11,6 +11,10 @@ import { drawingRoutes } from './modules/drawings/drawings.routes.js';
 import { drawingVersionRoutes } from './modules/versioning/drawingVersion.routes.js';
 import { branchRoutes } from './modules/versioning/branches.routes.js';
 import { commitRoutes } from './modules/versioning/commits.routes.js';
+import {
+  drawingMergeRequestRoutes,
+  mergeRequestRoutes,
+} from './modules/versioning/mergeRequests.routes.js';
 import { authenticate } from './middleware/authenticate.js';
 import { authRateLimiter, buildCors } from './middleware/security.js';
 import { notFound } from './middleware/notFound.js';
@@ -69,8 +73,10 @@ export function createApp(deps: AppDeps): Express {
   secure.use('/projects', projectRoutes(deps));
   secure.use('/drawings', drawingRoutes(deps));
   secure.use('/drawings', drawingVersionRoutes(deps));
+  secure.use('/drawings', drawingMergeRequestRoutes(deps));
   secure.use('/branches', branchRoutes(deps));
   secure.use('/commits', commitRoutes(deps));
+  secure.use('/merge-requests', mergeRequestRoutes(deps));
   v1.use(secure);
 
   app.use('/api/v1', v1);

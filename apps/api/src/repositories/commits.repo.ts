@@ -6,6 +6,7 @@ import { commits, users, type Commit } from '../db/schema.js';
 export interface CommitMeta {
   id: string;
   parentId: string | null;
+  mergeParentId: string | null;
   branchId: string;
   message: string;
   authorId: string | null;
@@ -18,6 +19,7 @@ export interface CreateCommitInput {
   drawingId: string;
   branchId: string;
   parentId: string | null;
+  mergeParentId?: string | null;
   authorId: string;
   message: string;
   document: Record<string, unknown>;
@@ -36,6 +38,7 @@ export async function createCommit(
       drawingId: input.drawingId,
       branchId: input.branchId,
       parentId: input.parentId,
+      mergeParentId: input.mergeParentId ?? null,
       authorId: input.authorId,
       message: input.message,
       document: input.document,
@@ -71,6 +74,7 @@ export async function listDrawingCommitMetas(
     .select({
       id: commits.id,
       parentId: commits.parentId,
+      mergeParentId: commits.mergeParentId,
       branchId: commits.branchId,
       message: commits.message,
       authorId: commits.authorId,
@@ -100,4 +104,62 @@ export function branchHistory(all: CommitMeta[], headCommitId: string | null): C
     current = current.parentId !== null ? byId.get(current.parentId) : undefined;
   }
   return chain;
+}
+
+// Ancestrais de um commit, seguindo parent e mergeParent (inclui o proprio).
+function ancestorsOf(byId: Map<string, CommitMeta>, startId: string): Set<string> {
+  const set = new Set<string>();
+  const stack = [startId];
+  while (stack.length > 0) {
+    const id = stack.pop();
+    if (id === undefined || set.has(id)) {
+      continue;
+    }
+    set.add(id);
+    const commit = byId.get(id);
+    if (commit?.parentId) {
+      stack.push(commit.parentId);
+    }
+    if (commit?.mergeParentId) {
+      stack.push(commit.mergeParentId);
+    }
+  }
+  return set;
+}
+
+/**
+ * Base de merge (ancestral comum mais proximo) entre dois commits, a partir dos
+ * metadados do desenho. BFS a partir de B: o primeiro ancestral de A encontrado
+ * e a base. Devolve null se nao houver base (ex.: uma das branches sem commits).
+ */
+export function findMergeBase(
+  all: CommitMeta[],
+  aId: string | null,
+  bId: string | null,
+): string | null {
+  if (aId === null || bId === null) {
+    return null;
+  }
+  const byId = new Map(all.map((commit) => [commit.id, commit]));
+  const ancestorsA = ancestorsOf(byId, aId);
+  const queue: string[] = [bId];
+  const seen = new Set<string>();
+  while (queue.length > 0) {
+    const id = queue.shift();
+    if (id === undefined || seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    if (ancestorsA.has(id)) {
+      return id;
+    }
+    const commit = byId.get(id);
+    if (commit?.parentId) {
+      queue.push(commit.parentId);
+    }
+    if (commit?.mergeParentId) {
+      queue.push(commit.mergeParentId);
+    }
+  }
+  return null;
 }
