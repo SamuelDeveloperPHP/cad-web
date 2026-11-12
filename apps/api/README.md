@@ -107,15 +107,17 @@ desenhos (documentos CAD sao grandes).
 
 ## Docker
 
-O `Dockerfile` (multi-stage) e o `docker-compose.yml` (na raiz do repo) sobem o
-backend com PostgreSQL e Redis, em qualquer host:
+O `docker-compose.yml` (na raiz do repo) sobe a **stack completa** — web (Nginx)
++ API + PostgreSQL + Redis — em qualquer host:
 
 ```bash
 docker compose up --build
-# aplica as migrations e sobe a API em http://127.0.0.1:3333
+# app em http://localhost:8080 ; a API aplica as migrations e sobe em :3333
 ```
 
-O build usa a raiz do monorepo como contexto (o workspace npm vive na raiz).
+O Nginx serve o SPA e faz proxy de `/api` para a API (mesma origem, sem CORS). O
+build usa a raiz do monorepo como contexto (o workspace npm vive na raiz). Para
+rodar so a API: `docker compose up --build api`.
 
 ## Proximos passos
 
