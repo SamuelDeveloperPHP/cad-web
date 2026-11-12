@@ -5,7 +5,8 @@
   background: rgba(0, 0, 0, 0.55);
   display: flex;
   justify-content: flex-end;
-  z-index: 50;
+  /* Acima de todo o chrome do app (ribbon, menus e paineis vao ate ~260). */
+  z-index: 1000;
 }
 
 .cad-cloud-panel {
