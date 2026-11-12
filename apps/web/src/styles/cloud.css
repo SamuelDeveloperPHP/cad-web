@@ -1,0 +1,257 @@
+/* Painel de desenhos na nuvem (integracao com o backend apps/api). */
+.cad-cloud-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 50;
+}
+
+.cad-cloud-panel {
+  width: 340px;
+  max-width: 92vw;
+  height: 100%;
+  background: var(--cad-panel-bg);
+  border-left: 1px solid var(--cad-border);
+  display: flex;
+  flex-direction: column;
+  color: var(--cad-text);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.4);
+}
+
+.cad-cloud-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--cad-border-soft);
+  background: var(--cad-panel-rail);
+}
+
+.cad-cloud-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--cad-text-strong);
+}
+
+.cad-cloud-icon {
+  background: transparent;
+  border: none;
+  color: var(--cad-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.cad-cloud-icon:hover {
+  color: var(--cad-text-strong);
+  background: var(--cad-surface);
+}
+
+.cad-cloud-body {
+  padding: 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cad-cloud-msg {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.cad-cloud-msg.error {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ffb4b4;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.cad-cloud-msg.notice {
+  background: rgba(34, 197, 94, 0.12);
+  color: #a6f3c3;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.cad-cloud-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cad-cloud-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.cad-cloud-tabs button {
+  flex: 1;
+  padding: 8px;
+  background: var(--cad-surface);
+  border: 1px solid var(--cad-border-soft);
+  color: var(--cad-text-muted);
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.cad-cloud-tabs button.active {
+  background: var(--cad-active-bg);
+  border-color: var(--cad-active-border);
+  color: var(--cad-text-strong);
+}
+
+.cad-cloud-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--cad-text-muted);
+}
+
+.cad-cloud-input {
+  height: var(--cad-control-height);
+  padding: 0 10px;
+  background: var(--cad-bg-dark);
+  border: 1px solid var(--cad-border);
+  border-radius: 6px;
+  color: var(--cad-text);
+  font-size: 14px;
+}
+
+.cad-cloud-input:focus {
+  outline: none;
+  border-color: var(--cad-accent);
+}
+
+.cad-cloud-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--cad-control-height);
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid var(--cad-border);
+  background: var(--cad-surface);
+  color: var(--cad-text);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.cad-cloud-btn:hover:not(:disabled) {
+  border-color: var(--cad-accent);
+}
+
+.cad-cloud-btn.primary {
+  background: var(--cad-primary);
+  border-color: var(--cad-primary);
+  color: #fff;
+}
+
+.cad-cloud-btn.primary:hover:not(:disabled) {
+  background: var(--cad-accent-hover);
+}
+
+.cad-cloud-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cad-cloud-account {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--cad-border-soft);
+}
+
+.cad-cloud-account em {
+  color: var(--cad-text-muted);
+  font-style: normal;
+}
+
+.cad-cloud-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: none;
+  color: var(--cad-accent-hover);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+.cad-cloud-ghost:hover:not(:disabled) {
+  background: var(--cad-surface);
+}
+
+.cad-cloud-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cad-cloud-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cad-cloud-section-head h3 {
+  margin: 0;
+  font-size: 13px;
+  color: var(--cad-text-strong);
+}
+
+.cad-cloud-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.cad-cloud-item {
+  text-align: left;
+  padding: 8px 10px;
+  background: var(--cad-surface);
+  border: 1px solid var(--cad-border-soft);
+  border-radius: 6px;
+  color: var(--cad-text);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.cad-cloud-item:hover {
+  border-color: var(--cad-accent);
+}
+
+.cad-cloud-item.active {
+  background: var(--cad-active-bg);
+  border-color: var(--cad-active-border);
+  color: var(--cad-text-strong);
+}
+
+.cad-cloud-empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--cad-text-muted);
+}
+
+.cad-cloud-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}

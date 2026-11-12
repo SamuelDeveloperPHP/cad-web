@@ -11,6 +11,7 @@ import { CadRibbon } from "./CadRibbon";
 import { CadRightPanel } from "./CadRightPanel";
 import { CadStatusBar } from "./CadStatusBar";
 import { CadTopMenu } from "./CadTopMenu";
+import { CadCloudPanel } from "./CadCloudPanel";
 
 type DisplayUnitInput = ConstructorParameters<typeof ChangeDisplayUnitCommand>[0];
 
@@ -32,6 +33,8 @@ export function CadEditor() {
   // Resumo da última importação DXF (o que entrou, o que foi ignorado e avisos), fechado pelo usuário.
   const [dxfReport, setDxfReport] = useState<Readonly<{ title: string; lines: ReadonlyArray<string>; error: boolean }> | null>(null);
   const cad = useCadStore();
+  // Controla a abertura do painel de desenhos na nuvem (backend).
+  const [cloudOpen, setCloudOpen] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -121,6 +124,7 @@ export function CadEditor() {
             downloadSvgDocument(cad.document);
           }
         }}
+        onCloud={() => setCloudOpen(true)}
         onUndo={cad.undo}
         onRedo={cad.redo}
       />
@@ -281,6 +285,8 @@ export function CadEditor() {
           {dxfReport.lines.map((line) => <p key={line}>{line}</p>)}
         </aside>
       )}
+
+      <CadCloudPanel cad={cad} open={cloudOpen} onClose={() => setCloudOpen(false)} />
     </section>
   );
 }
