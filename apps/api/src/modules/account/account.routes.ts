@@ -1,7 +1,6 @@
 import express from 'express';
 import type { Request, Response, Router } from 'express';
 import type { AppDeps } from '../../app.js';
-import { authenticate } from '../../middleware/authenticate.js';
 import {
   findTenantById,
   findUserById,
@@ -10,12 +9,12 @@ import {
   publicUser,
 } from '../../repositories/users.repo.js';
 
-/** Monta as rotas protegidas da conta autenticada: /me e /users. */
-export function accountRoutes({ db, jwtSecret }: AppDeps): Router {
+/**
+ * Monta as rotas da conta autenticada: /me e /users. Deve ser montada sob um
+ * router ja autenticado (a autenticacao e aplicada uma vez no app).
+ */
+export function accountRoutes({ db }: AppDeps): Router {
   const router = express.Router();
-
-  // Todas as rotas abaixo exigem um token valido.
-  router.use(authenticate(jwtSecret));
 
   // Devolve o usuario autenticado e a empresa dele.
   router.get('/me', async (req: Request, res: Response) => {

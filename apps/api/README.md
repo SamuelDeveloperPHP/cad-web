@@ -70,8 +70,20 @@ npm run migrate -w @cad-web/api      # aplica as migrations no DATABASE_URL
 | POST   | `/api/v1/auth/login`    | nao       | Autentica e devolve token                   |
 | GET    | `/api/v1/me`            | sim       | Usuario autenticado + empresa               |
 | GET    | `/api/v1/users`         | sim       | Usuarios da empresa (isolado por tenant)    |
+| POST   | `/api/v1/projects`                  | sim | Cria um projeto                        |
+| GET    | `/api/v1/projects`                  | sim | Lista os projetos da empresa           |
+| GET    | `/api/v1/projects/:id`              | sim | Detalha um projeto                     |
+| PATCH  | `/api/v1/projects/:id`              | sim | Renomeia um projeto                    |
+| DELETE | `/api/v1/projects/:id`              | sim | Remove um projeto (e seus desenhos)    |
+| POST   | `/api/v1/projects/:id/drawings`     | sim | Cria um desenho no projeto             |
+| GET    | `/api/v1/projects/:id/drawings`     | sim | Lista desenhos do projeto (sem document) |
+| GET    | `/api/v1/drawings/:id`              | sim | Le um desenho (com document)           |
+| PUT    | `/api/v1/drawings/:id`              | sim | Salva um desenho (document + nome)     |
+| DELETE | `/api/v1/drawings/:id`              | sim | Remove um desenho                      |
 
-Autenticacao por `Authorization: Bearer <token>`.
+Autenticacao por `Authorization: Bearer <token>`. Tudo isolado por `tenant_id`.
+O corpo JSON tem limite por rota: 64 KB em auth, 256 KB em projetos e 25 MB em
+desenhos (documentos CAD sao grandes).
 
 ## Seguranca (hardening)
 

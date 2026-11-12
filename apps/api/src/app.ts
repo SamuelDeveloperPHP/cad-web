@@ -6,6 +6,9 @@ import type { Logger } from 'pino';
 import { createHealthRouter } from './routes/health.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { accountRoutes } from './modules/account/account.routes.js';
+import { projectRoutes } from './modules/projects/projects.routes.js';
+import { drawingRoutes } from './modules/drawings/drawings.routes.js';
+import { authenticate } from './middleware/authenticate.js';
 import { authRateLimiter, buildCors } from './middleware/security.js';
 import { notFound } from './middleware/notFound.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -26,7 +29,8 @@ export interface AppDeps {
 /**
  * Monta a aplicacao Express com middlewares, seguranca e rotas, sem iniciar o
  * listen. Separar a criacao do app da escuta da porta permite testa-lo em
- * memoria, sem abrir uma conexao de rede.
+ * memoria, sem abrir uma conexao de rede. O corpo JSON e interpretado por
+ * router, com limites proprios (desenhos CAD aceitam ate 25 MB).
  */
 export function createApp(deps: AppDeps): Express {
   const app = express();
@@ -43,20 +47,26 @@ export function createApp(deps: AppDeps): Express {
   app.use(helmet());
   app.use(buildCors(deps.corsOrigins));
 
-  // Interpreta JSON com limite de tamanho, para conter payloads abusivos.
-  app.use(express.json({ limit: '1mb' }));
-
   // Saude (liveness/readiness), sem versionamento.
   app.use('/health', createHealthRouter(deps.db));
 
-  // API versionada do SaaS.
   const v1 = express.Router();
+
+  // Rotas publicas de autenticacao (com rate limit).
   if (deps.rateLimit ?? true) {
     v1.use('/auth', authRateLimiter(), authRoutes(deps));
   } else {
     v1.use('/auth', authRoutes(deps));
   }
-  v1.use('/', accountRoutes(deps));
+
+  // Rotas protegidas: exigem um token valido (autenticacao aplicada uma vez).
+  const secure = express.Router();
+  secure.use(authenticate(deps.jwtSecret));
+  secure.use('/', accountRoutes(deps));
+  secure.use('/projects', projectRoutes(deps));
+  secure.use('/drawings', drawingRoutes(deps));
+  v1.use(secure);
+
   app.use('/api/v1', v1);
 
   // Sempre por ultimo: rota inexistente e tratamento de erros.

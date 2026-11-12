@@ -14,6 +14,8 @@ import {
 /** Monta as rotas de autenticacao: registro e login. */
 export function authRoutes({ db, jwtSecret }: AppDeps): Router {
   const router = express.Router();
+  // Corpos de auth sao pequenos; limita para conter payloads abusivos.
+  router.use(express.json({ limit: '64kb' }));
 
   // Cria uma empresa e seu usuario administrador, devolvendo um token.
   router.post('/register', async (req, res) => {
