@@ -200,6 +200,8 @@ export type CadDocument = Readonly<{
   blocks?: ReadonlyArray<BlockDefinition>;
 }>;
 
+export { diffDocuments, type DocumentDiff } from "./diff";
+
 export interface CadCommand {
   readonly id: string;
   readonly type: string;

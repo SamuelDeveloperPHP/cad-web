@@ -6,6 +6,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 
 /** Empresas (tenants) do SaaS: a unidade de isolamento multiempresa. */
@@ -79,8 +80,68 @@ export const drawings = pgTable(
   ],
 );
 
+/** Branches de um desenho: ponteiros nomeados para o commit de cabeca (head). */
+export const branches = pgTable(
+  'branches',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    drawingId: uuid('drawing_id')
+      .notNull()
+      .references(() => drawings.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    // Aponta para o ultimo commit da branch; nulo enquanto nao houver commits.
+    // AnyPgColumn quebra o ciclo de tipos entre branches e commits (FK circular).
+    headCommitId: uuid('head_commit_id').references((): AnyPgColumn => commits.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex('branches_drawing_name_unique').on(table.drawingId, table.name),
+    index('branches_drawing_idx').on(table.drawingId),
+    index('branches_tenant_idx').on(table.tenantId),
+  ],
+);
+
+/** Commits: snapshot JSON imutavel do documento, com autor, mensagem e parent. */
+export const commits = pgTable(
+  'commits',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    drawingId: uuid('drawing_id')
+      .notNull()
+      .references(() => drawings.id, { onDelete: 'cascade' }),
+    branchId: uuid('branch_id')
+      .notNull()
+      .references(() => branches.id, { onDelete: 'cascade' }),
+    // Commit anterior na cadeia; nulo no primeiro commit. Auto-referencia.
+    parentId: uuid('parent_id').references((): AnyPgColumn => commits.id, { onDelete: 'set null' }),
+    authorId: uuid('author_id').references(() => users.id, { onDelete: 'set null' }),
+    message: text('message').notNull(),
+    document: jsonb('document').$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('commits_drawing_idx').on(table.drawingId),
+    index('commits_branch_idx').on(table.branchId),
+    index('commits_tenant_idx').on(table.tenantId),
+  ],
+);
+
 /** Tipos inferidos para uso nas camadas de servico e apresentacao. */
 export type Tenant = typeof tenants.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type Drawing = typeof drawings.$inferSelect;
+export type Branch = typeof branches.$inferSelect;
+export type Commit = typeof commits.$inferSelect;

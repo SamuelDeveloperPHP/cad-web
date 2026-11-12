@@ -1,6 +1,6 @@
 import { and, desc, eq } from 'drizzle-orm';
 import type { AppDatabase } from '../db/client.js';
-import { drawings, type Drawing } from '../db/schema.js';
+import { branches, drawings, type Drawing } from '../db/schema.js';
 
 /** Metadados de um desenho (sem o documento, para listagens leves). */
 export interface DrawingMeta {
@@ -24,19 +24,23 @@ export async function createDrawing(
   tenantId: string,
   input: CreateDrawingInput,
 ): Promise<Drawing> {
-  const [row] = await db
-    .insert(drawings)
-    .values({
-      tenantId,
-      projectId: input.projectId,
-      name: input.name,
-      document: input.document,
-    })
-    .returning();
-  if (!row) {
-    throw new Error('Falha ao criar o desenho');
-  }
-  return row;
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(drawings)
+      .values({
+        tenantId,
+        projectId: input.projectId,
+        name: input.name,
+        document: input.document,
+      })
+      .returning();
+    if (!row) {
+      throw new Error('Falha ao criar o desenho');
+    }
+    // Todo desenho nasce com a branch main (ainda sem commits).
+    await tx.insert(branches).values({ tenantId, drawingId: row.id, name: 'main' });
+    return row;
+  });
 }
 
 /** Lista os desenhos de um projeto, so com metadados (sem o documento). */

@@ -80,6 +80,12 @@ npm run migrate -w @cad-web/api      # aplica as migrations no DATABASE_URL
 | GET    | `/api/v1/drawings/:id`              | sim | Le um desenho (com document)           |
 | PUT    | `/api/v1/drawings/:id`              | sim | Salva um desenho (document + nome)     |
 | DELETE | `/api/v1/drawings/:id`              | sim | Remove um desenho                      |
+| GET    | `/api/v1/drawings/:id/branches`     | sim | Lista as branches do desenho           |
+| POST   | `/api/v1/drawings/:id/branches`     | sim | Cria uma branch (de um commit/head)    |
+| POST   | `/api/v1/drawings/:id/commits`      | sim | Commit: snapshot do documento atual    |
+| POST   | `/api/v1/drawings/:id/checkout`     | sim | Restaura o documento para um commit    |
+| GET    | `/api/v1/branches/:id/commits`      | sim | Historico da branch (head -> raiz)     |
+| GET    | `/api/v1/commits/:id`               | sim | Commit com o documento (snapshot)      |
 
 Autenticacao por `Authorization: Bearer <token>`. Tudo isolado por `tenant_id`.
 O corpo JSON tem limite por rota: 64 KB em auth, 256 KB em projetos e 25 MB em
