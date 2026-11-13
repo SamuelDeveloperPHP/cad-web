@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>NexoCAD — CAD 2D de engenharia na nuvem, com versionamento</title>
+  <meta name="description" content="NexoCAD é a sua prancheta digital: CAD 2D de alta performance no navegador, estilo AutoCAD, com camadas, blocos, DXF/SVG e versionamento tipo Git (branches, commits e merge requests).">
+  <meta name="theme-color" content="#0a0e15">
+  <link rel="canonical" href="https://nexocad.com.br/">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+
+  <!-- Open Graph / Twitter -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="NexoCAD">
+  <meta property="og:locale" content="pt_BR">
+  <meta property="og:url" content="https://nexocad.com.br/">
+  <meta property="og:title" content="NexoCAD — a sua prancheta digital">
+  <meta property="og:description" content="CAD 2D de engenharia no navegador, com versionamento tipo Git: branches, commits e merge requests. Alta performance para desenhos com dezenas de milhares de objetos.">
+  <meta property="og:image" content="https://nexocad.com.br/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="NexoCAD — a sua prancheta digital">
+  <meta name="twitter:description" content="CAD 2D de engenharia no navegador, com versionamento tipo Git. Alta performance e import/export DXF, SVG e JSON.">
+  <meta name="twitter:image" content="https://nexocad.com.br/og.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;450;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="/style.css">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "name": "NexoCAD",
+        "applicationCategory": "DesignApplication",
+        "applicationSubCategory": "CAD",
+        "operatingSystem": "Web",
+        "url": "https://nexocad.com.br/",
+        "description": "CAD 2D de engenharia no navegador, estilo AutoCAD, com camadas, blocos, import/export DXF, SVG e JSON, e versionamento tipo Git (branches, commits e merge requests).",
+        "inLanguage": "pt-BR",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "BRL" },
+        "featureList": [
+          "Desenho 2D estilo AutoCAD",
+          "Camadas, blocos e cotas",
+          "Snaps de precisão",
+          "Importação e exportação DXF, SVG e JSON",
+          "Alta performance com dezenas de milhares de objetos",
+          "Versionamento tipo Git: branches, commits e merge requests",
+          "SaaS multiempresa na nuvem"
+        ],
+        "publisher": { "@type": "Organization", "name": "NexoCore Tecnologia" }
+      },
+      {
+        "@type": "Organization",
+        "name": "NexoCore Tecnologia",
+        "legalName": "NexoCore Tecnologia",
+        "url": "https://nexocad.com.br/",
+        "slogan": "Sua prancheta digital",
+        "taxID": "35.173.557/0001-09",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "Rua Antônio Mendes de Siqueira, 246, Pinheirinho",
+          "addressLocality": "Curitiba",
+          "addressRegion": "PR",
+          "postalCode": "81870-220",
+          "addressCountry": "BR"
+        },
+        "contactPoint": {
+          "@type": "ContactPoint",
+          "contactType": "customer support",
+          "email": "contato@nexocoretecnologia.com.br",
+          "telephone": "+55-41-98888-5871",
+          "availableLanguage": ["Portuguese"]
+        }
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="/" aria-label="NexoCAD — início">
+      <svg class="logo" viewBox="0 0 32 32" fill="none" aria-hidden="true"><rect x="1.5" y="1.5" width="29" height="29" rx="7" stroke="#3d8bff" stroke-width="1.6"/><path d="M8 22 L16 8 L24 22" stroke="#3d8bff" stroke-width="1.8" stroke-linejoin="round"/><path d="M11 22 H21" stroke="#f2b73d" stroke-width="1.8" stroke-linecap="round"/><circle cx="16" cy="8" r="2.1" fill="#0a0e15" stroke="#3d8bff" stroke-width="1.6"/></svg>
+      <span>NexoCAD</span>
+    </a>
+    <div class="nav-spacer"></div>
+    <nav class="nav-links" id="navLinks" aria-label="Principal">
+      <a href="#ferramentas">Ferramentas</a>
+      <a href="#como">Como funciona</a>
+      <a href="#contato">Contato</a>
+    </nav>
+    <div class="nav-cta">
+      <a class="btn btn-wa hide-sm" href="https://wa.me/5541988885871?text=Ol%C3%A1%2C%20tenho%20interesse%20no%20NexoCAD" target="_blank" rel="noopener">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.7 4.8-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.1l-.3-.2-2.8.8.7-2.8-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.4-.7-1.7-.8-.2-.1-.4-.1-.5.1-.2.2-.6.8-.8 1-.1.1-.3.2-.5 0a6.7 6.7 0 0 1-2-1.2 7.4 7.4 0 0 1-1.4-1.7c-.1-.3 0-.4.1-.5l.4-.5c.1-.2.2-.3.2-.5s0-.3 0-.4l-.8-1.9c-.2-.5-.4-.4-.5-.5h-.5a.9.9 0 0 0-.7.3A2.8 2.8 0 0 0 5.5 10a4.9 4.9 0 0 0 1 2.6 11.2 11.2 0 0 0 4.3 3.8c.6.3 1.1.4 1.5.5a3.5 3.5 0 0 0 1.6.1c.5-.1 1.4-.6 1.6-1.1.2-.5.2-1 .1-1.1Z"/></svg>
+        WhatsApp
+      </a>
+      <a class="btn btn-primary" href="/entrar">Entrar</a>
+      <button class="nav-toggle" id="navToggle" aria-label="Abrir menu" aria-expanded="false">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="band hero">
+    <div class="wrap hero-inner">
+      <div class="hero-copy">
+        <span class="eyebrow">CAD 2D · ENGENHARIA · NUVEM</span>
+        <h1>A sua <span class="hl">prancheta digital</span> para projetos de engenharia.</h1>
+        <p class="sub">Desenhe no estilo AutoCAD, organize por empresa e projeto e versione cada desenho com branches, commits e merge requests — tudo no navegador, com alta performance para plantas com dezenas de milhares de objetos.</p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="/entrar">Entrar / Criar empresa</a>
+          <a class="btn btn-ghost" href="#ferramentas">Ver ferramentas</a>
+        </div>
+        <div class="hero-meta">
+          <span><b>50–70 mil</b> objetos fluidos</span>
+          <span><b>DXF</b> · SVG · JSON</span>
+          <span><b>Git-like</b> branches &amp; merge</span>
+          <span><b>Multiempresa</b> SaaS</span>
+        </div>
+      </div>
+      <div class="hero-art">
+        <div class="canvas-card">
+          <div class="canvas-bar">
+            <span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span>
+            <span class="tab">planta-baixa.nexocad · branch: main</span>
+            <span class="badge">● salvo</span>
+          </div>
+          <svg class="canvas-svg" viewBox="0 0 520 330" role="img" aria-label="Prévia do editor NexoCAD com geometria técnica e cotas">
+            <line x1="40" y1="300" x2="490" y2="300" stroke="#2e3a4e" stroke-width="1"/>
+            <line x1="40" y1="300" x2="40" y2="40" stroke="#2e3a4e" stroke-width="1"/>
+            <path d="M90 250 L90 120 L210 120 L210 90 L330 90 L330 250 Z" fill="rgba(61,139,255,.08)" stroke="#3d8bff" stroke-width="2" stroke-linejoin="round"/>
+            <circle cx="150" cy="200" r="26" fill="none" stroke="#53c08a" stroke-width="2"/>
+            <line x1="150" y1="200" x2="176" y2="200" stroke="#53c08a" stroke-width="1" stroke-dasharray="3 3"/>
+            <path d="M270 250 A40 40 0 0 1 270 170" fill="none" stroke="#c9792e" stroke-width="2"/>
+            <g font-family="IBM Plex Mono, monospace" font-size="11">
+              <line x1="90" y1="285" x2="330" y2="285" stroke="#5a6b84" stroke-width="1"/>
+              <path d="M90 281 l0 8 M330 281 l0 8" stroke="#5a6b84" stroke-width="1"/>
+              <rect x="182" y="277" width="46" height="16" fill="#0b1119"/>
+              <text x="205" y="289" text-anchor="middle" fill="#cdd6e3">2400</text>
+            </g>
+            <g font-family="IBM Plex Mono, monospace" font-size="11">
+              <line x1="352" y1="90" x2="352" y2="250" stroke="#5a6b84" stroke-width="1"/>
+              <path d="M348 90 l8 0 M348 250 l8 0" stroke="#5a6b84" stroke-width="1"/>
+              <rect x="340" y="162" width="26" height="16" fill="#0b1119"/>
+              <text x="365" y="174" text-anchor="middle" fill="#cdd6e3" transform="rotate(90 358 170)">1600</text>
+            </g>
+            <g stroke="#f2b73d" stroke-width="1">
+              <line x1="398" y1="70" x2="398" y2="260"/>
+              <line x1="300" y1="165" x2="470" y2="165"/>
+              <rect x="390" y="157" width="16" height="16" fill="none" stroke="#f2b73d"/>
+            </g>
+            <text x="404" y="150" font-family="IBM Plex Mono, monospace" font-size="10" fill="#f2b73d">398.0 , 1650.0</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section id="ferramentas"><div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">// FERRAMENTAS DISPONÍVEIS</span>
+      <h2>Um kernel CAD completo, no navegador</h2>
+      <p>Geometria de precisão, edição no estilo AutoCAD e entrada/saída em formatos abertos — tudo client-side, com desempenho de aplicação nativa.</p>
+    </div>
+    <div class="features">
+      <article class="feat"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 21l3-1 11-11-2-2L4 18l-1 3z"/><path d="M14 6l2 2" stroke-linecap="round"/><circle cx="19.5" cy="4.5" r="1.5"/></svg></div><h3>Desenho 2D</h3><p>Linha, arco, círculo, elipse e arco de elipse, retângulo, polyline, spline, texto e cotas associativas.</p></article>
+      <article class="feat"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 9V5h4M19 9V5h-4M5 15v4h4M19 15v4h-4" stroke-linecap="round" stroke-linejoin="round"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg></div><h3>Edição completa</h3><p>Move, rotate, scale, mirror, trim, extend, offset, fillet, chamfer, array e grips em todas as entidades.</p></article>
+      <article class="feat"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5M3 16.5l9 5 9-5" opacity=".55"/></svg></div><h3>Camadas e blocos</h3><p>Layers, estilos de cota, definição e inserção de blocos com escala e rotação, e explode de um nível.</p></article>
+      <article class="feat"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke-linecap="round"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg></div><h3>Snaps de precisão</h3><p>Endpoint, midpoint, center, quadrant, interseção, perpendicular e tangente, com entrada numérica e polar.</p></article>
+      <article class="feat"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v12m0 0l-4-4m4 4l4-4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 21h16" stroke-linecap="round"/></svg></div><h3>Import / Export</h3><p>JSON nativo com ida e volta exata, SVG de entrada e saída, e importação de DXF (R12 / 2000+).</p></article>
+      <article class="feat"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" stroke-linejoin="round"/></svg></div><h3>Alta performance</h3><p>50–70 mil objetos fluidos: índice espacial R-tree, render em lote por estilo e parsing em Web Workers.</p></article>
+      <article class="feat"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="6" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="9" r="2.4"/><path d="M6 8.4v7.2M8.4 6H14a2 2 0 0 1 2 2v1" stroke-linecap="round"/></svg></div><h3>Versionamento tipo Git</h3><p>Branches, commits imutáveis com autor e mensagem, e merge requests com merge 3-vias por entidade.</p></article>
+      <article class="feat"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M8 7h3M8 11h3M8 15h3M15 7h1M15 11h1M15 15h1" stroke-linecap="round"/></svg></div><h3>Multiempresa (SaaS)</h3><p>Cada empresa é isolada: usuários, projetos e desenhos separados, com salvar e abrir na nuvem.</p></article>
+    </div>
+  </div></section>
+
+  <div class="band band-alt"><section id="como"><div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">// COMO FUNCIONA</span>
+      <h2>Do cadastro à mesclagem, como um fluxo Git</h2>
+      <p>As regras de negócio seguem o modelo de versionamento de software, adaptado ao desenho de engenharia.</p>
+    </div>
+    <div class="steps">
+      <div class="step"><div class="n">01</div><h3>Crie a empresa</h3><p>O primeiro usuário vira admin. A conta é isolada das demais empresas.</p></div>
+      <div class="step"><div class="n">02</div><h3>Projetos e desenhos</h3><p>Organize desenhos dentro de projetos da sua empresa.</p></div>
+      <div class="step"><div class="n">03</div><h3>Desenhe e salve</h3><p>O editor roda no navegador; salve o desenho na nuvem quando quiser.</p></div>
+      <div class="step"><div class="n">04</div><h3>Versione</h3><p>Crie branches e commits — snapshots imutáveis a cada etapa do projeto.</p></div>
+      <div class="step"><div class="n">05</div><h3>Revise e mescle</h3><p>Abra um merge request, aprove e mescle com merge 3-vias no destino.</p></div>
+    </div>
+  </div></section></div>
+
+  <section><div class="wrap split">
+    <div>
+      <span class="eyebrow">// DESEMPENHO &amp; COLABORAÇÃO</span>
+      <h2 style="font-size:clamp(1.6rem,3vw,2.2rem); letter-spacing:-.02em; margin-top:14px">Feito para projetos reais, em equipe</h2>
+      <p class="muted" style="margin-top:14px; font-size:1.02rem">O kernel geométrico é modular e independente de framework, preparado para desenhos pesados e para trabalho colaborativo com histórico auditável.</p>
+      <ul class="ticks">
+        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Histórico auditável:</b> cada commit guarda autor, mensagem e o snapshot do documento.</span></li>
+        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Merge 3-vias por entidade:</b> conflitos detectados objeto a objeto, como no Git.</span></li>
+        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Unidades de trabalho</b> e convenção AutoCAD (Y para cima), com entrada direta de medidas.</span></li>
+      </ul>
+    </div>
+    <div>
+      <div class="stat-row">
+        <div class="stat"><div class="big">70k+</div><div class="lbl">objetos fluidos</div></div>
+        <div class="stat"><div class="big">3-vias</div><div class="lbl">merge por entidade</div></div>
+      </div>
+      <div class="stat-row">
+        <div class="stat"><div class="big">DXF</div><div class="lbl">R12 / 2000+</div></div>
+        <div class="stat"><div class="big">100%</div><div class="lbl">no navegador</div></div>
+      </div>
+    </div>
+  </div></section>
+
+  <section style="padding-top:0"><div class="wrap">
+    <div class="notice">
+      <div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div>
+        <h3>Seus dados, sua responsabilidade</h3>
+        <p>O NexoCAD <b>não realiza backup de nenhum dado</b> — nem dos desenhos na nuvem, nem dos arquivos que ficam salvos no seu computador. Ao usar a plataforma, você assume a responsabilidade por manter cópias de segurança (backups) dos seus projetos e arquivos. Recomendamos exportar e guardar backups regulares.</p>
+        <p class="mini">▲ AO ACEITAR OS TERMOS DE USO, VOCÊ CONCORDA COM ESTA CONDIÇÃO.</p>
+      </div>
+    </div>
+  </div></section>
+
+  <section id="contato"><div class="wrap">
+    <div class="contact">
+      <span class="eyebrow" style="justify-content:center">// CONTATO</span>
+      <h2 style="margin-top:14px">Vamos conversar sobre o seu projeto</h2>
+      <p>Tire dúvidas, peça uma demonstração ou fale sobre planos para a sua empresa. Respondemos pelo WhatsApp.</p>
+      <div class="actions">
+        <a class="btn btn-wa" href="https://wa.me/5541988885871?text=Ol%C3%A1%2C%20tenho%20interesse%20no%20NexoCAD" target="_blank" rel="noopener">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.7 4.8-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.1l-.3-.2-2.8.8.7-2.8-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.4-.7-1.7-.8-.2-.1-.4-.1-.5.1-.2.2-.6.8-.8 1-.1.1-.3.2-.5 0a6.7 6.7 0 0 1-2-1.2 7.4 7.4 0 0 1-1.4-1.7c-.1-.3 0-.4.1-.5l.4-.5c.1-.2.2-.3.2-.5s0-.3 0-.4l-.8-1.9c-.2-.5-.4-.4-.5-.5h-.5a.9.9 0 0 0-.7.3A2.8 2.8 0 0 0 5.5 10a4.9 4.9 0 0 0 1 2.6 11.2 11.2 0 0 0 4.3 3.8c.6.3 1.1.4 1.5.5a3.5 3.5 0 0 0 1.6.1c.5-.1 1.4-.6 1.6-1.1.2-.5.2-1 .1-1.1Z"/></svg>
+          Falar no WhatsApp
+        </a>
+        <span class="chip">📱 (41) 98888-5871</span>
+        <span class="chip">✉ contato@nexocoretecnologia.com.br</span>
+      </div>
+    </div>
+  </div></section>
+</main>
+
+<footer><div class="wrap">
+  <div class="foot-grid">
+    <div class="foot-brand">
+      <a class="brand" href="/" style="font-size:1.05rem"><svg class="logo" viewBox="0 0 32 32" fill="none" aria-hidden="true"><rect x="1.5" y="1.5" width="29" height="29" rx="7" stroke="#3d8bff" stroke-width="1.6"/><path d="M8 22 L16 8 L24 22" stroke="#3d8bff" stroke-width="1.8" stroke-linejoin="round"/><path d="M11 22 H21" stroke="#f2b73d" stroke-width="1.8" stroke-linecap="round"/></svg><span>NexoCAD</span></a>
+      <p>A sua prancheta digital. CAD 2D de alta performance para engenharia, com versionamento tipo Git. 100% no navegador.</p>
+    </div>
+    <div>
+      <h4>Produto</h4>
+      <a href="/#ferramentas">Ferramentas</a>
+      <a href="/#como">Como funciona</a>
+      <a href="/entrar">Entrar</a>
+      <a href="/entrar">Criar empresa</a>
+    </div>
+    <div>
+      <h4>Legal</h4>
+      <a href="/termos">Termos de Uso</a>
+      <a href="/privacidade">Política de Privacidade</a>
+      <a href="/privacidade">LGPD</a>
+    </div>
+    <div>
+      <h4>Contato</h4>
+      <a href="https://wa.me/5541988885871" target="_blank" rel="noopener">WhatsApp</a>
+      <a href="/#contato">Fale conosco</a>
+    </div>
+  </div>
+  <div class="foot-bottom">
+    <span>© <span id="year">2026</span> NexoCAD. Todos os direitos reservados.</span>
+    <span class="legal">NexoCAD é operado por NexoCore Tecnologia · CNPJ 35.173.557/0001-09</span>
+  </div>
+</div></footer>
+
+<script src="/site.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+# NexoCAD — https://nexocad.com.br
+# Buscadores e crawlers de IA são bem-vindos nas páginas públicas.
+User-agent: *
+Allow: /
+Disallow: /app
+Disallow: /api
+
+Sitemap: https://nexocad.com.br/sitemap.xml

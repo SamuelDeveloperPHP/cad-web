@@ -16,8 +16,11 @@ RUN npx tsc -b
 ENV VITE_API_URL=""
 RUN npm run build -w @cad-web/web
 
-# ---- Runner: Nginx servindo o SPA e fazendo proxy do /api ----
+# ---- Runner: Nginx servindo o site estatico (/) + o editor SPA (/app) + proxy /api ----
 FROM nginx:1.27-alpine AS runner
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
+# Site institucional estatico (landing, login, termos, privacidade, robots, sitemap) na raiz.
+COPY --from=builder /app/apps/web/site /usr/share/nginx/html
+# Editor (SPA) compilado com base /app/, servido sob /app.
+COPY --from=builder /app/apps/web/dist /usr/share/nginx/html/app
 EXPOSE 80
