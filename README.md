@@ -49,6 +49,13 @@ force uma recompilação limpa:
 npx tsc -b --force
 ```
 
+## Rodando com backend e Docker
+
+As seções acima cobrem apenas o app web (editor). Para rodar o **backend**
+(Node + Express + **PostgreSQL**) e a **stack completa em Docker**, veja
+[docs/Rodando localmente.md](docs/Rodando%20localmente.md) — com os três modos:
+só o editor, dev leve (Docker apenas para o Postgres) e stack completa.
+
 ## Scripts (raiz)
 
 | Comando             | O que faz                                                        |
