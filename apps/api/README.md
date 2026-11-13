@@ -112,7 +112,7 @@ O `docker-compose.yml` (na raiz do repo) sobe a **stack completa** — web (Ngin
 
 ```bash
 docker compose up --build
-# app em http://localhost:8080 ; a API aplica as migrations e sobe em :3333
+# app em http://localhost:8085 ; a API aplica as migrations e sobe em :3333
 ```
 
 O Nginx serve o SPA e faz proxy de `/api` para a API (mesma origem, sem CORS). O
