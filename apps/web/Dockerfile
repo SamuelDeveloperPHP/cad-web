@@ -7,6 +7,10 @@ FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 COPY . .
 RUN npm ci
+# O SPA importa os pacotes internos (@cad-web/cad-core etc.) pela saida
+# compilada (dist/), que o .dockerignore nao copia; compila o monorepo com
+# tsc -b antes de empacotar o SPA, senao o Vite nao resolve os pacotes.
+RUN npx tsc -b
 # Mesma origem: o SPA chama /api/v1/... e o Nginx faz proxy para a API, entao
 # a URL base fica vazia (sem apontar para um host fixo).
 ENV VITE_API_URL=""
