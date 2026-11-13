@@ -54,7 +54,9 @@ npx tsc -b --force
 As seções acima cobrem apenas o app web (editor). Para rodar o **backend**
 (Node + Express + **PostgreSQL**) e a **stack completa em Docker**, veja
 [docs/Rodando localmente.md](docs/Rodando%20localmente.md) — com os três modos:
-só o editor, dev leve (Docker apenas para o Postgres) e stack completa.
+só o editor, dev leve (Docker apenas para o Postgres) e stack completa. Na stack
+completa, o Nginx serve o **site institucional** (`apps/web/site/`: landing, login,
+termos, privacidade + SEO) na raiz e o **editor** em `/app`.
 
 ## Scripts (raiz)
 

@@ -16,7 +16,7 @@ mais completo — escolha conforme o que você quer fazer.
 | Serviço | Porta |
 | ------- | ----- |
 | Web (Vite, dev) | 5173 |
-| Web (Docker, Nginx) | 8085 |
+| Site + editor (Docker, Nginx) | 8085 — site em `/`, editor em `/app` |
 | API | 3333 |
 | PostgreSQL | 5432 |
 | Redis | 6379 |
@@ -119,8 +119,13 @@ precisa de Node instalado** — tudo compila dentro dos containers.
 docker compose up --build
 ```
 
-→ **http://localhost:8085**. A API aplica as migrations e sobe em `:3333`; o
-Nginx serve o app e faz **proxy de `/api`** para a API (mesma origem, sem CORS).
+→ **http://localhost:8085** abre o **site institucional** (landing, login, termos,
+privacidade); o **editor** fica em **http://localhost:8085/app** (ou clique em
+*Entrar*). A API aplica as migrations e sobe em `:3333`; o Nginx serve o site na
+raiz, o editor em `/app` e faz **proxy de `/api`** (mesma origem, sem CORS).
+
+> No **dev leve** (Modo 2), o Vite serve só o editor em `:5173/`; o site
+> institucional estático é servido junto apenas no Modo 3 (Docker).
 
 - Parar/limpar: `docker compose down` (o volume `pgdata` preserva os dados).
 - O **primeiro build demora alguns minutos** (instala dependências e compila web

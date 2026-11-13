@@ -1,0 +1,32 @@
+# NexoCAD
+
+> A sua prancheta digital: CAD 2D de alta performance para engenharia, executado no navegador, com versionamento tipo Git (branches, commits e merge requests). Operado por NexoCore Tecnologia.
+
+NexoCAD é um software CAD 2D (desenho técnico assistido por computador) em modelo SaaS multiempresa, voltado a empresas de engenharia. Roda inteiramente no navegador e trata o documento CAD como dado versionável.
+
+## O que oferece
+
+- Desenho 2D no estilo AutoCAD: linha, arco, círculo, elipse, retângulo, polyline, spline, texto e cotas associativas.
+- Edição: move, rotate, scale, mirror, trim, extend, offset, fillet, chamfer, array e grips em todas as entidades.
+- Camadas, estilos de cota e blocos (definição, inserção, explode).
+- Snaps de precisão: endpoint, midpoint, center, quadrant, interseção, perpendicular e tangente; entrada numérica e polar.
+- Importação e exportação: JSON nativo (ida e volta exata), SVG e importação de DXF (R12 e 2000+).
+- Alta performance: desenhos com 50 a 70 mil objetos fluidos (índice espacial R-tree, render em lote, Web Workers).
+- Versionamento tipo Git: branches, commits imutáveis (autor, mensagem, snapshot) e merge requests com merge 3-vias por entidade.
+- SaaS multiempresa: cada empresa tem usuários, projetos e desenhos isolados; salvar e abrir na nuvem.
+
+## Regra de dados importante
+
+A plataforma NÃO realiza backup de nenhum dado — nem dos dados na nuvem, nem dos arquivos locais no dispositivo do usuário. O usuário é responsável por manter seus próprios backups.
+
+## Páginas
+
+- Início: https://nexocad.com.br/
+- Entrar / criar empresa: https://nexocad.com.br/entrar
+- Termos de Uso: https://nexocad.com.br/termos
+- Política de Privacidade (LGPD): https://nexocad.com.br/privacidade
+
+## Contato
+
+- WhatsApp: +55 41 98888-5871
+- E-mail: contato@nexocoretecnologia.com.br
