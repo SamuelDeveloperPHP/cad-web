@@ -71,5 +71,5 @@ packages/
   cad-io/         import/export JSON e SVG
 apps/
   web/            aplicação React + Vite + Tailwind/shadcn
-  api/            backend Laravel (SaaS)
+  api/            backend Node.js + Express (SaaS)
 ```

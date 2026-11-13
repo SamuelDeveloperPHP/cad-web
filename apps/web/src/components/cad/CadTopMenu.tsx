@@ -1,4 +1,4 @@
-import { ChevronDown, FileDown, FilePlus2, FileUp, FolderOpen, Redo2, Save, Undo2 } from "lucide-react";
+import { ChevronDown, Cloud, FileDown, FilePlus2, FileUp, FolderOpen, Redo2, Save, Undo2 } from "lucide-react";
 
 type CadTopMenuProps = Readonly<{
   documentName: string;
@@ -10,6 +10,7 @@ type CadTopMenuProps = Readonly<{
   onImportSvg(): void;
   onImportDxf(): void;
   onExportSvg(): void;
+  onCloud(): void;
   onUndo(): void;
   onRedo(): void;
 }>;
@@ -75,6 +76,10 @@ export function CadTopMenu(props: CadTopMenuProps) {
             <button type="button" role="menuitem" onClick={props.onExportSvg}>Exportar SVG</button>
           </div>
         </div>
+        <span className="cad-qat-sep" />
+        <button className="cad-qat-btn" type="button" onClick={props.onCloud} title="Nuvem: salvar e abrir no servidor">
+          <Cloud size={17} />
+        </button>
         <span className="cad-qat-sep" />
         <button className="cad-qat-btn" type="button" onClick={props.onUndo} disabled={!props.canUndo} title="Desfazer">
           <Undo2 size={17} />
