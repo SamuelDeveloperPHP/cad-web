@@ -1,6 +1,7 @@
 import { createEmptyDocument, type CadDocument, type CadEntity } from "@cad-web/cad-core";
 import { describe, expect, it } from "vitest";
-import { cssFontFamily, renderDocument2D } from "./entities";
+import { cssFontFamily } from "./entities";
+import { renderDocument2D } from "./renderJob";
 
 type Call = Readonly<{ method: string; args: ReadonlyArray<unknown>; font: string; textAlign: string; fillStyle: unknown }>;
 

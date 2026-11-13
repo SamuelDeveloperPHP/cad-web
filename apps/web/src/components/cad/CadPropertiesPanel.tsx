@@ -146,7 +146,9 @@ import type { CadStore } from "../../state/useCadStore";
 
 export function CadPropertiesPanel({ cad }: { cad: CadStore }) {
   const selectedIds = cad.selectedEntityIds;
-  const entities = cad.document.entities.filter(e => selectedIds.includes(e.id));
+  // O conjunto evita o custo O(N·M) de includes() em seleções grandes.
+  const selectedIdSet = new Set(selectedIds);
+  const entities = cad.document.entities.filter(e => selectedIdSet.has(e.id));
   const layers = cad.document.layers;
 
   if (entities.length === 0) {

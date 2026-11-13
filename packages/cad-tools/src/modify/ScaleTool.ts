@@ -1,4 +1,4 @@
-import { scaleEntity, type CadEntity } from "@cad-web/cad-core";
+import { getEntityById, scaleEntity, type CadEntity } from "@cad-web/cad-core";
 import { CAD_EPSILON, distance, type Point2D } from "@cad-web/cad-geometry";
 import { scaleEntitiesCommand } from "../commands/CadCommandTypes";
 import type { CadTool } from "../contracts/CadTool";
@@ -7,6 +7,7 @@ import type { ToolKeyboardEvent, ToolPointerEvent } from "../contracts/ToolEvent
 import type { ToolResult } from "../contracts/ToolResult";
 import { TOOL_RESULT_NONE } from "../contracts/ToolResult";
 import { resolveSnappedPoint } from "../snaps/ObjectSnapService";
+import { sampleGhostEntities } from "./ghostPreview";
 
 export class ScaleTool implements CadTool {
   readonly id = "scale";
@@ -65,7 +66,7 @@ export class ScaleTool implements CadTool {
 
     const preview = {
       type: "ghostEntities" as const,
-      entities: getSelectedEntities(context).map((entity) => scaleEntity(entity, this.basePoint!, factor))
+      entities: sampleGhostEntities(getSelectedEntities(context)).map((entity) => scaleEntity(entity, this.basePoint!, factor))
     };
 
     context.setPreview(preview);
@@ -120,7 +121,7 @@ export class ScaleTool implements CadTool {
     );
 
     const validEntityIds = context.selection.entityIds.filter((id) => {
-      const entity = context.document.entities.find((e) => e.id === id);
+      const entity = getEntityById(context.document, id);
       return entity && !lockedLayerIds.has(entity.layerId || "layer_0");
     });
 

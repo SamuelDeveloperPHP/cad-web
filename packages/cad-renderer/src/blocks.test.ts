@@ -1,6 +1,6 @@
 import { createEmptyDocument, type BlockDefinition, type CadDocument, type CadEntity } from "@cad-web/cad-core";
 import { describe, expect, it } from "vitest";
-import { renderDocument2D } from "./entities";
+import { renderDocument2D } from "./renderJob";
 
 // Canvas simulado: registra os segmentos desenhados (moveTo/lineTo) e a cor de traço no momento de cada stroke.
 function createRecordingContext() {
