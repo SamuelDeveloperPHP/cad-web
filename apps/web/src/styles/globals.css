@@ -333,8 +333,9 @@ button {
   z-index: 180;
   display: flex;
   align-items: stretch;
+  flex-wrap: wrap;
+  row-gap: 8px;
   min-height: 92px;
-  height: 92px;
   overflow: visible;
   gap: 8px;
   padding: 7px 10px 5px;
