@@ -133,31 +133,49 @@
             <span class="tab">planta-baixa.nexocad · branch: main</span>
             <span class="badge">● salvo</span>
           </div>
-          <svg class="canvas-svg" viewBox="0 0 520 330" role="img" aria-label="Prévia do editor NexoCAD com geometria técnica e cotas">
-            <line x1="40" y1="300" x2="490" y2="300" stroke="#2e3a4e" stroke-width="1"/>
-            <line x1="40" y1="300" x2="40" y2="40" stroke="#2e3a4e" stroke-width="1"/>
-            <path d="M90 250 L90 120 L210 120 L210 90 L330 90 L330 250 Z" fill="rgba(61,139,255,.08)" stroke="#3d8bff" stroke-width="2" stroke-linejoin="round"/>
-            <circle cx="150" cy="200" r="26" fill="none" stroke="#53c08a" stroke-width="2"/>
-            <line x1="150" y1="200" x2="176" y2="200" stroke="#53c08a" stroke-width="1" stroke-dasharray="3 3"/>
-            <path d="M270 250 A40 40 0 0 1 270 170" fill="none" stroke="#c9792e" stroke-width="2"/>
-            <g font-family="IBM Plex Mono, monospace" font-size="11">
+          <svg class="canvas-svg" viewBox="0 0 520 330" role="img" aria-label="Prévia animada do editor NexoCAD: a geometria técnica e as cotas sendo desenhadas, com o cursor de snap percorrendo os vértices">
+            <!-- eixos do desenho -->
+            <g class="cv-ax">
+              <line x1="40" y1="300" x2="490" y2="300" stroke="#2e3a4e" stroke-width="1"/>
+              <line x1="40" y1="300" x2="40" y2="40" stroke="#2e3a4e" stroke-width="1"/>
+            </g>
+            <!-- contorno da planta: preenchimento + traço que se desenha -->
+            <path class="cv-wall-fill" d="M90 250 L90 120 L210 120 L210 90 L330 90 L330 250 Z" fill="rgba(61,139,255,.08)" stroke="none"/>
+            <path class="cv-wall" pathLength="1" d="M90 250 L90 120 L210 120 L210 90 L330 90 L330 250 Z" fill="none" stroke="#3d8bff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+            <!-- coluna -->
+            <circle class="cv-col" pathLength="1" cx="150" cy="200" r="26" fill="none" stroke="#53c08a" stroke-width="2"/>
+            <line class="cv-col-tick" x1="150" y1="200" x2="176" y2="200" stroke="#53c08a" stroke-width="1" stroke-dasharray="3 3"/>
+            <!-- arco (abertura de porta) -->
+            <path class="cv-arc" pathLength="1" d="M270 250 A40 40 0 0 1 270 170" fill="none" stroke="#c9792e" stroke-width="2"/>
+            <!-- cota horizontal -->
+            <g class="cv-dim d1" font-family="IBM Plex Mono, monospace" font-size="11">
               <line x1="90" y1="285" x2="330" y2="285" stroke="#5a6b84" stroke-width="1"/>
               <path d="M90 281 l0 8 M330 281 l0 8" stroke="#5a6b84" stroke-width="1"/>
               <rect x="182" y="277" width="46" height="16" fill="#0b1119"/>
               <text x="205" y="289" text-anchor="middle" fill="#cdd6e3">2400</text>
             </g>
-            <g font-family="IBM Plex Mono, monospace" font-size="11">
+            <!-- cota vertical -->
+            <g class="cv-dim d2" font-family="IBM Plex Mono, monospace" font-size="11">
               <line x1="352" y1="90" x2="352" y2="250" stroke="#5a6b84" stroke-width="1"/>
               <path d="M348 90 l8 0 M348 250 l8 0" stroke="#5a6b84" stroke-width="1"/>
               <rect x="340" y="162" width="26" height="16" fill="#0b1119"/>
               <text x="365" y="174" text-anchor="middle" fill="#cdd6e3" transform="rotate(90 358 170)">1600</text>
             </g>
-            <g stroke="#f2b73d" stroke-width="1">
-              <line x1="398" y1="70" x2="398" y2="260"/>
-              <line x1="300" y1="165" x2="470" y2="165"/>
-              <rect x="390" y="157" width="16" height="16" fill="none" stroke="#f2b73d"/>
+            <!-- nós de snap nos vértices -->
+            <g class="cv-nodes" fill="none" stroke="#f2b73d" stroke-width="1.4">
+              <rect class="cv-node" x="86" y="116" width="8" height="8"/>
+              <rect class="cv-node" x="206" y="116" width="8" height="8"/>
+              <rect class="cv-node" x="206" y="86" width="8" height="8"/>
+              <rect class="cv-node" x="326" y="86" width="8" height="8"/>
             </g>
-            <text x="404" y="150" font-family="IBM Plex Mono, monospace" font-size="10" fill="#f2b73d">398.0 , 1650.0</text>
+            <!-- cursor de snap que percorre os vértices -->
+            <g class="cv-cursor">
+              <line class="cv-xh" x1="0" y1="-320" x2="0" y2="320" stroke="#f2b73d" stroke-width="1" opacity=".5"/>
+              <line class="cv-xh" x1="-520" y1="0" x2="520" y2="0" stroke="#f2b73d" stroke-width="1" opacity=".5"/>
+              <circle class="cv-snap" r="7" fill="none" stroke="#f2b73d" stroke-width="1.6"/>
+              <rect x="-5" y="-5" width="10" height="10" fill="none" stroke="#f2b73d" stroke-width="1.4"/>
+              <text class="cv-tag" x="11" y="-9" font-family="IBM Plex Mono, monospace" font-size="10" fill="#f2b73d">SNAP</text>
+            </g>
           </svg>
         </div>
       </div>
