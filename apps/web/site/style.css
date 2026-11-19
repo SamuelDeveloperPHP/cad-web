@@ -71,7 +71,42 @@ header.nav{position:sticky; top:0; z-index:30; backdrop-filter:blur(10px); backg
 .dot{width:10px; height:10px; border-radius:50%}
 .canvas-bar .tab{margin-left:10px; font-family:var(--mono); font-size:.72rem; color:var(--muted)}
 .canvas-bar .badge{margin-left:auto; font-family:var(--mono); font-size:.66rem; color:var(--accent); border:1px solid var(--line-2); padding:3px 8px; border-radius:20px}
-.canvas-svg{display:block; width:100%; height:auto; background:linear-gradient(var(--grid) 1px,transparent 1px) 0 0/22px 22px,linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/22px 22px, #0b1119}
+.canvas-svg{display:block; width:100%; height:auto; overflow:hidden; background:linear-gradient(var(--grid) 1px,transparent 1px) 0 0/22px 22px,linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/22px 22px, #0b1119}
+
+/* hero — o desenho "se construindo" (uma vez) + cursor de snap percorrendo os
+   vértices (contínuo). Tudo em SVG + CSS, sem JS. O estado-base de cada elemento
+   e o desenho COMPLETO; as animacoes apenas partem do estado oculto e revelam,
+   entao com prefers-reduced-motion (que zera animation abaixo) o SVG ja aparece
+   pronto e estatico, sem sumir. */
+@keyframes cvDraw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+@keyframes cvFade{from{opacity:0}to{opacity:1}}
+@keyframes cvTwinkle{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes cvSnap{0%{transform:scale(.5);opacity:.9}70%,100%{transform:scale(1.9);opacity:0}}
+@keyframes cvCursor{
+  0%{transform:translate(96px,120px);opacity:0}
+  5%{opacity:1}
+  16%{transform:translate(96px,120px)}
+  28%{transform:translate(210px,120px)}
+  40%{transform:translate(210px,120px)}
+  52%{transform:translate(210px,90px)}
+  64%{transform:translate(210px,90px)}
+  76%{transform:translate(330px,90px)}
+  90%{transform:translate(330px,90px);opacity:1}
+  96%{opacity:0}
+  100%{transform:translate(330px,90px);opacity:0}
+}
+.cv-ax{opacity:1; animation:cvFade .6s ease .1s both}
+.cv-wall-fill{opacity:1; animation:cvFade .7s ease 1.9s both}
+.cv-wall{stroke-dasharray:1; stroke-dashoffset:0; animation:cvDraw 1.5s ease .5s both}
+.cv-col{stroke-dasharray:1; stroke-dashoffset:0; animation:cvDraw .8s ease 1.7s both}
+.cv-col-tick{opacity:1; animation:cvFade .4s ease 2.35s both}
+.cv-arc{stroke-dasharray:1; stroke-dashoffset:0; animation:cvDraw .8s ease 2s both}
+.cv-dim{opacity:1}
+.cv-dim.d1{animation:cvFade .6s ease 2.5s both}
+.cv-dim.d2{animation:cvFade .6s ease 2.85s both}
+.cv-node{opacity:1; animation:cvFade .5s ease 3.1s both, cvTwinkle 3.4s ease-in-out 3.7s infinite}
+.cv-cursor{transform-box:view-box; transform:translate(330px,90px); opacity:1; animation:cvCursor 8s cubic-bezier(.65,0,.35,1) 2.4s infinite both}
+.cv-snap{transform-box:fill-box; transform-origin:center; animation:cvSnap 1.6s ease-out 2.6s infinite both}
 
 /* sections */
 section{padding-block:72px}
