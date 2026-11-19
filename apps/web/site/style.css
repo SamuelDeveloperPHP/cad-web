@@ -107,6 +107,21 @@ header.nav{position:sticky; top:0; z-index:30; backdrop-filter:blur(10px); backg
 .cv-node{opacity:1; animation:cvFade .5s ease 3.1s both, cvTwinkle 3.4s ease-in-out 3.7s infinite}
 .cv-cursor{transform-box:view-box; transform:translate(330px,90px); opacity:1; animation:cvCursor 8s cubic-bezier(.65,0,.35,1) 2.4s infinite both}
 .cv-snap{transform-box:fill-box; transform-origin:center; animation:cvSnap 1.6s ease-out 2.6s infinite both}
+/* variante do cursor para o card compacto do login (/entrar) */
+@keyframes cvCursor2{
+  0%{transform:translate(76px,60px);opacity:0}
+  6%{opacity:1}
+  18%{transform:translate(76px,60px)}
+  34%{transform:translate(250px,60px)}
+  48%{transform:translate(250px,60px)}
+  62%{transform:translate(250px,44px)}
+  76%{transform:translate(250px,44px)}
+  88%{transform:translate(430px,44px);opacity:1}
+  95%{opacity:0}
+  100%{transform:translate(430px,44px);opacity:0}
+}
+.cv-cursor2{transform-box:view-box; transform:translate(430px,44px); opacity:1; animation:cvCursor2 8s cubic-bezier(.65,0,.35,1) 2.4s infinite both}
+.auth-canvas{max-width:400px; margin-top:28px; animation:cvFade .6s ease .15s both}
 
 /* sections */
 section{padding-block:72px}
