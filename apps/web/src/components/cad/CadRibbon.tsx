@@ -43,7 +43,7 @@ import {
   Waves,
   type LucideIcon
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { ActiveCadTool } from "../../state/useCadStore";
 
 type CadRibbonProps = Readonly<{
@@ -77,6 +77,16 @@ type RibbonAction = Readonly<{
   onSelect(): void;
   title?: string;
 }>;
+
+type RibbonTabId = "inicio" | "anotar" | "inserir" | "precisao" | "arquivo";
+
+const ribbonTabs: ReadonlyArray<Readonly<{ id: RibbonTabId; label: string }>> = [
+  { id: "inicio", label: "Início" },
+  { id: "anotar", label: "Anotar" },
+  { id: "inserir", label: "Inserir" },
+  { id: "precisao", label: "Precisão" },
+  { id: "arquivo", label: "Arquivo" }
+];
 
 const selectTool: RibbonTool = { id: "select", label: "Select", icon: MousePointer2 };
 
@@ -143,6 +153,8 @@ const dimensionTools: ReadonlyArray<RibbonTool> = [
 ];
 
 export function CadRibbon(props: CadRibbonProps) {
+  const [activeTab, setActiveTab] = useState<RibbonTabId>("inicio");
+
   const importActions: ReadonlyArray<RibbonAction> = [
     { label: "JSON", icon: Download, onSelect: props.onImport, title: "Importar JSON" },
     { label: "SVG", icon: Download, onSelect: props.onImportSvg, title: "Importar SVG" },
@@ -154,125 +166,138 @@ export function CadRibbon(props: CadRibbonProps) {
   ];
 
   return (
-    <nav className="cad-ribbon" aria-label="Ribbon CAD">
-      <RibbonGroup title="Selecionar">
-        <RibbonToolButton tool={selectTool} activeTool={props.activeTool} onToolChange={props.onToolChange} />
-      </RibbonGroup>
-
-      <RibbonGroup title="Desenhar">
-        {drawPrimaryTools.map((tool) => (
-          <RibbonToolButton key={tool.id} tool={tool} activeTool={props.activeTool} onToolChange={props.onToolChange} />
+    <div className="cad-ribbon-shell">
+      <div className="cad-ribbon-tabs" role="tablist" aria-label="Abas de ferramentas">
+        {ribbonTabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            className={`cad-ribbon-tab ${activeTab === tab.id ? "active" : ""}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
         ))}
-        <RibbonToolMenu
-          tools={curveTools}
-          fallbackLabel="Curvas"
-          fallbackIcon={Ellipse}
-          activeTool={props.activeTool}
-          onToolChange={props.onToolChange}
-        />
-      </RibbonGroup>
+      </div>
 
-      <RibbonGroup title="Transformar">
-        {transformTools.map((tool) => (
-          <RibbonToolButton key={tool.id} tool={tool} activeTool={props.activeTool} onToolChange={props.onToolChange} />
-        ))}
-      </RibbonGroup>
+      <nav className="cad-ribbon" aria-label="Ferramentas CAD">
+        {activeTab === "inicio" && (
+          <>
+            <RibbonGroup title="Selecionar">
+              <RibbonToolButton tool={selectTool} activeTool={props.activeTool} onToolChange={props.onToolChange} />
+            </RibbonGroup>
 
-      <RibbonGroup title="Modificar">
-        {modifyTools.map((tool) => (
-          <RibbonToolButton key={tool.id} tool={tool} activeTool={props.activeTool} onToolChange={props.onToolChange} />
-        ))}
-        <RibbonToolMenu
-          tools={arrayTools}
-          fallbackLabel="Array"
-          fallbackIcon={Grid3X3}
-          activeTool={props.activeTool}
-          onToolChange={props.onToolChange}
-        />
-        {modifyExtraTools.map((tool) => (
-          <RibbonToolButton key={tool.id} tool={tool} activeTool={props.activeTool} onToolChange={props.onToolChange} />
-        ))}
-      </RibbonGroup>
+            <RibbonGroup title="Desenhar">
+              {drawPrimaryTools.map((tool) => (
+                <RibbonToolButton key={tool.id} tool={tool} activeTool={props.activeTool} onToolChange={props.onToolChange} />
+              ))}
+              <RibbonToolMenu tools={curveTools} fallbackLabel="Curvas" fallbackIcon={Ellipse} activeTool={props.activeTool} onToolChange={props.onToolChange} />
+            </RibbonGroup>
 
-      <RibbonGroup title="Anotar">
-        <RibbonToolButton tool={textTool} activeTool={props.activeTool} onToolChange={props.onToolChange} />
-        <RibbonToolMenu
-          tools={dimensionTools}
-          fallbackLabel="Cotas"
-          fallbackIcon={Ruler}
-          activeTool={props.activeTool}
-          onToolChange={props.onToolChange}
-        />
-      </RibbonGroup>
+            <RibbonGroup title="Transformar">
+              {transformTools.map((tool) => (
+                <RibbonToolButton key={tool.id} tool={tool} activeTool={props.activeTool} onToolChange={props.onToolChange} />
+              ))}
+            </RibbonGroup>
 
-      <RibbonGroup title="Blocos">
-        {blockTools.map((tool) => (
-          <RibbonToolButton key={tool.id} tool={tool} activeTool={props.activeTool} onToolChange={props.onToolChange} />
-        ))}
-      </RibbonGroup>
+            <RibbonGroup title="Modificar">
+              {modifyTools.map((tool) => (
+                <RibbonToolButton key={tool.id} tool={tool} activeTool={props.activeTool} onToolChange={props.onToolChange} />
+              ))}
+              <RibbonToolMenu tools={arrayTools} fallbackLabel="Array" fallbackIcon={Grid3X3} activeTool={props.activeTool} onToolChange={props.onToolChange} />
+              {modifyExtraTools.map((tool) => (
+                <RibbonToolButton key={tool.id} tool={tool} activeTool={props.activeTool} onToolChange={props.onToolChange} />
+              ))}
+            </RibbonGroup>
+          </>
+        )}
 
-      <RibbonGroup title="Precisao">
-        <button
-          className={`cad-ribbon-btn ${props.snapSettings.enabled ? "active" : ""}`}
-          type="button"
-          onClick={() => props.onSnapSettingsChange({ ...props.snapSettings, enabled: !props.snapSettings.enabled })}
-          title="Alternar snap"
-        >
-          <Magnet size={20} />
-          <span>Snap</span>
-        </button>
-        <details className="cad-ribbon-menu">
-          <summary className="cad-ribbon-btn cad-ribbon-btn-secondary">
-            <ChevronDown size={16} />
-            <span>Modes</span>
-          </summary>
-          <div className="cad-ribbon-popover cad-snap-popover">
-            <SnapCheckbox label="Endpoint" checked={props.snapSettings.endpoint} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, endpoint: checked })} />
-            <SnapCheckbox label="Insertion" checked={props.snapSettings.insertion} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, insertion: checked })} />
-            <SnapCheckbox label="Midpoint" checked={props.snapSettings.midpoint} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, midpoint: checked })} />
-            <SnapCheckbox label="Center" checked={props.snapSettings.center} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, center: checked })} />
-            <SnapCheckbox label="Quadrant" checked={props.snapSettings.quadrant} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, quadrant: checked })} />
-            <SnapCheckbox label="Intersection" checked={props.snapSettings.intersection} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, intersection: checked })} />
-            <SnapCheckbox label="Perpendicular" checked={props.snapSettings.perpendicular} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, perpendicular: checked })} />
-            <SnapCheckbox label="Tangent" checked={props.snapSettings.tangent} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, tangent: checked })} />
-            <SnapCheckbox label="Nearest" checked={props.snapSettings.nearest} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, nearest: checked })} />
-          </div>
-        </details>
-        <button className="cad-ribbon-btn cad-ribbon-btn-disabled" type="button" title="Grid placeholder">
-          <Grip size={20} />
-          <span>Grid</span>
-        </button>
-        <button className="cad-ribbon-btn cad-ribbon-btn-disabled" type="button" title="Ortho placeholder">
-          <Maximize size={20} />
-          <span>Ortho</span>
-        </button>
-      </RibbonGroup>
+        {activeTab === "anotar" && (
+          <RibbonGroup title="Anotar">
+            <RibbonToolButton tool={textTool} activeTool={props.activeTool} onToolChange={props.onToolChange} />
+            <RibbonToolMenu tools={dimensionTools} fallbackLabel="Cotas" fallbackIcon={Ruler} activeTool={props.activeTool} onToolChange={props.onToolChange} />
+          </RibbonGroup>
+        )}
 
-      <RibbonGroup title="Camadas" wide>
-        <div className="cad-ribbon-layer">
-          <Layers size={16} />
-          <span title={props.activeLayerName}>{props.activeLayerName}</span>
-        </div>
-        <button className="cad-ribbon-icon-btn" type="button" onClick={props.onCreateLayer} title="Criar layer">
-          <Plus size={16} />
-        </button>
-        <button className={`cad-ribbon-icon-btn ${props.activeLayerVisible ? "active" : ""}`} type="button" onClick={props.onToggleActiveLayerVisibility} title="Visibilidade da layer ativa">
-          {props.activeLayerVisible ? <Eye size={16} /> : <EyeOff size={16} />}
-        </button>
-        <button className={`cad-ribbon-icon-btn ${props.activeLayerLocked ? "active danger" : ""}`} type="button" onClick={props.onToggleActiveLayerLock} title="Bloqueio da layer ativa">
-          {props.activeLayerLocked ? <Lock size={16} /> : <Unlock size={16} />}
-        </button>
-      </RibbonGroup>
+        {activeTab === "inserir" && (
+          <RibbonGroup title="Blocos">
+            {blockTools.map((tool) => (
+              <RibbonToolButton key={tool.id} tool={tool} activeTool={props.activeTool} onToolChange={props.onToolChange} />
+            ))}
+          </RibbonGroup>
+        )}
 
-      <RibbonGroup title="Arquivo">
-        <RibbonActionMenu label="Importar" icon={Download} actions={importActions} />
-        <RibbonActionMenu label="Exportar" icon={Upload} actions={exportActions} />
-        <button className="cad-ribbon-btn danger" type="button" onClick={props.onClear} title="Limpar desenho">
-          <Trash2 size={20} />
-          <span>Clear</span>
-        </button>
-      </RibbonGroup>
-    </nav>
+        {activeTab === "precisao" && (
+          <>
+            <RibbonGroup title="Precisao">
+              <button
+                className={`cad-ribbon-btn ${props.snapSettings.enabled ? "active" : ""}`}
+                type="button"
+                onClick={() => props.onSnapSettingsChange({ ...props.snapSettings, enabled: !props.snapSettings.enabled })}
+                title="Alternar snap"
+              >
+                <Magnet size={20} />
+                <span>Snap</span>
+              </button>
+              <details className="cad-ribbon-menu">
+                <summary className="cad-ribbon-btn cad-ribbon-btn-secondary">
+                  <ChevronDown size={16} />
+                  <span>Modes</span>
+                </summary>
+                <div className="cad-ribbon-popover cad-snap-popover">
+                  <SnapCheckbox label="Endpoint" checked={props.snapSettings.endpoint} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, endpoint: checked })} />
+                  <SnapCheckbox label="Insertion" checked={props.snapSettings.insertion} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, insertion: checked })} />
+                  <SnapCheckbox label="Midpoint" checked={props.snapSettings.midpoint} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, midpoint: checked })} />
+                  <SnapCheckbox label="Center" checked={props.snapSettings.center} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, center: checked })} />
+                  <SnapCheckbox label="Quadrant" checked={props.snapSettings.quadrant} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, quadrant: checked })} />
+                  <SnapCheckbox label="Intersection" checked={props.snapSettings.intersection} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, intersection: checked })} />
+                  <SnapCheckbox label="Perpendicular" checked={props.snapSettings.perpendicular} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, perpendicular: checked })} />
+                  <SnapCheckbox label="Tangent" checked={props.snapSettings.tangent} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, tangent: checked })} />
+                  <SnapCheckbox label="Nearest" checked={props.snapSettings.nearest} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, nearest: checked })} />
+                </div>
+              </details>
+              <button className="cad-ribbon-btn cad-ribbon-btn-disabled" type="button" title="Grid placeholder">
+                <Grip size={20} />
+                <span>Grid</span>
+              </button>
+              <button className="cad-ribbon-btn cad-ribbon-btn-disabled" type="button" title="Ortho placeholder">
+                <Maximize size={20} />
+                <span>Ortho</span>
+              </button>
+            </RibbonGroup>
+
+            <RibbonGroup title="Camadas" wide>
+              <div className="cad-ribbon-layer">
+                <Layers size={16} />
+                <span title={props.activeLayerName}>{props.activeLayerName}</span>
+              </div>
+              <button className="cad-ribbon-icon-btn" type="button" onClick={props.onCreateLayer} title="Criar layer">
+                <Plus size={16} />
+              </button>
+              <button className={`cad-ribbon-icon-btn ${props.activeLayerVisible ? "active" : ""}`} type="button" onClick={props.onToggleActiveLayerVisibility} title="Visibilidade da layer ativa">
+                {props.activeLayerVisible ? <Eye size={16} /> : <EyeOff size={16} />}
+              </button>
+              <button className={`cad-ribbon-icon-btn ${props.activeLayerLocked ? "active danger" : ""}`} type="button" onClick={props.onToggleActiveLayerLock} title="Bloqueio da layer ativa">
+                {props.activeLayerLocked ? <Lock size={16} /> : <Unlock size={16} />}
+              </button>
+            </RibbonGroup>
+          </>
+        )}
+
+        {activeTab === "arquivo" && (
+          <RibbonGroup title="Arquivo">
+            <RibbonActionMenu label="Importar" icon={Download} actions={importActions} />
+            <RibbonActionMenu label="Exportar" icon={Upload} actions={exportActions} />
+            <button className="cad-ribbon-btn danger" type="button" onClick={props.onClear} title="Limpar desenho">
+              <Trash2 size={20} />
+              <span>Clear</span>
+            </button>
+          </RibbonGroup>
+        )}
+      </nav>
+    </div>
   );
 }
 

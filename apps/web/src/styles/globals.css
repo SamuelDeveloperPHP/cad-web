@@ -328,6 +328,46 @@ button {
   outline: none;
 }
 
+.cad-ribbon-shell {
+  position: relative;
+  z-index: 180;
+  display: flex;
+  flex-direction: column;
+  background: #202428;
+}
+
+.cad-ribbon-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 6px 10px 0;
+  background: #202428;
+}
+
+.cad-ribbon-tab {
+  padding: 7px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--cad-text-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+}
+
+.cad-ribbon-tab:hover,
+.cad-ribbon-tab:focus-visible {
+  outline: none;
+  color: var(--cad-text-strong);
+}
+
+.cad-ribbon-tab.active {
+  color: var(--cad-text-strong);
+  border-bottom-color: var(--cad-active-border);
+}
+
 .cad-ribbon {
   position: relative;
   z-index: 180;
