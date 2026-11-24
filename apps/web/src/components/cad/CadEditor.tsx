@@ -2,7 +2,7 @@ import { CreateLayerCommand, ToggleLayerLockCommand, ToggleLayerVisibilityComman
 import { ChangeDisplayUnitCommand } from "@cad-web/cad-tools";
 import { useEffect, useRef, useState } from "react";
 import { useCadStore } from "../../state/useCadStore";
-import { downloadCadDocument, downloadSvgDocument, readCadDocumentFile, readDxfDocumentFile, readSvgDocumentFile } from "../../services/cadJsonExport";
+import { downloadCadDocument, downloadDxfDocument, downloadSvgDocument, readCadDocumentFile, readDxfDocumentFile, readSvgDocumentFile } from "../../services/cadJsonExport";
 import { createToolKeyboardEvent } from "../../tools/toolEvents";
 import { CadCanvas } from "./CadCanvas";
 import { CadCommandLine } from "./CadCommandLine";
@@ -143,6 +143,11 @@ export function CadEditor() {
         onExportSvg={() => {
           if (confirmLargeExport()) {
             downloadSvgDocument(cad.document);
+          }
+        }}
+        onExportDxf={() => {
+          if (confirmLargeExport()) {
+            downloadDxfDocument(cad.document);
           }
         }}
         onImport={handleImportClick}

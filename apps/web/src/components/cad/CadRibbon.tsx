@@ -56,6 +56,7 @@ type CadRibbonProps = Readonly<{
   onClear(): void;
   onExport(): void;
   onExportSvg(): void;
+  onExportDxf(): void;
   onImport(): void;
   onImportSvg(): void;
   onImportDxf(): void;
@@ -174,7 +175,8 @@ export function CadRibbon(props: CadRibbonProps) {
   ];
   const exportActions: ReadonlyArray<RibbonAction> = [
     { label: "JSON", icon: Upload, onSelect: props.onExport, title: "Exportar JSON" },
-    { label: "SVG", icon: Upload, onSelect: props.onExportSvg, title: "Exportar SVG" }
+    { label: "SVG", icon: Upload, onSelect: props.onExportSvg, title: "Exportar SVG" },
+    { label: "DXF", icon: Upload, onSelect: props.onExportDxf, title: "Exportar DXF (ASCII R12)" }
   ];
 
   return (
