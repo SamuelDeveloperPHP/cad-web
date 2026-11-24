@@ -2,7 +2,7 @@ import { CreateLayerCommand, ToggleLayerLockCommand, ToggleLayerVisibilityComman
 import { ChangeDisplayUnitCommand } from "@cad-web/cad-tools";
 import { useEffect, useRef, useState } from "react";
 import { useCadStore } from "../../state/useCadStore";
-import { downloadCadDocument, downloadSvgDocument, readCadDocumentFile, readDxfDocumentFile, readSvgDocumentFile } from "../../services/cadJsonExport";
+import { downloadCadDocument, downloadDxfDocument, downloadSvgDocument, readCadDocumentFile, readDxfDocumentFile, readSvgDocumentFile } from "../../services/cadJsonExport";
 import { createToolKeyboardEvent } from "../../tools/toolEvents";
 import { CadCanvas } from "./CadCanvas";
 import { CadCommandLine } from "./CadCommandLine";
@@ -145,6 +145,11 @@ export function CadEditor() {
             downloadSvgDocument(cad.document);
           }
         }}
+        onExportDxf={() => {
+          if (confirmLargeExport()) {
+            downloadDxfDocument(cad.document);
+          }
+        }}
         onImport={handleImportClick}
         onImportSvg={handleImportSvgClick}
         onImportDxf={handleImportDxfClick}
@@ -162,6 +167,10 @@ export function CadEditor() {
             cad.executeCommand(new ToggleLayerLockCommand(activeLayer.id, !activeLayer.locked));
           }
         }}
+        orthoMode={cad.orthoMode}
+        gridVisible={cad.gridVisible}
+        onToggleOrtho={cad.toggleOrtho}
+        onToggleGrid={cad.toggleGrid}
       />
 
       <div className="cad-editor">
@@ -210,6 +219,10 @@ export function CadEditor() {
         onZoomWindow={() => cad.setActiveTool(cad.activeTool === "zoomWindow" ? "select" : "zoomWindow")}
         onZoomPrevious={cad.zoomPrevious}
         zoomWindowActive={cad.activeTool === "zoomWindow"}
+        orthoMode={cad.orthoMode}
+        gridVisible={cad.gridVisible}
+        onToggleOrtho={cad.toggleOrtho}
+        onToggleGrid={cad.toggleGrid}
       />
 
       <input

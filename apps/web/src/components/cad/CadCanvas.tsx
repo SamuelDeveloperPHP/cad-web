@@ -1,4 +1,4 @@
-import { convertUnit, type Point2D } from "@cad-web/cad-geometry";
+import { constrainToOrtho, convertUnit, type Point2D } from "@cad-web/cad-geometry";
 import {
   configureCanvasForDevicePixelRatio,
   DEFAULT_RENDER_STYLE,
@@ -29,7 +29,9 @@ import type { CadStore } from "../../state/useCadStore";
 import { createToolPointerEvent } from "../../tools/toolEvents";
 import { cadDiagnostics } from "../../diagnostics/CadDiagnosticsService";
 import type { ToolMenuItem } from "@cad-web/cad-tools";
+import { findNearestEntityId } from "@cad-web/cad-tools";
 import type { CadEntity } from "@cad-web/cad-core";
+import { UpdateEntityCommand } from "@cad-web/cad-core";
 import { CadContextMenu } from "./CadContextMenu";
 import { ProgressiveLayer } from "./progressiveLayer";
 import { DynamicInputOverlay } from "./DynamicInputOverlay";
@@ -78,6 +80,10 @@ export function CadCanvas({ cad }: CadCanvasProps) {
   dynActiveFieldRef.current = dynActiveField;
 
   const [screenSize, setScreenSize] = useState<ScreenSize>({ width: 1, height: 1 });
+  // Edição inline de texto no canvas (duplo clique sobre uma entidade de texto).
+  const [textEdit, setTextEdit] = useState<Readonly<{ id: string; value: string; left: number; top: number; fontPx: number }> | null>(null);
+  // Garante um único commit: o Enter confirma e o blur seguinte (pelo desmonte do input) não repete.
+  const textEditCommittedRef = useRef(false);
   const screenSizeRef = useRef(screenSize);
   screenSizeRef.current = screenSize;
 
@@ -96,7 +102,10 @@ export function CadCanvas({ cad }: CadCanvasProps) {
     const screen = screenSizeRef.current;
 
     layer.request(store.viewport, (context) => {
-      renderGrid2D(context, store.viewport, screen);
+      // O grid de referencia pode ser ocultado pelo botao Grid (aba Precisao).
+      if (store.gridVisible) {
+        renderGrid2D(context, store.viewport, screen);
+      }
       return new DocumentRenderJob(context, store.document, store.viewport, DEFAULT_RENDER_STYLE, { screenSize: screen });
     });
   }, []);
@@ -208,7 +217,7 @@ export function CadCanvas({ cad }: CadCanvasProps) {
   // useLayoutEffect para a transformação CSS de acompanhamento valer já no quadro em que o viewport mudou.
   useLayoutEffect(() => {
     scheduleBaseDraw();
-  }, [cad.document, cad.viewport, scheduleBaseDraw]);
+  }, [cad.document, cad.viewport, cad.gridVisible, scheduleBaseDraw]);
 
   // O destaque da seleção também é uma camada em cache: não é redesenhado a cada movimento do mouse.
   useLayoutEffect(() => {
@@ -463,6 +472,46 @@ export function CadCanvas({ cad }: CadCanvasProps) {
     );
   };
 
+  const commitTextEdit = () => {
+    if (textEdit === null || textEditCommittedRef.current) {
+      return;
+    }
+    textEditCommittedRef.current = true;
+    const entity = cad.document.entities.find((e) => e.id === textEdit.id);
+    const value = textEdit.value.trim();
+    if (entity !== undefined && entity.type === "text" && value !== "" && value !== entity.content) {
+      cad.executeCommand(new UpdateEntityCommand(textEdit.id, { content: value } as Partial<CadEntity>));
+    }
+    setTextEdit(null);
+  };
+
+  const cancelTextEdit = () => {
+    textEditCommittedRef.current = true;
+    setTextEdit(null);
+  };
+
+  // Duplo clique sobre um texto (no estado Select) abre o editor inline posicionado sobre a entidade.
+  const handleDoubleClick = (event: ReactMouseEvent<HTMLCanvasElement>) => {
+    if (cad.activeTool !== "select") {
+      return;
+    }
+    const screenPoint = toScreenPoint(event);
+    const worldPoint = screenToWorld(screenPoint, cad.viewport);
+    const toleranceWorld = 6 / Math.max(cad.viewport.scale, 1e-6);
+    const id = findNearestEntityId(cad.document, { worldPoint, toleranceWorld });
+    if (id === null) {
+      return;
+    }
+    const entity = cad.document.entities.find((e) => e.id === id);
+    if (entity === undefined || entity.type !== "text") {
+      return;
+    }
+    const anchor = worldToScreen(entity.position, cad.viewport);
+    const fontPx = Math.max(11, entity.height * cad.viewport.scale);
+    textEditCommittedRef.current = false;
+    setTextEdit({ id, value: entity.content, left: anchor.x, top: anchor.y - fontPx, fontPx });
+  };
+
   return (
     <div ref={hostRef} className={`cad-canvas-host ${cad.activeTool === "zoomWindow" ? "zoom-window-mode" : ""}`}>
       <canvas ref={baseCanvasRef} className="cad-canvas cad-canvas-base" />
@@ -471,6 +520,7 @@ export function CadCanvas({ cad }: CadCanvasProps) {
         ref={overlayCanvasRef}
         className="cad-canvas cad-canvas-overlay"
         onPointerDown={handlePointerDown}
+        onDoubleClick={handleDoubleClick}
         onPointerMove={handlePointerMove}
         onPointerUp={(event) => {
           const screenPoint = toScreenPoint(event);
@@ -554,12 +604,31 @@ export function CadCanvas({ cad }: CadCanvasProps) {
         <DynamicInputOverlay
           mode={dynamicInputModeForTool(cad.activeTool)}
           referencePoint={cad.activeToolReferencePoint}
-          cursorWorld={cad.mouseWorld}
+          cursorWorld={cad.orthoMode ? constrainToOrtho(cad.activeToolReferencePoint, cad.mouseWorld) : cad.mouseWorld}
           viewport={cad.viewport}
           draft={dynDraft}
           activeField={dynActiveField}
           unitScale={convertUnit(1, cad.document.displayUnit || cad.document.units, cad.document.units)}
           unitLabel={cad.document.displayUnit || cad.document.units}
+        />
+      )}
+      {textEdit !== null && (
+        <input
+          className="cad-text-edit"
+          autoFocus
+          value={textEdit.value}
+          style={{ left: `${textEdit.left}px`, top: `${textEdit.top}px`, fontSize: `${textEdit.fontPx}px` }}
+          onChange={(event) => setTextEdit((current) => (current === null ? null : { ...current, value: event.target.value }))}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              commitTextEdit();
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              cancelTextEdit();
+            }
+          }}
+          onBlur={commitTextEdit}
         />
       )}
     </div>
@@ -607,7 +676,7 @@ function drawOverlayLayer(canvas: HTMLCanvasElement, cad: CadStore, screenSize: 
   renderActiveSnapMarker(context, cad);
 
   if (cad.guideSettings.dynamicInput && cad.activeToolReferencePoint !== null) {
-    renderAngleArc2D(context, cad.activeToolReferencePoint, cad.mouseWorld, cad.viewport);
+    renderAngleArc2D(context, cad.activeToolReferencePoint, cad.orthoMode ? constrainToOrtho(cad.activeToolReferencePoint, cad.mouseWorld) : cad.mouseWorld, cad.viewport);
   }
 }
 

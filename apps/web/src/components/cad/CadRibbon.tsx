@@ -10,6 +10,8 @@ import {
   CornerRightDown,
   Copy,
   FlipHorizontal2,
+  Frame,
+  Hand,
   Download,
   Grid3X3,
   RotateCcw,
@@ -54,6 +56,7 @@ type CadRibbonProps = Readonly<{
   onClear(): void;
   onExport(): void;
   onExportSvg(): void;
+  onExportDxf(): void;
   onImport(): void;
   onImportSvg(): void;
   onImportDxf(): void;
@@ -63,6 +66,10 @@ type CadRibbonProps = Readonly<{
   onCreateLayer(): void;
   onToggleActiveLayerVisibility(): void;
   onToggleActiveLayerLock(): void;
+  orthoMode: boolean;
+  gridVisible: boolean;
+  onToggleOrtho(): void;
+  onToggleGrid(): void;
 }>;
 
 type RibbonTool = Readonly<{
@@ -89,6 +96,12 @@ const ribbonTabs: ReadonlyArray<Readonly<{ id: RibbonTabId; label: string }>> = 
 ];
 
 const selectTool: RibbonTool = { id: "select", label: "Select", icon: MousePointer2 };
+
+// Navegacao da viewport (ja implementadas no canvas/store; aqui so expostas no menu).
+const navTools: ReadonlyArray<RibbonTool> = [
+  { id: "pan", label: "Pan", icon: Hand },
+  { id: "zoomWindow", label: "Zoom", icon: Frame }
+];
 
 // Primitivas de desenho mais usadas, sempre visiveis.
 const drawPrimaryTools: ReadonlyArray<RibbonTool> = [
@@ -162,7 +175,8 @@ export function CadRibbon(props: CadRibbonProps) {
   ];
   const exportActions: ReadonlyArray<RibbonAction> = [
     { label: "JSON", icon: Upload, onSelect: props.onExport, title: "Exportar JSON" },
-    { label: "SVG", icon: Upload, onSelect: props.onExportSvg, title: "Exportar SVG" }
+    { label: "SVG", icon: Upload, onSelect: props.onExportSvg, title: "Exportar SVG" },
+    { label: "DXF", icon: Upload, onSelect: props.onExportDxf, title: "Exportar DXF (ASCII R12)" }
   ];
 
   return (
@@ -187,6 +201,12 @@ export function CadRibbon(props: CadRibbonProps) {
           <>
             <RibbonGroup title="Selecionar">
               <RibbonToolButton tool={selectTool} activeTool={props.activeTool} onToolChange={props.onToolChange} />
+            </RibbonGroup>
+
+            <RibbonGroup title="Navegar">
+              {navTools.map((tool) => (
+                <RibbonToolButton key={tool.id} tool={tool} activeTool={props.activeTool} onToolChange={props.onToolChange} />
+              ))}
             </RibbonGroup>
 
             <RibbonGroup title="Desenhar">
@@ -258,11 +278,21 @@ export function CadRibbon(props: CadRibbonProps) {
                   <SnapCheckbox label="Nearest" checked={props.snapSettings.nearest} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, nearest: checked })} />
                 </div>
               </details>
-              <button className="cad-ribbon-btn cad-ribbon-btn-disabled" type="button" title="Grid placeholder">
+              <button
+                className={`cad-ribbon-btn ${props.gridVisible ? "active" : ""}`}
+                type="button"
+                onClick={props.onToggleGrid}
+                title="Mostrar/ocultar o grid de referência"
+              >
                 <Grip size={20} />
                 <span>Grid</span>
               </button>
-              <button className="cad-ribbon-btn cad-ribbon-btn-disabled" type="button" title="Ortho placeholder">
+              <button
+                className={`cad-ribbon-btn ${props.orthoMode ? "active" : ""}`}
+                type="button"
+                onClick={props.onToggleOrtho}
+                title="Ortho: trava o traçado em horizontal/vertical"
+              >
                 <Maximize size={20} />
                 <span>Ortho</span>
               </button>

@@ -1,6 +1,6 @@
 import type { CadDocument } from "@cad-web/cad-core";
 import { parseDxfBuffer, parseJsonDocument } from "./documentParser";
-import { parseSvgDocument, serializeCadDocument, serializeCadDocumentToSvg, type DxfImportResult } from "@cad-web/cad-io";
+import { parseSvgDocument, serializeCadDocument, serializeCadDocumentToDxf, serializeCadDocumentToSvg, type DxfImportResult } from "@cad-web/cad-io";
 
 export function downloadCadDocument(document: CadDocument): void {
   const blob = new Blob([serializeCadDocument(document)], {
@@ -19,6 +19,17 @@ export function downloadSvgDocument(document: CadDocument): void {
   });
   const url = URL.createObjectURL(blob);
   const anchor = documentCreateDownloadAnchor(url, "cad-web-drawing.svg");
+
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export function downloadDxfDocument(document: CadDocument): void {
+  const blob = new Blob([serializeCadDocumentToDxf(document)], {
+    type: "application/dxf"
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = documentCreateDownloadAnchor(url, "cad-web-drawing.dxf");
 
   anchor.click();
   URL.revokeObjectURL(url);

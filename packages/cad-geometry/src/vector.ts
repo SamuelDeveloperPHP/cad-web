@@ -13,6 +13,16 @@ export function pointsNearlyEqual(a: Point2D, b: Point2D, epsilon = CAD_EPSILON)
   return nearlyEqual(a.x, b.x, epsilon) && nearlyEqual(a.y, b.y, epsilon);
 }
 
+// Restringe `point` ao eixo horizontal ou vertical que passa por `reference` — o eixo de maior
+// deslocamento, como o modo Ortho do AutoCAD. No empate (|dx| == |dy|), prefere o horizontal.
+export function constrainToOrtho(reference: Point2D, point: Point2D): Point2D {
+  const dx = point.x - reference.x;
+  const dy = point.y - reference.y;
+  return Math.abs(dx) >= Math.abs(dy)
+    ? { x: point.x, y: reference.y }
+    : { x: reference.x, y: point.y };
+}
+
 export function addVector(point2D: Point2D, vector2D: Vector2D): Point2D {
   return {
     x: point2D.x + vector2D.x,

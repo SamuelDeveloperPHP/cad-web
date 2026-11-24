@@ -649,6 +649,22 @@ button {
   background: var(--cad-bg-dark);
 }
 
+/* Editor inline de texto, aberto por duplo clique sobre uma entidade de texto. */
+.cad-text-edit {
+  position: absolute;
+  z-index: 60;
+  min-width: 64px;
+  padding: 1px 6px;
+  background: #0b1119;
+  border: 1px solid var(--cad-active-border);
+  border-radius: 4px;
+  color: var(--cad-text-strong);
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+  line-height: 1.25;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(79, 142, 230, 0.25);
+}
+
 .cad-canvas {
   display: block;
   width: 100%;

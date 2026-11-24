@@ -93,6 +93,8 @@ export type CadStore = Readonly<{
   snapSettings: SnapSettings;
   snapResult: SnapResult | null;
   guideSettings: GuideSettings;
+  orthoMode: boolean;
+  gridVisible: boolean;
   activeToolReferencePoint: Point2D | null;
   // A ferramenta ativa espera texto livre na linha de comando (ex.: conteúdo do Text).
   activeToolAcceptsFreeText: boolean;
@@ -116,6 +118,8 @@ export type CadStore = Readonly<{
   toggleCursorGuides(): void;
   toggleAxisLines(): void;
   toggleDynamicInput(): void;
+  toggleOrtho(): void;
+  toggleGrid(): void;
   panByScreenDelta(delta: Point2D): void;
   dispatchPointerDown(event: ToolPointerEvent): void;
   dispatchPointerMove(event: ToolPointerEvent): void;
@@ -186,6 +190,9 @@ export function useCadStore(): CadStore {
   const [snapSettings, setSnapSettingsState] = useState<SnapSettings>(() => loadStoredSnapSettings());
   const [snapResult, setSnapResult] = useState<SnapResult | null>(null);
   const [guideSettings, setGuideSettingsState] = useState<GuideSettings>(() => loadStoredGuideSettings());
+  // Ortho (trava H/V no tracado) e visibilidade do grid. Estado de sessao, sem persistencia.
+  const [orthoMode, setOrthoMode] = useState(false);
+  const [gridVisible, setGridVisible] = useState(true);
   const [message, setMessageState] = useState<string>("");
   const messageTimeoutRef = useRef<number | null>(null);
   // O ref mantém o runCommandLine mais recente acessível dentro do prompt numérico adiado (raio do Fillet, distância do Chamfer).
@@ -217,6 +224,10 @@ export function useCadStore(): CadStore {
   const toggleCursorGuides = useCallback(() => {
     setGuideSettingsState((current) => ({ ...current, cursorGuides: !current.cursorGuides }));
   }, []);
+
+  const toggleOrtho = useCallback(() => setOrthoMode((current) => !current), []);
+
+  const toggleGrid = useCallback(() => setGridVisible((current) => !current), []);
 
   const toggleAxisLines = useCallback(() => {
     setGuideSettingsState((current) => ({ ...current, axisLines: !current.axisLines }));
@@ -336,7 +347,7 @@ export function useCadStore(): CadStore {
       commandBus: {
         execute: applyCommand
       },
-      orthoMode: false,
+      orthoMode,
       units: document.units,
       precision: 3,
       // Fator mm por unidade de trabalho: converte o que o usuário digita (na unidade selecionada) para a base.
@@ -363,7 +374,7 @@ export function useCadStore(): CadStore {
       },
       cancelCurrentTool: () => setPreview(null)
     }),
-    [applyCommand, document, selectedEntityIds, snapService, viewport]
+    [applyCommand, document, orthoMode, selectedEntityIds, snapService, viewport]
   );
 
   const updateSnapResultFromPointer = useCallback((event: ToolPointerEvent, context: ToolContext) => {
@@ -844,6 +855,8 @@ export function useCadStore(): CadStore {
       snapSettings,
       snapResult,
       guideSettings,
+      orthoMode,
+      gridVisible,
       activeToolReferencePoint,
       activeToolAcceptsFreeText,
       canUndo: historyAvailability.canUndo,
@@ -865,6 +878,8 @@ export function useCadStore(): CadStore {
       toggleCursorGuides,
       toggleAxisLines,
       toggleDynamicInput,
+      toggleOrtho,
+      toggleGrid,
       panByScreenDelta,
       dispatchPointerDown,
       dispatchPointerMove,
@@ -909,6 +924,10 @@ export function useCadStore(): CadStore {
       toggleCursorGuides,
       toggleAxisLines,
       toggleDynamicInput,
+      toggleOrtho,
+      toggleGrid,
+      orthoMode,
+      gridVisible,
       message,
       showMessage,
       undo,
