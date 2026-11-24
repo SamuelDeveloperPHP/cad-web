@@ -10,6 +10,8 @@ import {
   CornerRightDown,
   Copy,
   FlipHorizontal2,
+  Frame,
+  Hand,
   Download,
   Grid3X3,
   RotateCcw,
@@ -89,6 +91,12 @@ const ribbonTabs: ReadonlyArray<Readonly<{ id: RibbonTabId; label: string }>> = 
 ];
 
 const selectTool: RibbonTool = { id: "select", label: "Select", icon: MousePointer2 };
+
+// Navegacao da viewport (ja implementadas no canvas/store; aqui so expostas no menu).
+const navTools: ReadonlyArray<RibbonTool> = [
+  { id: "pan", label: "Pan", icon: Hand },
+  { id: "zoomWindow", label: "Zoom", icon: Frame }
+];
 
 // Primitivas de desenho mais usadas, sempre visiveis.
 const drawPrimaryTools: ReadonlyArray<RibbonTool> = [
@@ -187,6 +195,12 @@ export function CadRibbon(props: CadRibbonProps) {
           <>
             <RibbonGroup title="Selecionar">
               <RibbonToolButton tool={selectTool} activeTool={props.activeTool} onToolChange={props.onToolChange} />
+            </RibbonGroup>
+
+            <RibbonGroup title="Navegar">
+              {navTools.map((tool) => (
+                <RibbonToolButton key={tool.id} tool={tool} activeTool={props.activeTool} onToolChange={props.onToolChange} />
+              ))}
             </RibbonGroup>
 
             <RibbonGroup title="Desenhar">
