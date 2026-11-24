@@ -1,4 +1,4 @@
-import { convertUnit, type Point2D } from "@cad-web/cad-geometry";
+import { constrainToOrtho, convertUnit, type Point2D } from "@cad-web/cad-geometry";
 import {
   configureCanvasForDevicePixelRatio,
   DEFAULT_RENDER_STYLE,
@@ -96,7 +96,10 @@ export function CadCanvas({ cad }: CadCanvasProps) {
     const screen = screenSizeRef.current;
 
     layer.request(store.viewport, (context) => {
-      renderGrid2D(context, store.viewport, screen);
+      // O grid de referencia pode ser ocultado pelo botao Grid (aba Precisao).
+      if (store.gridVisible) {
+        renderGrid2D(context, store.viewport, screen);
+      }
       return new DocumentRenderJob(context, store.document, store.viewport, DEFAULT_RENDER_STYLE, { screenSize: screen });
     });
   }, []);
@@ -208,7 +211,7 @@ export function CadCanvas({ cad }: CadCanvasProps) {
   // useLayoutEffect para a transformação CSS de acompanhamento valer já no quadro em que o viewport mudou.
   useLayoutEffect(() => {
     scheduleBaseDraw();
-  }, [cad.document, cad.viewport, scheduleBaseDraw]);
+  }, [cad.document, cad.viewport, cad.gridVisible, scheduleBaseDraw]);
 
   // O destaque da seleção também é uma camada em cache: não é redesenhado a cada movimento do mouse.
   useLayoutEffect(() => {
@@ -554,7 +557,7 @@ export function CadCanvas({ cad }: CadCanvasProps) {
         <DynamicInputOverlay
           mode={dynamicInputModeForTool(cad.activeTool)}
           referencePoint={cad.activeToolReferencePoint}
-          cursorWorld={cad.mouseWorld}
+          cursorWorld={cad.orthoMode ? constrainToOrtho(cad.activeToolReferencePoint, cad.mouseWorld) : cad.mouseWorld}
           viewport={cad.viewport}
           draft={dynDraft}
           activeField={dynActiveField}
@@ -607,7 +610,7 @@ function drawOverlayLayer(canvas: HTMLCanvasElement, cad: CadStore, screenSize: 
   renderActiveSnapMarker(context, cad);
 
   if (cad.guideSettings.dynamicInput && cad.activeToolReferencePoint !== null) {
-    renderAngleArc2D(context, cad.activeToolReferencePoint, cad.mouseWorld, cad.viewport);
+    renderAngleArc2D(context, cad.activeToolReferencePoint, cad.orthoMode ? constrainToOrtho(cad.activeToolReferencePoint, cad.mouseWorld) : cad.mouseWorld, cad.viewport);
   }
 }
 

@@ -162,6 +162,10 @@ export function CadEditor() {
             cad.executeCommand(new ToggleLayerLockCommand(activeLayer.id, !activeLayer.locked));
           }
         }}
+        orthoMode={cad.orthoMode}
+        gridVisible={cad.gridVisible}
+        onToggleOrtho={cad.toggleOrtho}
+        onToggleGrid={cad.toggleGrid}
       />
 
       <div className="cad-editor">
@@ -210,6 +214,10 @@ export function CadEditor() {
         onZoomWindow={() => cad.setActiveTool(cad.activeTool === "zoomWindow" ? "select" : "zoomWindow")}
         onZoomPrevious={cad.zoomPrevious}
         zoomWindowActive={cad.activeTool === "zoomWindow"}
+        orthoMode={cad.orthoMode}
+        gridVisible={cad.gridVisible}
+        onToggleOrtho={cad.toggleOrtho}
+        onToggleGrid={cad.toggleGrid}
       />
 
       <input

@@ -1,4 +1,5 @@
 import {
+  constrainToOrtho,
   DEFAULT_SNAP_SETTINGS,
   findBestSnap,
   snapToleranceWorld,
@@ -122,5 +123,14 @@ export function resolveSnappedPoint(
   extraEntities?: ReadonlyArray<SnapEntity>,
   referencePoint?: Point2D
 ): Point2D {
-  return context.snapService.findSnap(event, context, extraEntities, referencePoint)?.point ?? event.worldPoint;
+  const snap = context.snapService.findSnap(event, context, extraEntities, referencePoint);
+  // Um snap de objeto real tem prioridade sobre o Ortho (como no AutoCAD).
+  if (snap?.snapped === true) {
+    return snap.point;
+  }
+  // Com o Ortho ligado e um ponto de referencia (ex.: inicio da linha), trava o ponto no eixo H/V.
+  if (context.orthoMode === true && referencePoint !== undefined) {
+    return constrainToOrtho(referencePoint, event.worldPoint);
+  }
+  return snap?.point ?? event.worldPoint;
 }

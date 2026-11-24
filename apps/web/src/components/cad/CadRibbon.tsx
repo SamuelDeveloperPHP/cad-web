@@ -65,6 +65,10 @@ type CadRibbonProps = Readonly<{
   onCreateLayer(): void;
   onToggleActiveLayerVisibility(): void;
   onToggleActiveLayerLock(): void;
+  orthoMode: boolean;
+  gridVisible: boolean;
+  onToggleOrtho(): void;
+  onToggleGrid(): void;
 }>;
 
 type RibbonTool = Readonly<{
@@ -272,11 +276,21 @@ export function CadRibbon(props: CadRibbonProps) {
                   <SnapCheckbox label="Nearest" checked={props.snapSettings.nearest} onChange={(checked) => props.onSnapSettingsChange({ ...props.snapSettings, nearest: checked })} />
                 </div>
               </details>
-              <button className="cad-ribbon-btn cad-ribbon-btn-disabled" type="button" title="Grid placeholder">
+              <button
+                className={`cad-ribbon-btn ${props.gridVisible ? "active" : ""}`}
+                type="button"
+                onClick={props.onToggleGrid}
+                title="Mostrar/ocultar o grid de referência"
+              >
                 <Grip size={20} />
                 <span>Grid</span>
               </button>
-              <button className="cad-ribbon-btn cad-ribbon-btn-disabled" type="button" title="Ortho placeholder">
+              <button
+                className={`cad-ribbon-btn ${props.orthoMode ? "active" : ""}`}
+                type="button"
+                onClick={props.onToggleOrtho}
+                title="Ortho: trava o traçado em horizontal/vertical"
+              >
                 <Maximize size={20} />
                 <span>Ortho</span>
               </button>

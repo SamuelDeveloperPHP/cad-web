@@ -31,6 +31,10 @@ type CadStatusBarProps = Readonly<{
   onZoomWindow(): void;
   onZoomPrevious(): void;
   zoomWindowActive: boolean;
+  orthoMode: boolean;
+  gridVisible: boolean;
+  onToggleOrtho(): void;
+  onToggleGrid(): void;
 }>;
 
 const toolLabels: Record<ActiveCadTool, string> = {
@@ -91,6 +95,10 @@ export function CadStatusBar({
   onZoomPrevious,
   onZoomWindow,
   snapSettings,
+  gridVisible,
+  orthoMode,
+  onToggleGrid,
+  onToggleOrtho,
   zoom,
   zoomWindowActive
 }: CadStatusBarProps) {
@@ -147,10 +155,20 @@ export function CadStatusBar({
         >
           SNAP
         </button>
-        <button className="cad-statusbar-btn" type="button" title="Grid placeholder">
+        <button
+          className={`cad-statusbar-btn ${gridVisible ? "active" : ""}`}
+          type="button"
+          onClick={onToggleGrid}
+          title="Mostrar/ocultar o grid de referência"
+        >
           GRID
         </button>
-        <button className="cad-statusbar-btn" type="button" title="Ortho placeholder">
+        <button
+          className={`cad-statusbar-btn ${orthoMode ? "active" : ""}`}
+          type="button"
+          onClick={onToggleOrtho}
+          title="Ortho: trava o traçado em horizontal/vertical"
+        >
           ORTHO
         </button>
         <button
